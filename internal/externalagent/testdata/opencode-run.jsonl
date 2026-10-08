@@ -1,0 +1,10 @@
+{"type":"step_start","sessionID":"ses_synthetic","part":{"id":"step_1","type":"step-start","sessionID":"ses_synthetic","messageID":"msg_1"}}
+{"type":"text","part":{"id":"part_1","type":"text","sessionID":"ses_synthetic","messageID":"msg_1","text":"Olá","time":{"start":1,"end":2}}}
+{"type":"text","sessionID":"ses_synthetic","part":{"id":"part_1","type":"text","messageID":"msg_1","text":"Olá","time":{"start":1,"end":2}}}
+{"type":"text","sessionID":"ses_synthetic","part":{"id":"part_1","type":"text","messageID":"msg_1","text":"Olá mundo","time":{"start":1,"end":3}}}
+{"type":"text","sessionID":"ses_synthetic","part":{"id":"part_1","type":"text","messageID":"msg_1","text":"Olá","time":{"start":1,"end":4}}}
+{"type":"text","sessionID":"ses_synthetic","part":{"id":"part_1","type":"text","messageID":"msg_1","text":"","time":{"start":1,"end":5}}}
+{"type":"text","sessionID":"ses_synthetic","part":{"id":"part_1","type":"text","messageID":"msg_1","text":"","time":{"start":1,"end":5}}}
+{"type":"text","sessionID":"ses_synthetic","part":{"id":"part_2","type":"text","messageID":"msg_1","text":"Segunda parte.","time":{"start":5,"end":6}}}
+{"type":"tool_use","sessionID":"ses_synthetic","part":{"id":"tool_1","type":"tool","text":"RAW_ONLY"}}
+{"type":"step_finish","sessionID":"ses_synthetic","part":{"id":"step_2","type":"step-finish","reason":"stop"}}

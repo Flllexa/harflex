@@ -1,0 +1,31 @@
+.terminal-panel { display: flex; flex-direction: column; height: 100%; min-height: 0; min-width: 0; }
+.terminal-panel[hidden] { display: none; }
+.terminal-heading { align-items: center; }
+.terminal-title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.terminal-title > svg { width: 18px; height: 18px; color: var(--mint); flex: none; }
+.terminal-title h2 { margin: 0; font-size: 14px; }
+.terminal-title span { display: block; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
+.terminal-actions { display: flex; gap: 2px; margin-left: auto; }
+.terminal-note { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0; padding: var(--space-2) var(--space-4); font-size: 12px; }
+.terminal-host { flex: 1; min-height: 0; margin: 0 var(--space-2) var(--space-2); padding: var(--space-2); border: 1px solid var(--border); border-radius: 10px; background: #0a0d0f; overflow: hidden; }
+.terminal-host .xterm { height: 100%; }
+.terminal-host .xterm-viewport { background: transparent !important; }
+.side-panel { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.side-panel-tabs { display: flex; gap: 4px; padding: var(--space-2) var(--space-3) 0; }
+.side-panel-tab { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 var(--space-3); border: 1px solid transparent; border-radius: 999px; background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; }
+.side-panel-tab svg { width: 14px; height: 14px; }
+.side-panel-tab:hover { color: var(--paper); }
+.side-panel-tab[aria-selected="true"] { color: var(--paper); border-color: var(--border); background: var(--ion-void); }
+.side-panel-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.side-panel-body > [hidden] { display: none !important; }
+
+/* The activity tab fills the panel so its flow can use the height. */
+.side-panel-activity { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.side-panel-activity > .activity-panel { flex: 1; height: auto; }
+
+/* The panel's left edge resizes it. */
+.side-panel-resizer { position: absolute; z-index: 5; top: 0; bottom: 0; left: 0; width: 7px; cursor: col-resize; touch-action: none; outline: none; }
+.side-panel-resizer::after { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 2px; background: transparent; transition: background .15s ease; }
+.side-panel-resizer:hover::after, .side-panel-resizer:focus-visible::after, .is-resizing-panel .side-panel-resizer::after { background: var(--cyan); }
+.app-shell.is-resizing-panel { cursor: col-resize; user-select: none; }
+.app-shell.is-resizing-panel iframe, .app-shell.is-resizing-panel .terminal-host { pointer-events: none; }

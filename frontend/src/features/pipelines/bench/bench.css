@@ -1,0 +1,88 @@
+/* The benches of Code, QA and PRs: a pegboard on top, a worktop below, each stage with its own accent. */
+.bench { --bench-accent: var(--cyan); display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 18px; overflow: hidden; background: var(--forge); box-shadow: 0 18px 40px var(--shadow); }
+.bench-code { --bench-accent: #f2994a; }
+.bench-eval { --bench-accent: var(--cyan); }
+.bench-prs { --bench-accent: var(--mint); }
+
+/* Pegboard: the header sits on a dotted board. */
+.bench-header { background-color: color-mix(in srgb, var(--bench-accent) 5%, var(--ion-void));
+  background-image: radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--muted) 30%, transparent) 1.2px, transparent 1.6px); background-size: 18px 18px; }
+
+.bench-header { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-4); border-bottom: 1px solid var(--border); }
+.bench-header > div { flex: 1; min-width: 240px; }
+.bench-header h3 { margin: 0; font-size: 18px; letter-spacing: -.01em; }
+.bench-header p { margin: 4px 0 0; font-size: 13px; color: var(--muted); max-width: 72ch; }
+/* A metal plate screwed to the board. */
+.bench-plate { position: relative; display: grid; place-items: center; width: 52px; height: 52px; border-radius: 14px; flex: none; color: var(--bench-accent);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--bench-accent) 22%, var(--forge)), var(--forge)); border: 1px solid color-mix(in srgb, var(--bench-accent) 45%, var(--border)); }
+.bench-plate::before, .bench-plate::after { content: ''; position: absolute; top: 5px; width: 4px; height: 4px; border-radius: 50%; background: color-mix(in srgb, var(--muted) 60%, transparent); }
+.bench-plate::before { left: 5px; }
+.bench-plate::after { right: 5px; }
+.bench-plate svg { width: 24px; height: 24px; }
+.bench-place { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; border: 1px dashed color-mix(in srgb, var(--bench-accent) 55%, var(--border)); background: var(--forge); font-size: 12px; color: var(--paper); }
+.bench-place svg { width: 13px; height: 13px; color: var(--bench-accent); }
+
+/* Worktop. */
+.bench-surface { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-4); background: linear-gradient(180deg, color-mix(in srgb, var(--bench-accent) 3%, var(--forge)), var(--forge)); }
+.bench-surface > .qa-lab, .bench-surface > .pipeline-prs-panel { border: 0; padding: 0; background: transparent; box-shadow: none; }
+.bench-empty { margin: 0; padding: var(--space-6); text-align: center; color: var(--muted); border: 1px dashed var(--border); border-radius: 14px; }
+.bench-slab { padding: var(--space-4); border: 1px solid var(--border); border-radius: 14px; background: var(--ion-void); }
+
+/* Code: files on a rail, the diff spotlighted. */
+.code-bench { display: flex; flex-direction: column; gap: var(--space-4); }
+.code-bench-desk { display: grid; grid-template-columns: minmax(200px, 260px) minmax(0, 1fr); min-height: 360px; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--ion-void); }
+.code-bench-files { border-right: 1px solid var(--border); display: flex; flex-direction: column; min-width: 0; background: color-mix(in srgb, var(--forge) 70%, var(--ion-void)); }
+.code-bench-files-head { display: flex; align-items: center; justify-content: space-between; padding: var(--space-3); border-bottom: 1px solid var(--border); font-size: 12px; }
+.code-bench-files ul { list-style: none; margin: 0; padding: 6px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; max-height: 520px; }
+.code-bench-file { width: 100%; display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; grid-template-rows: auto auto; column-gap: 8px; align-items: center; padding: 8px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--paper); text-align: left; cursor: pointer; }
+.code-bench-file:hover { background: var(--forge); }
+.code-bench-file.is-selected { background: var(--forge); border-color: color-mix(in srgb, var(--bench-accent) 55%, var(--border)); }
+.code-bench-file > svg { width: 15px; height: 15px; color: var(--muted); grid-row: span 2; }
+.code-bench-file.is-added > svg { color: var(--mint); }
+.code-bench-file.is-removed > svg { color: var(--danger); }
+.code-bench-file-name { display: flex; flex-direction: column; min-width: 0; }
+.code-bench-file-name strong { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.code-bench-file-name small { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.code-bench-file-count { display: flex; gap: 6px; font-size: 11px; font-family: var(--font-mono); }
+.code-bench-bar { grid-column: 3; display: flex; gap: 2px; justify-content: flex-end; }
+.code-bench-bar i { width: 7px; height: 7px; border-radius: 2px; background: var(--border); }
+.code-bench-bar i.is-add { background: var(--mint); }
+.code-bench-bar i.is-remove { background: var(--danger); }
+b.is-add { color: var(--mint); font-weight: 650; }
+b.is-remove { color: var(--danger); font-weight: 650; }
+.code-bench-diff { display: flex; flex-direction: column; min-width: 0; }
+.code-bench-diff > header { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3); border-bottom: 1px solid var(--border); }
+.code-bench-diff > header code { font-size: 12px; overflow-wrap: anywhere; }
+.code-bench-status { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 650; border: 1px solid var(--border); }
+.code-bench-status.is-added { color: var(--mint); border-color: color-mix(in srgb, var(--mint) 45%, var(--border)); }
+.code-bench-status.is-removed { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
+.code-bench-status.is-modified { color: var(--bench-accent); border-color: color-mix(in srgb, var(--bench-accent) 45%, var(--border)); }
+.code-bench-lines { overflow: auto; max-height: 560px; font-size: 12px; line-height: 1.6; }
+.code-line { display: grid; grid-template-columns: 44px 44px minmax(0, 1fr); min-width: max-content; }
+.code-line-number { padding: 0 8px; text-align: right; color: var(--muted); user-select: none; border-right: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+.code-line-text { padding: 0 12px; white-space: pre; }
+.code-line-text i { display: inline-block; width: 14px; font-style: normal; color: var(--muted); user-select: none; }
+.code-line.is-add { background: color-mix(in srgb, var(--mint) 11%, transparent); }
+.code-line.is-add .code-line-text i { color: var(--mint); }
+.code-line.is-remove { background: color-mix(in srgb, var(--danger) 11%, transparent); }
+.code-line.is-remove .code-line-text i { color: var(--danger); }
+.code-line.is-hunk { background: color-mix(in srgb, var(--bench-accent) 8%, transparent); color: var(--muted); font-style: italic; }
+
+.bench-actions { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-3) var(--space-4); border: 1px solid color-mix(in srgb, var(--bench-accent) 45%, var(--border)); border-radius: 14px; background: var(--forge); box-shadow: 0 -10px 30px var(--shadow); }
+.bench-actions-text { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.bench-actions-text .muted { font-size: 12px; }
+.bench-actions .touch-target { display: inline-flex; align-items: center; gap: 6px; }
+.bench-actions .touch-target svg { width: 16px; height: 16px; }
+.bench-ask { flex: 1; min-width: 260px; display: flex; flex-direction: column; gap: var(--space-2); }
+.bench-history summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+.bench-history ol { margin: var(--space-2) 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: var(--space-2); font-size: 12px; }
+.bench-history li span { display: block; }
+.bench-history li p { margin: 2px 0 0; }
+
+@media (max-width: 767px) {
+  .code-bench-desk { grid-template-columns: 1fr; }
+  .code-bench-files { border-right: 0; border-bottom: 1px solid var(--border); }
+  .code-bench-files ul { max-height: 200px; }
+}
+/* Inside a bench, the stage's own heading would repeat the bench header. */
+.bench-surface .pipeline-prs-heading { display: none; }

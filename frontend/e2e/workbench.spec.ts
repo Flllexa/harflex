@@ -1,0 +1,108 @@
+import { expect, test } from '@playwright/test'
+import { undersizedTargets } from './targets'
+
+for (const width of [320, 1440]) {
+  test(`cancels an approval after its push and replay were lost at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/e2e/fixture.html?scenario=approval-cancel')
+    await page.getByLabel('Caminho da pasta').fill('/Users/dev/api-faturas')
+    await page.getByRole('button', { name: 'Abrir projeto' }).click()
+    await page.getByLabel('Motivo para pular SDD nesta sessão').fill('Teste de conversa livre')
+    await page.getByRole('button', { name: 'Iniciar sessão livre' }).click()
+    await page.getByLabel('Mensagem').fill('Execute')
+    await page.getByRole('button', { name: 'Enviar' }).click()
+    await expect(page.getByRole('status')).toContainText('Não foi possível atualizar')
+    await page.getByRole('button', { name: 'Cancelar execução' }).click()
+    await expect.poll(() => page.evaluate(() => sessionStorage.getItem('harflex:approval-cancel-called'))).toBe('session-1')
+    await expect.poll(() => page.evaluate(() => sessionStorage.getItem('harflex:approval-prompt-count'))).toBe('["session-1:Execute"]')
+    await expect(page.getByRole('status')).toContainText('Cancelado')
+    await expect(page.getByText('Backend local conectado')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Atualizar eventos' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Cancelar execução' })).toHaveCount(0)
+    await expect(page.getByRole('group', { name: 'Aprovação necessária' })).toHaveCount(0)
+    await page.getByLabel('Mensagem').fill('Próximo')
+    await expect(page.getByRole('button', { name: 'Enviar' })).toBeEnabled()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
+  })
+}
+
+for (const scenario of ['replay', 'replay-outage']) {
+  test(`recovers gaps and more than one journal page with ${scenario}`, async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 900 })
+    await page.goto(`/e2e/fixture.html?scenario=${scenario}`)
+    await page.getByLabel('Caminho da pasta').fill('/Users/dev/api-faturas')
+    await page.getByRole('button', { name: 'Abrir projeto' }).click()
+    await page.getByLabel('Motivo para pular SDD nesta sessão').fill('Teste de conversa livre')
+    await page.getByRole('button', { name: 'Iniciar sessão livre' }).click()
+    await page.getByLabel('Mensagem').fill('Execute')
+    await page.getByRole('tab', { name: 'Artefatos' }).click()
+    await page.getByRole('tab', { name: 'Conversa' }).click()
+    await expect(page.getByLabel('Mensagem')).toHaveValue('Execute')
+    await page.getByRole('button', { name: 'Enviar' }).click()
+    if (scenario === 'replay-outage') {
+      await expect(page.getByRole('status')).toContainText('Não foi possível atualizar')
+      await expect(page.getByRole('button', { name: 'Cancelar execução' })).toBeEnabled()
+      await page.getByRole('button', { name: 'Atualizar eventos' }).click()
+    }
+    await expect(page.getByRole('status')).toContainText('Concluído')
+    await page.getByLabel('Mensagem').fill('Próximo')
+    await expect(page.getByRole('button', { name: 'Enviar' })).toBeEnabled()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320)
+  })
+}
+
+test('provider modal traps focus, isolates the shell and restores its trigger', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/e2e/fixture.html')
+  await page.getByLabel('Caminho da pasta').fill('/Users/dev/api-faturas')
+  await page.getByRole('button', { name: 'Abrir projeto' }).click()
+  const trigger = page.getByRole('button', { name: 'Configurar provedor' })
+  await trigger.click()
+  const dialog = page.getByRole('dialog', { name: 'Configurar provedor' })
+  await expect(dialog.getByLabel('Nome', { exact: true })).toBeFocused()
+  const first = dialog.getByRole('button', { name: 'Fechar', exact: true }).first()
+  const last = dialog.getByRole('button', { name: 'Salvar provedor' })
+  await last.focus()
+  await page.keyboard.press('Tab')
+  await expect(first).toBeFocused()
+  await page.keyboard.press('Shift+Tab')
+  await expect(last).toBeFocused()
+  expect(await page.locator('#root').evaluate(element => (element as HTMLElement).inert)).toBe(true)
+  await page.locator('.activity-toggle').evaluate(element => (element as HTMLElement).focus())
+  await expect(last).toBeFocused()
+  const backgroundTarget = page.locator('.activity-toggle')
+  expect(await backgroundTarget.evaluate(element => {
+    const box = element.getBoundingClientRect()
+    return document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2) === element
+  })).toBe(false)
+  await page.keyboard.press('Escape')
+  await expect(dialog).not.toBeVisible()
+  await expect(trigger).toBeFocused()
+  await expect(page.locator('.activity-container')).toBeVisible()
+  expect(await page.locator('#root').evaluate(element => (element as HTMLElement).inert)).toBe(false)
+})
+
+for (const width of [320, 1440]) {
+  test(`workbench journey with the fake backend at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/e2e/fixture.html')
+    await page.getByLabel('Caminho da pasta').fill('/Users/dev/api-faturas')
+    await page.getByRole('button', { name: 'Abrir projeto' }).click()
+    await expect(page.getByRole('heading', { level: 1, name: 'api-faturas' })).toBeVisible()
+    await page.screenshot({ path: testInfo.outputPath(`setup-${width}.png`), fullPage: true })
+    await page.getByLabel('Motivo para pular SDD nesta sessão').fill('Teste de conversa livre')
+    await page.getByRole('button', { name: 'Iniciar sessão livre' }).click()
+    await page.getByLabel('Mensagem').fill('Crie notas')
+    await page.keyboard.press('Enter')
+    const approval = page.getByRole('group', { name: 'Aprovação necessária' })
+    await expect(approval).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
+    await page.screenshot({ path: testInfo.outputPath(`approval-${width}.png`), fullPage: true })
+    await approval.getByRole('button', { name: 'Aprovar' }).click()
+    await expect(page.getByRole('status').filter({ hasText: 'Concluído' })).toBeVisible()
+    await page.getByRole('tab', { name: 'Artefatos' }).click()
+    await expect(page.getByRole('region', { name: 'Diff de notes.md' })).toContainText('+olá')
+    await page.screenshot({ path: testInfo.outputPath(`diff-${width}.png`), fullPage: true })
+    expect(await undersizedTargets(page)).toEqual([])
+  })
+}

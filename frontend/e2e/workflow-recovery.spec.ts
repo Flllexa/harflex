@@ -1,0 +1,35 @@
+import { expect, test } from '@playwright/test'
+
+for (const width of [320, 768, 900, 1024, 1440]) {
+  test(`paused workflow recovery stays explicit at ${width}px`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/e2e/fixture.html?scenario=workflow-recovery')
+    await page.getByLabel('Caminho da pasta').fill('/synthetic/workspace/api-faturas')
+    await page.getByRole('button', { name: 'Abrir projeto' }).click()
+    if (width < 768) await page.getByRole('button', { name: 'Abrir navegação' }).click()
+    await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('button', { name: 'Workflows' }).click()
+    await expect(page.getByText('Pausado')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Confirmar decisão' })).toBeDisabled()
+    await expect(page.getByRole('checkbox', { name: /Revisei o histórico da sessão/ })).toBeDisabled()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
+    await page.screenshot({ path: info.outputPath(`workflow-recovery-${width}.png`), fullPage: true })
+
+    await page.getByRole('button', { name: 'Abrir sessão da etapa' }).click()
+    if (width < 768) await page.getByRole('button', { name: 'Abrir navegação' }).click()
+    await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('button', { name: 'Workflows' }).click()
+    await expect(page.getByRole('checkbox', { name: /Revisei o histórico da sessão/ })).toBeEnabled()
+    const decision = page.getByTestId('picker-workflow-recovery-run-recovery').getByRole('button')
+    await decision.scrollIntoViewIfNeeded()
+    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+    await decision.click()
+    await page.screenshot({ path: info.outputPath(`workflow-recovery-picker-${width}.png`), fullPage: true })
+    await page.getByRole('option', { name: 'Preparar nova execução' }).click()
+    await page.getByRole('checkbox', { name: /Revisei o histórico da sessão/ }).check()
+    await page.getByRole('button', { name: 'Confirmar decisão' }).click()
+    await expect(page.getByText('Etapa pronta para uma nova execução. Execute quando decidir continuar.')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Executar etapa' })).toBeVisible()
+    await page.getByRole('button', { name: 'Executar etapa' }).click()
+    await expect(page.getByText('Concluído', { exact: true })).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
+  })
+}

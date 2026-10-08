@@ -1,0 +1,14 @@
+.stage-activity-pane { border-top: 1px solid var(--border); margin-top: 24px; padding-top: 20px; min-width: 0; }
+.stage-activity-pane header { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.stage-activity-pane h3 { display: flex; align-items: center; gap: 8px; margin: 0; }
+.stage-activity-pane h3 svg { width: 18px; }
+.stage-activity-pane header p { margin: 6px 0 0; overflow-wrap: anywhere; }
+.stage-event-log { list-style: none; padding: 0; margin: 16px 0; max-height: 360px; overflow: auto; }
+.stage-event-log li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.stage-event-log time { flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.stage-live { display: flex; align-items: center; gap: 8px; color: var(--mint); font-size: 13px; }
+.stage-live span { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: stage-working 1.5s ease-in-out infinite; }
+.stage-prepared-preview summary { cursor: pointer; color: var(--cyan); display: flex; align-items: center; }
+@keyframes stage-working { 50% { opacity: .45; } }
+@media (max-width: 767px) { .stage-activity-pane header { flex-wrap: wrap; } .stage-activity-pane header button { width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .stage-live span { animation: none; } }

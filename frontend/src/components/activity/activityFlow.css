@@ -1,0 +1,87 @@
+/* Atividade: the agent's plan as a live flow. */
+.activity-panel.has-flow { display: flex; flex-direction: column; min-height: 0; padding: var(--space-4) var(--space-4) var(--space-3); }
+.activity-panel.has-flow .activity-description { padding: var(--space-2) 0 var(--space-3); }
+
+.activity-progress { display: flex; flex-direction: column; gap: 6px; padding-bottom: var(--space-3); }
+.activity-progress-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); font-size: 12px; }
+.activity-progress-row strong { font-weight: 650; }
+.activity-progress-row span { color: var(--muted); font-size: 11px; }
+.activity-progress-bar { height: 4px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.activity-progress-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--mint), var(--cyan)); transition: width .4s cubic-bezier(.16, 1, .3, 1); }
+.activity-explanation { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.45; }
+
+.activity-flow-canvas { position: relative; flex: 1; min-height: 280px; margin: 0 calc(-1 * var(--space-4)); border-top: 1px solid var(--border); background: var(--ion-void); }
+.activity-flow-canvas .react-flow { --xy-background-color: transparent; --xy-edge-stroke: var(--border); --xy-controls-button-background-color: var(--forge);
+  --xy-controls-button-background-color-hover: var(--border); --xy-controls-button-color: var(--paper); --xy-controls-button-border-color: var(--border); background: transparent; }
+.activity-flow-bg { --xy-background-pattern-color: color-mix(in srgb, var(--muted) 22%, transparent); }
+.activity-flow-controls { border-radius: 10px; overflow: hidden; border: 1px solid var(--border); box-shadow: 0 6px 18px var(--shadow); }
+.activity-flow-controls button { width: 28px; height: 28px; min-height: 0; padding: 0; border-bottom-color: var(--border); }
+.activity-flow-follow { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border: 1px solid color-mix(in srgb, var(--cyan) 50%, var(--border)); border-radius: 999px;
+  background: var(--forge); color: var(--paper); font-size: 12px; cursor: pointer; box-shadow: 0 6px 18px var(--shadow); }
+.activity-flow-follow svg { width: 14px; height: 14px; color: var(--cyan); }
+
+/* Edges: the spine joins the steps, branches lead to each step's actions. */
+.flow-edge path.react-flow__edge-path { stroke: var(--border); stroke-width: 1.5; }
+.flow-edge.is-spine path.react-flow__edge-path { stroke: color-mix(in srgb, var(--muted) 55%, var(--border)); stroke-width: 2; }
+.flow-edge.is-active path.react-flow__edge-path { stroke: var(--cyan); }
+.react-flow__edge.animated.flow-edge path { stroke-dasharray: 5 4; }
+
+/* Nodes */
+.flow-node { box-sizing: border-box; border: 1px solid var(--border); border-radius: 12px; background: var(--forge); color: var(--paper); font-size: 12px; line-height: 1.45;
+  transition: border-color .25s ease, box-shadow .25s ease, opacity .25s ease; animation: flow-node-in .26s cubic-bezier(.16, 1, .3, 1) both; }
+@keyframes flow-node-in { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: none; } }
+.flow-node-eyebrow { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.flow-node-eyebrow svg { width: 12px; height: 12px; }
+.flow-node-text { margin: 4px 0 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+
+.flow-request { padding: 10px 12px; border-color: color-mix(in srgb, var(--cyan) 35%, var(--border));
+  background: linear-gradient(160deg, color-mix(in srgb, var(--cyan) 10%, var(--forge)), var(--forge)); }
+.flow-request .flow-node-eyebrow { color: var(--cyan); }
+
+.flow-step { display: flex; gap: 10px; padding: 10px 12px; }
+.flow-step-badge { flex: none; display: grid; place-items: center; width: 22px; height: 22px; margin-top: 1px; border-radius: 50%; border: 1px solid var(--border); background: var(--ion-void); color: var(--muted); }
+.flow-step-badge svg { width: 13px; height: 13px; }
+.flow-step-body { min-width: 0; flex: 1; }
+.flow-step .flow-node-text { font-size: 13px; font-weight: 600; }
+.flow-step.is-completed { opacity: .82; }
+.flow-step.is-completed .flow-step-badge { border-color: var(--mint); background: var(--mint); color: var(--ion-void); }
+.flow-step.is-completed .flow-node-eyebrow { color: var(--mint); }
+.flow-step.is-pending { background: color-mix(in srgb, var(--forge) 60%, var(--ion-void)); border-style: dashed; }
+.flow-step.is-pending .flow-node-text { color: var(--muted); font-weight: 500; }
+.flow-step.is-in_progress { border-color: var(--cyan); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cyan) 14%, transparent), 0 10px 30px var(--shadow); }
+.flow-step.is-in_progress .flow-step-badge { border-color: var(--cyan); color: var(--cyan); }
+.flow-step.is-in_progress .flow-node-eyebrow { color: var(--cyan); }
+.flow-step.is-live .flow-step-badge svg { animation: activity-spin 1.2s linear infinite; }
+.flow-step.is-live { animation: flow-node-in .26s cubic-bezier(.16, 1, .3, 1) both, flow-glow 2.4s ease-in-out infinite; }
+@keyframes flow-glow { 0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--cyan) 10%, transparent), 0 10px 30px var(--shadow); } 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--cyan) 22%, transparent), 0 10px 30px var(--shadow); } }
+
+.flow-action { display: flex; gap: 8px; padding: 7px 10px; border-radius: 10px; background: color-mix(in srgb, var(--forge) 75%, var(--ion-void)); }
+.flow-action-icon { flex: none; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; background: var(--ion-void); color: var(--muted); }
+.flow-action-icon svg { width: 12px; height: 12px; }
+.flow-action-body { min-width: 0; flex: 1; }
+.flow-action-label { margin: 0; font-weight: 550; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.flow-action-detail { margin: 2px 0 0; font-family: var(--font-mono); font-size: 11px; color: var(--muted); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.flow-action-status { display: inline-flex; align-items: center; gap: 4px; margin-top: 3px; font-size: 11px; color: var(--muted); }
+.flow-action-status svg { width: 11px; height: 11px; }
+.flow-action.is-done .flow-action-icon { color: var(--mint); }
+.flow-action.is-running { border-color: color-mix(in srgb, var(--cyan) 60%, var(--border)); }
+.flow-action.is-running .flow-action-icon, .flow-action.is-running .flow-action-status { color: var(--cyan); }
+.flow-action.is-live .flow-action-status svg { animation: activity-spin 1.2s linear infinite; }
+.flow-action.is-approval { border-color: color-mix(in srgb, var(--amber) 60%, var(--border)); }
+.flow-action.is-approval .flow-action-icon, .flow-action.is-approval .flow-action-status { color: var(--amber); }
+.flow-action.is-failed { border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); }
+.flow-action.is-failed .flow-action-icon, .flow-action.is-failed .flow-action-status { color: var(--danger); }
+.flow-action.is-waiting { opacity: .7; }
+
+.flow-more { padding: 5px 10px; border-style: dashed; background: transparent; color: var(--muted); font-size: 11px; }
+
+.flow-outcome { display: flex; align-items: center; gap: 8px; padding: 9px 12px; font-weight: 650; }
+.flow-outcome svg { width: 16px; height: 16px; }
+.flow-outcome.is-completed { border-color: var(--mint); color: var(--mint); background: color-mix(in srgb, var(--mint) 9%, var(--forge)); }
+.flow-outcome.is-failed { border-color: var(--danger); color: var(--danger); background: color-mix(in srgb, var(--danger) 9%, var(--forge)); }
+.flow-outcome.is-cancelled, .flow-outcome.is-interrupted { color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-node, .flow-step.is-live { animation: none; }
+  .flow-step.is-live .flow-step-badge svg, .flow-action.is-live .flow-action-status svg { animation: none; }
+}

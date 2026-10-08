@@ -1,0 +1,52 @@
+import { expect, test } from '@playwright/test'
+
+for (const width of [320, 768, 900, 1024, 1440]) {
+  test(`keeps Casual reachable after scrolling a long work at ${width}px`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 900 })
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto('/e2e/fixture.html?scenario=conversational-design')
+    await page.getByLabel('Caminho da pasta').fill('/synthetic/workspace/faturas')
+    await page.getByRole('button', { name: 'Abrir projeto' }).click()
+    if (width < 768) await page.getByRole('button', { name: 'Abrir navegação' }).click()
+    await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('button', { name: 'Pipelines', exact: true }).click()
+    await page.getByLabel('Discovery', { exact: true }).fill('Exportar faturas em CSV.\n' + 'Preservar os filtros e os nomes longos de cada documento.\n'.repeat(80))
+    await page.getByRole('button', { name: 'Criar pipeline' }).click()
+    await expect(page.getByRole('button', { name: 'Aprovar documentos e continuar para Code' })).toBeEnabled()
+    // From 768px the shell fills the window and the work area scrolls; below that the page itself does.
+    await page.evaluate(() => {
+      const area = document.getElementById('work-area')
+      if (area && area.scrollHeight > area.clientHeight) area.scrollTop = area.scrollHeight
+      window.scrollTo(0, document.documentElement.scrollHeight)
+    })
+    expect(await page.evaluate(() => Math.max(window.scrollY, document.getElementById('work-area')?.scrollTop ?? 0))).toBeGreaterThan(400)
+
+    const casual = page.getByRole('button', { name: 'Casual', exact: true })
+    const box = await casual.boundingBox()
+    expect(box && box.y).toBeGreaterThanOrEqual(0)
+    expect(box && box.y + box.height).toBeLessThanOrEqual(900)
+    await page.getByRole('button', { name: 'Ver SPEC e sua atividade', exact: true }).click()
+    const activity = page.getByRole('region', { name: 'Atividade de SPEC' })
+    await expect(activity).toBeFocused()
+    const headerBottom = await page.locator('.shell-header').evaluate(element => element.getBoundingClientRect().bottom)
+    const activityBox = await activity.boundingBox()
+    expect(activityBox && activityBox.y).toBeGreaterThanOrEqual(headerBottom)
+    await page.screenshot({ path: info.outputPath(`mode-after-scroll-${width}.png`) })
+    await casual.click()
+    await expect(casual).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByLabel('Mensagem inicial')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Preparar trabalho', exact: true })).toHaveCount(0)
+    if (width < 768) await page.getByRole('button', { name: 'Abrir histórico de chats' }).click()
+    await expect(page.getByRole('complementary', { name: 'Histórico de conversas' })).toBeVisible()
+    if (width < 768) await page.keyboard.press('Escape')
+    await page.getByRole('button', { name: 'Professional', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Professional', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByRole('heading', { name: 'Preparar trabalho', exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Novo pipeline', exact: true }).click()
+    await page.getByLabel('Discovery', { exact: true }).fill('Discovery em rascunho, ainda não enviado')
+    await casual.click()
+    await expect(page.getByLabel('Mensagem inicial')).toBeVisible()
+    await page.getByRole('button', { name: 'Professional', exact: true }).click()
+    await expect(page.getByLabel('Discovery', { exact: true })).toHaveValue('Discovery em rascunho, ainda não enviado')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
+  })
+}

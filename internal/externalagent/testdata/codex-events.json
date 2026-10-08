@@ -1,0 +1,79 @@
+[
+  {
+    "type": "external.raw",
+    "raw": {
+      "type": "thread.started",
+      "thread_id": "thread_synthetic"
+    },
+    "sessionId": "thread_synthetic"
+  },
+  {
+    "type": "external.raw",
+    "raw": {
+      "type": "turn.started"
+    },
+    "sessionId": "thread_synthetic"
+  },
+  {
+    "type": "external.raw",
+    "raw": {
+      "type": "item.started",
+      "item": {
+        "id": "item_1",
+        "type": "agent_message",
+        "text": "partial"
+      }
+    },
+    "sessionId": "thread_synthetic"
+  },
+  {
+    "type": "external.raw",
+    "raw": {
+      "type": "item.updated",
+      "item": {
+        "id": "item_1",
+        "type": "agent_message",
+        "text": "partial update"
+      }
+    },
+    "sessionId": "thread_synthetic"
+  },
+  {
+    "type": "assistant.message",
+    "text": "Resposta do Codex.\n",
+    "messageId": "item_1",
+    "mode": "replace",
+    "raw": {
+      "type": "item.completed",
+      "item": {
+        "id": "item_1",
+        "type": "agent_message",
+        "text": "Resposta do Codex.\n"
+      }
+    },
+    "sessionId": "thread_synthetic"
+  },
+  {
+    "type": "external.raw",
+    "raw": {
+      "type": "item.completed",
+      "item": {
+        "id": "item_2",
+        "type": "command_execution",
+        "text": "RAW_ONLY"
+      }
+    },
+    "sessionId": "thread_synthetic"
+  },
+  {
+    "type": "external.raw",
+    "raw": {
+      "type": "turn.completed",
+      "usage": {
+        "input_tokens": 12,
+        "output_tokens": 8
+      }
+    },
+    "sessionId": "thread_synthetic"
+  }
+]

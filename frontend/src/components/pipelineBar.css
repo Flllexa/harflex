@@ -1,0 +1,13 @@
+.pipeline-stage-button { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid transparent; background: transparent; color: inherit; text-align: left; border-radius: var(--radius-control); width: 100%; min-height: 52px; }
+.pipeline-stage-button > span { display: flex; flex-direction: column; gap: 4px; }
+.pipeline-stage-button > span > span { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.pipeline-stage-button:not(:disabled):hover { background: var(--soft-mint); }
+.stage-viewed .pipeline-stage-button { border-color: var(--mint); }
+.pipeline-stage-button:disabled { opacity: 1; cursor: default; }
+.stage-working .pipeline-stage-button svg, .stage-working .pipeline-stage-button > span > span { color: var(--cyan); }
+.stage-working .pipeline-stage-button svg { animation: stage-pulse 1.4s ease-in-out infinite; }
+.stage-ready .pipeline-stage-button { background: var(--soft-mint); }
+.stage-ready .pipeline-stage-button > span > span { color: var(--mint); }
+.stage-failed .pipeline-stage-button > span > span { color: var(--danger); }
+@keyframes stage-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .stage-working .pipeline-stage-button svg { animation: none; } }

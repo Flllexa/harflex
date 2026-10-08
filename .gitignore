@@ -1,0 +1,26 @@
+.superpowers/
+.worktrees/
+.impeccable/hook.cache.json
+.task/
+
+# Local application state and secrets
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.*
+!.env.example
+
+# Build output
+bin/
+build/bin/
+dist/
+frontend/dist/
+frontend/node_modules/
+frontend/coverage/
+frontend/test-results/
+frontend/playwright-report/
+coverage/
+build/android/.gradle/
+build/android/build/
+.DS_Store

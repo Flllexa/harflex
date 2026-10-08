@@ -1,0 +1,318 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-26T02:10:21.869Z",
+  "title": "Design System: Harflex",
+  "extensions": {
+    "colorMeta": {
+      "ion-void": {
+        "role": "neutral",
+        "displayName": "ion-void",
+        "canonical": "#080b0d",
+        "tonalRamp": [
+          "oklch(15% 0.0068 235.97)",
+          "oklch(26% 0.0068 235.97)",
+          "oklch(38% 0.0068 235.97)",
+          "oklch(49% 0.0068 235.97)",
+          "oklch(61% 0.0068 235.97)",
+          "oklch(72% 0.0068 235.97)",
+          "oklch(84% 0.0068 235.97)",
+          "oklch(95% 0.0068 235.97)"
+        ]
+      },
+      "forge": {
+        "role": "neutral",
+        "displayName": "forge",
+        "canonical": "#12171a",
+        "tonalRamp": [
+          "oklch(15% 0.0097 234.31)",
+          "oklch(26% 0.0097 234.31)",
+          "oklch(38% 0.0097 234.31)",
+          "oklch(49% 0.0097 234.31)",
+          "oklch(61% 0.0097 234.31)",
+          "oklch(72% 0.0097 234.31)",
+          "oklch(84% 0.0097 234.31)",
+          "oklch(95% 0.0097 234.31)"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "border",
+        "canonical": "#273036",
+        "tonalRamp": [
+          "oklch(15% 0.0165 237.29)",
+          "oklch(26% 0.0165 237.29)",
+          "oklch(38% 0.0165 237.29)",
+          "oklch(49% 0.0165 237.29)",
+          "oklch(61% 0.0165 237.29)",
+          "oklch(72% 0.0165 237.29)",
+          "oklch(84% 0.0165 237.29)",
+          "oklch(95% 0.0165 237.29)"
+        ]
+      },
+      "mint": {
+        "role": "primary",
+        "displayName": "mint",
+        "canonical": "#5cf2a6",
+        "tonalRamp": [
+          "oklch(15% 0.1673 157.65)",
+          "oklch(26% 0.1673 157.65)",
+          "oklch(38% 0.1673 157.65)",
+          "oklch(49% 0.1673 157.65)",
+          "oklch(61% 0.1673 157.65)",
+          "oklch(72% 0.1673 157.65)",
+          "oklch(84% 0.1673 157.65)",
+          "oklch(95% 0.1673 157.65)"
+        ]
+      },
+      "cyan": {
+        "role": "secondary",
+        "displayName": "cyan",
+        "canonical": "#39bff8",
+        "tonalRamp": [
+          "oklch(15% 0.1377 231.51)",
+          "oklch(26% 0.1377 231.51)",
+          "oklch(38% 0.1377 231.51)",
+          "oklch(49% 0.1377 231.51)",
+          "oklch(61% 0.1377 231.51)",
+          "oklch(72% 0.1377 231.51)",
+          "oklch(84% 0.1377 231.51)",
+          "oklch(95% 0.1377 231.51)"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "paper",
+        "canonical": "#f1f5f4",
+        "tonalRamp": [
+          "oklch(15% 0.0044 179.73)",
+          "oklch(26% 0.0044 179.73)",
+          "oklch(38% 0.0044 179.73)",
+          "oklch(49% 0.0044 179.73)",
+          "oklch(61% 0.0044 179.73)",
+          "oklch(72% 0.0044 179.73)",
+          "oklch(84% 0.0044 179.73)",
+          "oklch(95% 0.0044 179.73)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "muted",
+        "canonical": "#82908c",
+        "tonalRamp": [
+          "oklch(15% 0.0172 176.76)",
+          "oklch(26% 0.0172 176.76)",
+          "oklch(38% 0.0172 176.76)",
+          "oklch(49% 0.0172 176.76)",
+          "oklch(61% 0.0172 176.76)",
+          "oklch(72% 0.0172 176.76)",
+          "oklch(84% 0.0172 176.76)",
+          "oklch(95% 0.0172 176.76)"
+        ]
+      },
+      "soft-mint": {
+        "role": "primary",
+        "displayName": "soft-mint",
+        "canonical": "#16382a",
+        "tonalRamp": [
+          "oklch(15% 0.0476 164.23)",
+          "oklch(26% 0.0476 164.23)",
+          "oklch(38% 0.0476 164.23)",
+          "oklch(49% 0.0476 164.23)",
+          "oklch(61% 0.0476 164.23)",
+          "oklch(72% 0.0476 164.23)",
+          "oklch(84% 0.0476 164.23)",
+          "oklch(95% 0.0476 164.23)"
+        ]
+      },
+      "danger": {
+        "role": "neutral",
+        "displayName": "danger",
+        "canonical": "#f2777a",
+        "tonalRamp": [
+          "oklch(15% 0.1515 20.16)",
+          "oklch(26% 0.1515 20.16)",
+          "oklch(38% 0.1515 20.16)",
+          "oklch(49% 0.1515 20.16)",
+          "oklch(61% 0.1515 20.16)",
+          "oklch(72% 0.1515 20.16)",
+          "oklch(84% 0.1515 20.16)",
+          "oklch(95% 0.1515 20.16)"
+        ]
+      },
+      "soft-danger": {
+        "role": "neutral",
+        "displayName": "soft-danger",
+        "canonical": "#3a1c1e",
+        "tonalRamp": [
+          "oklch(15% 0.0472 16.49)",
+          "oklch(26% 0.0472 16.49)",
+          "oklch(38% 0.0472 16.49)",
+          "oklch(49% 0.0472 16.49)",
+          "oklch(61% 0.0472 16.49)",
+          "oklch(72% 0.0472 16.49)",
+          "oklch(84% 0.0472 16.49)",
+          "oklch(95% 0.0472 16.49)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "headline",
+        "purpose": "Hierarquia observada na interface."
+      },
+      "title": {
+        "displayName": "title",
+        "purpose": "Hierarquia observada na interface."
+      },
+      "body": {
+        "displayName": "body",
+        "purpose": "Hierarquia observada na interface."
+      },
+      "label": {
+        "displayName": "label",
+        "purpose": "Hierarquia observada na interface."
+      },
+      "mono": {
+        "displayName": "mono",
+        "purpose": "Hierarquia observada na interface."
+      }
+    },
+    "shadows": [
+      {
+        "name": "drawer-left",
+        "value": "12px 0 40px #0008",
+        "purpose": "Gaveta esquerda."
+      },
+      {
+        "name": "drawer-right",
+        "value": "-12px 0 40px #0008",
+        "purpose": "Gaveta direita."
+      },
+      {
+        "name": "dialog",
+        "value": "0 24px 64px #000a",
+        "purpose": "Diálogo modal."
+      }
+    ],
+    "motion": [
+      {
+        "name": "background",
+        "value": "background-color 120ms ease-out",
+        "purpose": "Feedback; removido com redução de movimento."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "rail",
+        "value": "768px"
+      },
+      {
+        "name": "desktop",
+        "value": "1024px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botão primário",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Botão primário conforme a implementação.",
+      "html": "<button class=\"ds-primary\">Enviar</button>",
+      "css": ".ds-primary { font:14px/1.5 var(--font-sans,sans-serif); min-height:44px; min-width:44px; padding:0 12px; border:0; border-radius:8px; background:var(--mint,#5cf2a6); color:var(--ion-void,#080b0d); font-weight:650; } .ds-primary:hover { background:var(--paper,#f1f5f4); } .ds-primary:focus-visible { outline: 2px solid var(--mint, #5cf2a6); outline-offset: 3px; } @media (prefers-reduced-motion:reduce) { .ds-primary { transition:none; } }"
+    },
+    {
+      "name": "Botão secundário",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Botão secundário conforme a implementação.",
+      "html": "<button class=\"ds-secondary\">Cancelar execução</button>",
+      "css": ".ds-secondary { font:14px/1.5 var(--font-sans,sans-serif); min-height:44px; padding:0 12px; border:1px solid var(--border,#273036); border-radius:8px; color:var(--paper,#f1f5f4); background:transparent; font-weight:600; } .ds-secondary:hover { background:var(--border,#273036); } .ds-secondary:focus-visible { outline: 2px solid var(--mint, #5cf2a6); outline-offset: 3px; } @media (prefers-reduced-motion:reduce) { .ds-secondary { transition:none; } }"
+    },
+    {
+      "name": "Campo",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo conforme a implementação.",
+      "html": "<input class=\"ds-input\" aria-label=\"Modelo\" value=\"modelo-local\">",
+      "css": ".ds-input { font:14px/1.5 var(--font-sans,sans-serif); min-height:44px; border:1px solid var(--border,#273036); border-radius:8px; padding:8px 12px; background:var(--ion-void,#080b0d); color:var(--paper,#f1f5f4); }  .ds-input:focus-visible { outline: 2px solid var(--mint, #5cf2a6); outline-offset: 1px; } @media (prefers-reduced-motion:reduce) { .ds-input { transition:none; } }"
+    },
+    {
+      "name": "Navegação atual",
+      "kind": "nav",
+      "refersTo": "nav-current",
+      "description": "Navegação atual conforme a implementação.",
+      "html": "<nav aria-label=\"Principal\"><button class=\"ds-nav\" aria-current=\"page\">Trabalho</button></nav>",
+      "css": ".ds-nav { font:14px/1.5 var(--font-sans,sans-serif); min-height:44px; padding:0 12px; border:0; border-radius:8px; background:var(--soft-mint,#16382a); color:var(--mint,#5cf2a6); } .ds-nav:hover { background:var(--border,#273036); } .ds-nav[aria-current]:hover { background:var(--soft-mint,#16382a); color:var(--mint,#5cf2a6); } .ds-nav:focus-visible { outline: 2px solid var(--mint, #5cf2a6); outline-offset: 3px; } @media (prefers-reduced-motion:reduce) { .ds-nav { transition:none; } }"
+    },
+    {
+      "name": "Chip local",
+      "kind": "chip",
+      "refersTo": "chip-local",
+      "description": "Chip local conforme a implementação.",
+      "html": "<span class=\"ds-chip\">local</span>",
+      "css": ".ds-chip { font:14px/1.5 var(--font-sans,sans-serif); display:inline-block; border:1px solid var(--soft-mint,#16382a); border-radius:8px; padding:2px 8px; color:var(--mint,#5cf2a6); font-size:12px; }  .ds-chip:focus-visible { outline: 2px solid var(--mint, #5cf2a6); outline-offset: 3px; } @media (prefers-reduced-motion:reduce) { .ds-chip { transition:none; } }"
+    },
+    {
+      "name": "Cartão de ferramenta",
+      "kind": "card",
+      "refersTo": "tool-card",
+      "description": "Cartão de ferramenta conforme a implementação.",
+      "html": "<article class=\"ds-card\"><strong>read</strong><span class=\"ds-path\">notes.md</span><span class=\"ds-status\">Concluído</span></article>",
+      "css": ".ds-card { font:14px/1.5 var(--font-sans,sans-serif); display:flex; flex-wrap:wrap; gap:8px; border:1px solid var(--border,#273036); border-radius:8px; padding:12px; background:var(--forge,#12171a); color:var(--paper,#f1f5f4); font-size:12px; } .ds-path { overflow-wrap:anywhere; color:var(--muted,#82908c); font-family:var(--font-mono,monospace); } .ds-status { margin-left:auto; color:var(--mint,#5cf2a6); } .ds-card:focus-visible { outline: 2px solid var(--mint, #5cf2a6); outline-offset: 3px; } @media (prefers-reduced-motion:reduce) { .ds-card { transition:none; } }"
+    },
+    {
+      "name": "Etapa atual",
+      "kind": "custom",
+      "refersTo": "pipeline-current",
+      "description": "Etapa atual conforme a implementação.",
+      "html": "<ol class=\"ds-pipeline\"><li aria-current=\"step\"><strong>Code</strong><span>Em andamento</span></li></ol>",
+      "css": ".ds-pipeline { font:14px/1.5 var(--font-sans,sans-serif); list-style:none; margin:0; padding:16px; color:var(--mint,#5cf2a6); font-size:12px; font-weight:600; } .ds-pipeline span { display:block; font-size:11px; font-weight:400; color:var(--muted,#82908c); } .ds-pipeline:focus-visible { outline: 2px solid var(--mint, #5cf2a6); outline-offset: 3px; } @media (prefers-reduced-motion:reduce) { .ds-pipeline { transition:none; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Sala de Controle Auditável",
+    "overview": "Harflex parece um instrumento técnico preciso que permanece legível durante execuções longas. A interface usa superfícies escuras estratificadas, informação compacta e sinais luminosos com significado operacional. O pipeline, as evidências e o estado atual devem ser compreendidos antes dos detalhes decorativos.\n\nA densidade e a navegação persistente reconhecem a referência LionClaw, mas a assinatura visual é própria: menta elétrica e ciano sobre obsidiana, composição mais disciplinada e ausência de laranja como cor estrutural. A personalidade vem da clareza dos estados, do ritmo dos dados e de transições que mostram causalidade.",
+    "keyCharacteristics": [
+      "Escura, precisa e operacional.",
+      "Densa sem ser apertada.",
+      "Progresso, risco e evidência visualmente distintos.",
+      "Movimento usado para explicar mudança de estado.",
+      "Controles familiares com acabamento próprio, nunca futurismo genérico."
+    ],
+    "rules": [
+      {
+        "name": "The Signal Has Meaning Rule",
+        "body": "Signal Mint não é decoração. Cada ocorrência deve indicar ação, progresso confirmado, foco ou saúde.",
+        "section": "colors"
+      },
+      {
+        "name": "The No Ambient Rainbow Rule",
+        "body": "Provedores, fases e ferramentas podem ter cores categóricas, mas nunca transformam a superfície em uma coleção de acentos concorrentes.",
+        "section": "colors"
+      },
+      {
+        "name": "The Numbers Stay Still Rule",
+        "body": "Métricas, tokens, duração, custos, caminhos e logs usam numerais tabulares; valores dinâmicos não podem deslocar a composição.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Until Lifted Rule",
+        "body": "Uma superfície só recebe sombra quando realmente se move acima de outra.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** manter o pipeline e o estado atual identificáveis em um olhar.",
+      "**Do** usar a cor para semântica operacional e preservar grandes áreas neutras.",
+      "**Do** revelar detalhes progressivamente em gavetas, inspeções e painéis contextuais.",
+      "**Do** mostrar loading, vazio, erro, permissão, execução, pausa, bypass e conclusão como estados completos."
+    ],
+    "donts": [
+      "**Don't** copiar marca, ícones, textos ou composição pixel a pixel do LionClaw.",
+      "**Don't** usar glassmorphism, gradientes ornamentais, halos neon ou cards dentro de cards sem necessidade estrutural.",
+      "**Don't** esconder risco, custo, permissões ou falhas atrás de linguagem vaga.",
+      "**Don't** reduzir a experiência a um chat genérico com uma barra lateral decorativa."
+    ]
+  }
+}

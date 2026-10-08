@@ -1,0 +1,135 @@
+version: '3'
+
+vars:
+  APP_NAME: "harflex"
+  BIN_DIR: "bin"
+  PACKAGE_MANAGER: '{{.PACKAGE_MANAGER | default "npm"}}'
+  VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
+  # Target OS for build/package/run. Defaults to the host OS, and is overridden
+  # by `wails3 build GOOS=...` (or the GOOS env var) for cross-compilation. The
+  # tasks below dispatch to the matching platform Taskfile via this variable.
+  GOOS: '{{.GOOS | default OS}}'
+
+includes:
+  common: ./build/Taskfile.yml
+  windows: ./build/windows/Taskfile.yml
+  darwin: ./build/darwin/Taskfile.yml
+  linux: ./build/linux/Taskfile.yml
+  ios: ./build/ios/Taskfile.yml
+  android: ./build/android/Taskfile.yml
+
+tasks:
+  test:go:
+    dir: '{{.ROOT_DIR}}'
+    # main.go embeds frontend/dist; build it before Go sees a fresh checkout.
+    deps: ['test:frontend']
+    cmds:
+      - go test ./... -race
+      - go vet ./...
+
+  test:frontend:
+    dir: '{{.ROOT_DIR}}/frontend'
+    cmds:
+      - npm test
+      - npm run typecheck
+      - npm run build
+
+  test:e2e:
+    dir: '{{.ROOT_DIR}}/frontend'
+    env:
+      CI: 'true'
+    cmds:
+      - npm run test:e2e
+
+  check:tidy:
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - go mod tidy -diff
+
+  check:diff:
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - git diff --check
+      - git diff --cached --check
+      - |
+        if git show-ref --verify --quiet refs/remotes/origin/main; then
+          git diff --check "$(git merge-base HEAD origin/main)"..HEAD
+        else
+          true
+        fi
+
+  check:
+    desc: Validate the foundation (run npm ci and install a Playwright browser first)
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      # Keep CPU-heavy frontend, browser and race suites sequential. Running
+      # them as parallel deps intermittently exceeded existing 5 s Vitest waits.
+      - task: test:go
+      - task: test:e2e
+      - task: check:tidy
+      - task: check:diff
+      - node --test scripts/release-gates.test.mjs
+
+  build:
+    summary: Builds the application
+    cmds:
+      - task: "{{.GOOS}}:build"
+
+  package:
+    summary: Packages a production build of the application
+    cmds:
+      - task: "{{.GOOS}}:package"
+
+  installers:
+    summary: Builds the installers for the target OS (macOS .dmg, Windows NSIS .exe, Linux AppImage/deb/rpm/AUR)
+    cmds:
+      - task: '{{if eq .GOOS "darwin"}}{{if eq .UNIVERSAL "1"}}installers:darwin:universal{{else}}darwin:package:dmg{{end}}{{else if eq .GOOS "windows"}}windows:package{{else}}linux:package{{end}}'
+    vars:
+      UNIVERSAL: '{{.UNIVERSAL | default "0"}}'
+
+  installers:darwin:universal:
+    summary: Builds one .dmg that runs on Apple Silicon and Intel Macs
+    internal: true
+    cmds:
+      - task: darwin:package:universal
+      - task: darwin:create:dmg
+
+  run:
+    summary: Runs the application
+    cmds:
+      - task: "{{.GOOS}}:run"
+
+  dev:
+    summary: Runs the application in development mode
+    cmds:
+      - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
+
+  install:msix:tools:
+    summary: Installs tools required for Windows MSIX packaging
+    cmds:
+      - task: windows:install:msix:tools
+
+  setup:docker:
+    summary: Builds Docker image for cross-compilation (~800MB download)
+    cmds:
+      - task: common:setup:docker
+
+  build:server:
+    summary: Builds the application in server mode (no GUI, HTTP server only)
+    cmds:
+      - task: common:build:server
+
+  run:server:
+    summary: Runs the application in server mode
+    cmds:
+      - task: common:run:server
+
+  build:docker:
+    summary: Builds a Docker image for server mode deployment
+    cmds:
+      - task: common:build:docker
+
+  run:docker:
+    summary: Builds and runs the Docker image
+    cmds:
+      - task: common:run:docker

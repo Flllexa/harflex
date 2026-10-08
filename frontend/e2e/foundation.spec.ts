@@ -1,0 +1,111 @@
+import { expect, test, type Page } from '@playwright/test'
+import { undersizedTargets } from './targets'
+
+// Synthetic UI contract tests. No provider, filesystem, shell or Wails execution.
+// Reload discovers the persisted synthetic journal via ListSessions/OpenSession.
+// Native Wails/CLI restart remains a separate acceptance test.
+const viewports = [{ width: 320, height: 720 }, { width: 768, height: 1024 }, { width: 900, height: 700 }, { width: 1440, height: 900 }]
+async function open(page: Page) {
+  await page.getByLabel('Caminho da pasta').fill('/synthetic/workspace/foundation')
+  await page.getByRole('button', { name: 'Abrir projeto' }).click()
+}
+async function releaseStreaming(page: Page) {
+  await page.evaluate(() => {
+    if (!window.harflexSynthetic) throw new Error('Synthetic control unavailable')
+    window.harflexSynthetic.releaseStreaming()
+  })
+}
+async function layout(page: Page, width: number) {
+  await page.getByRole('navigation', { name: 'SDD Pipeline' }).scrollIntoViewIfNeeded()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
+  expect(await undersizedTargets(page)).toEqual([])
+  await expect(page.getByRole('navigation', { name: 'SDD Pipeline' }).locator('[aria-current="step"]')).toHaveCount(0)
+}
+
+for (const viewport of viewports) {
+  test(`synthetic foundation journey ${viewport.width}x${viewport.height}`, async ({ page }, info) => {
+    await page.setViewportSize(viewport)
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto('/e2e/fixture.html?scenario=foundation')
+    await expect(page.getByLabel('Caminho da pasta')).toBeVisible()
+    await page.getByLabel('Caminho da pasta').focus()
+    await page.keyboard.press('Shift+Tab')
+    await expect(page.getByRole('button', { name: 'Escolher pasta' })).toBeFocused()
+    expect(await page.locator(':focus').evaluate(element => getComputedStyle(element).outlineStyle)).not.toBe('none')
+    await open(page)
+    await page.getByRole('button', { name: 'Configurar provedor' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Configurar provedor' })
+    await dialog.getByLabel('Nome', { exact: true }).fill('Sintético')
+    await dialog.getByLabel('URL base').fill('https://synthetic.invalid/v1')
+    await dialog.getByLabel('Modelo', { exact: true }).fill('synthetic-model')
+    await dialog.getByLabel('Chave de API').fill('synthetic-placeholder')
+    await dialog.getByRole('button', { name: 'Salvar provedor' }).click()
+    await expect(dialog.getByRole('status')).toContainText('Salvo')
+    await expect(dialog.getByLabel('Chave de API')).toHaveValue('')
+    await page.keyboard.press('Escape')
+    await page.getByLabel('Motivo para pular SDD nesta sessão').fill('Teste de conversa livre')
+    await page.getByRole('button', { name: 'Iniciar sessão livre' }).click()
+    const prompt = page.getByLabel('Mensagem')
+    await prompt.fill('Leia e edite notes.md. ' + 'conteúdo-longo-'.repeat(50))
+    await page.keyboard.press('Enter')
+    await expect(page.getByRole('status')).toContainText('Gerando resposta do agente')
+    await expect(page.getByText('Lendo o arquivo sintético...', { exact: true })).toBeVisible()
+    await releaseStreaming(page)
+    await expect(page.getByText('Lendo o arquivo sintético...', { exact: true })).toBeVisible()
+    await expect(page.getByRole('article', { name: 'Ferramenta read' })).toContainText('Concluída')
+    const approval = page.getByRole('group', { name: 'Aprovação necessária' })
+    await expect(approval).toContainText('edit')
+    await layout(page, viewport.width)
+    await page.screenshot({ path: info.outputPath(`foundation-approval-${viewport.width}.png`), fullPage: true })
+    await approval.getByRole('button', { name: 'Aprovar' }).click()
+    await expect(page.getByRole('status')).toContainText('Concluído')
+    await expect(page.getByRole('button', { name: 'Cancelar execução' })).toHaveCount(0)
+    await page.getByRole('tab', { name: 'Artefatos' }).click()
+    await expect(page.getByRole('region', { name: 'Diff de notes.md' })).toContainText('+olá')
+    await layout(page, viewport.width)
+    await page.screenshot({ path: info.outputPath(`foundation-diff-${viewport.width}.png`), fullPage: true })
+    // Stable synthetic journal survives browser reload; reopening replays it.
+    await page.reload()
+    await open(page)
+    await page.getByRole('button', { name: 'Abrir histórico' }).click()
+    await expect(page.getByRole('status')).toContainText('Concluído')
+    await page.getByRole('tab', { name: 'Artefatos' }).click()
+    await expect(page.getByRole('region', { name: 'Diff de notes.md' })).toContainText('+olá')
+    await page.getByRole('tab', { name: 'Conversa' }).click()
+    await prompt.fill('cancel synthetic')
+    await page.getByRole('button', { name: 'Enviar' }).click()
+    await expect(page.getByRole('status')).toContainText('Agente trabalhando')
+    await page.getByRole('button', { name: 'Cancelar execução' }).click()
+    await expect(page.getByRole('status')).toContainText('Cancelado')
+    await expect(approval).toHaveCount(0)
+    await prompt.fill('fail synthetic')
+    await page.getByRole('button', { name: 'Enviar' }).click()
+    await expect(page.getByRole('status')).toContainText('Gerando resposta do agente')
+    await releaseStreaming(page)
+    await expect(page.getByRole('status')).toContainText('Falhou')
+    await expect(page.getByText(/Erro sintético:/)).toBeVisible()
+    await layout(page, viewport.width)
+    const activity = page.getByRole('button', { name: 'Atividade', exact: true })
+    if (viewport.width >= 1024) await activity.click()
+    await activity.click()
+    if (viewport.width < 1024) await expect(page.getByRole('dialog', { name: 'Atividade', exact: true })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(activity).toBeFocused()
+    expect(await activity.evaluate(element => getComputedStyle(element).transitionDuration)).toBe('0s')
+    await page.screenshot({ path: info.outputPath(`foundation-error-${viewport.width}.png`), fullPage: true })
+  })
+}
+
+test('synthetic replay outage exposes an actionable retry and reaches terminal', async ({ page }) => {
+  await page.setViewportSize(viewports[0])
+  await page.goto('/e2e/fixture.html?scenario=replay-outage')
+  await open(page)
+  await page.getByLabel('Motivo para pular SDD nesta sessão').fill('Teste de conversa livre')
+  await page.getByRole('button', { name: 'Iniciar sessão livre' }).click()
+  await page.getByLabel('Mensagem').fill('synthetic replay')
+  await page.getByRole('button', { name: 'Enviar' }).click()
+  await expect(page.getByRole('button', { name: 'Atualizar eventos' })).toBeEnabled()
+  await page.getByRole('button', { name: 'Atualizar eventos' }).click()
+  await expect(page.getByRole('status')).toContainText('Concluído')
+  await expect(page.getByRole('button', { name: 'Atualizar eventos' })).toHaveCount(0)
+})

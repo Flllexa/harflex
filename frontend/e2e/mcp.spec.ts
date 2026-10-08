@@ -1,0 +1,96 @@
+import { expect, test } from '@playwright/test'
+
+for (const width of [320, 1440]) {
+  test(`MCP requires explicit connection and lists tools at ${width}px`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/e2e/fixture.html?scenario=mcp')
+    await page.getByLabel('Caminho da pasta').fill('/synthetic/workspace/api-faturas')
+    await page.getByRole('button', { name: 'Abrir projeto' }).click()
+    if (width < 768) await page.getByRole('button', { name: 'Abrir navegação' }).click()
+    await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('button', { name: 'MCP Servers' }).click()
+    await page.getByLabel('Nome do servidor').fill('Docs')
+    await page.getByLabel('URL do servidor').fill('http://127.0.0.1:3333/mcp')
+    await page.getByRole('button', { name: 'Salvar servidor' }).click()
+    await expect(page.getByRole('button', { name: 'Conectar Docs' })).toBeVisible()
+    await expect(page.getByText('Desativado', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Conectar Docs' }).click()
+    await expect(page.getByText('Busca documentos locais')).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
+    await page.screenshot({ path: info.outputPath(`mcp-${width}.png`), fullPage: true })
+    await page.getByRole('button', { name: 'Desativar Docs' }).click()
+    await expect(page.getByRole('button', { name: 'Conectar Docs' })).toBeVisible()
+  })
+}
+
+for (const width of [320, 768, 1024, 1440]) {
+  test(`stdio token delivery is explicit and the secret leaves the form at ${width}px`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/e2e/fixture.html?scenario=mcp')
+    await page.getByLabel('Caminho da pasta').fill('/synthetic/workspace/api-faturas')
+    await page.getByRole('button', { name: 'Abrir projeto' }).click()
+    if (width < 768) await page.getByRole('button', { name: 'Abrir navegação' }).click()
+    await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('button', { name: 'MCP Servers' }).click()
+    await page.getByTestId('picker-mcp-transport').getByRole('button').click()
+    await page.screenshot({ path: info.outputPath(`mcp-picker-open-${width}.png`), fullPage: true })
+    await page.getByRole('option', { name: 'Processo local (stdio)' }).click()
+    await page.getByLabel('Nome do servidor').fill('Local')
+    await page.getByLabel('Executável absoluto').fill('/usr/local/bin/local-mcp')
+    await page.getByLabel('Token de acesso (opcional)').fill('synthetic-e2e-secret')
+    const envName = page.getByLabel('Nome da variável de ambiente do token')
+    await expect(envName).toHaveAttribute('required', '')
+    await envName.fill('INVALID-NAME')
+    await page.getByRole('button', { name: 'Salvar servidor' }).click()
+    await expect(page.getByRole('button', { name: 'Conectar Local' })).toHaveCount(0)
+    await envName.fill('MCP_TOKEN')
+    await page.getByRole('button', { name: 'Salvar servidor' }).click()
+    await expect(page.getByText(/Token via MCP_TOKEN ao iniciar/)).toBeVisible()
+    await expect(page.getByText('synthetic-e2e-secret')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Editar' }).click()
+    await expect(page.getByLabel('Nome da variável de ambiente do token')).toHaveValue('MCP_TOKEN')
+    await expect(page.getByLabel('Token de acesso (opcional)')).toHaveValue('')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
+    await page.screenshot({ path: info.outputPath(`mcp-stdio-${width}.png`), fullPage: true })
+  })
+}
+
+// GitHub and Bitbucket arrive ready: the person only brings a credential, and the agent can then open pull requests.
+for (const width of [320, 768, 1440]) {
+  test(`GitHub and Bitbucket are one credential away at ${width}px`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/e2e/fixture.html?scenario=mcp')
+    await page.getByLabel('Caminho da pasta').fill('/synthetic/workspace/api-faturas')
+    await page.getByRole('button', { name: 'Abrir projeto' }).click()
+    if (width < 768) await page.getByRole('button', { name: 'Abrir navegação' }).click()
+    await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('button', { name: 'MCP Servers' }).click()
+
+    await expect(page.getByRole('heading', { name: 'Servidores prontos' })).toBeVisible()
+    const github = page.getByRole('listitem', { name: 'GitHub' })
+    const bitbucket = page.getByRole('listitem', { name: 'Bitbucket' })
+    await expect(github).toContainText('Não configurado')
+    await expect(bitbucket).toContainText('Não configurado')
+    await page.screenshot({ path: info.outputPath(`mcp-presets-${width}.png`), fullPage: true })
+
+    await github.getByRole('button', { name: 'Configurar GitHub' }).click()
+    const githubForm = page.getByRole('form', { name: 'Credencial do GitHub' })
+    await expect(githubForm).toContainText('github.com/settings/tokens')
+    await githubForm.getByLabel('Token de acesso pessoal').fill('ghp_synthetic_e2e_secret')
+    await githubForm.getByRole('button', { name: 'Salvar e conectar GitHub' }).click()
+    await expect(github).toContainText('Ativo')
+    await expect(page.getByRole('status').filter({ hasText: 'GitHub: conexão validada' })).toBeVisible()
+    await expect(page.getByText('ghp_synthetic_e2e_secret')).toHaveCount(0)
+
+    await bitbucket.getByRole('button', { name: 'Configurar Bitbucket' }).click()
+    const bitbucketForm = page.getByRole('form', { name: 'Credencial do Bitbucket' })
+    await expect(bitbucketForm).toContainText('read:bitbucket:agent-interface')
+    await bitbucketForm.getByLabel('E-mail da conta Atlassian').fill('ana@empresa.com')
+    await bitbucketForm.getByLabel('Token de API').fill('atlassian-synthetic-e2e')
+    await page.screenshot({ path: info.outputPath(`mcp-presets-form-${width}.png`), fullPage: true })
+    await bitbucketForm.getByRole('button', { name: 'Salvar e conectar Bitbucket' }).click()
+    await expect(bitbucket).toContainText('Ativo')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
+
+    await github.getByRole('button', { name: 'Desativar GitHub' }).click()
+    await expect(github).toContainText('Desativado')
+    await expect(github.getByRole('button', { name: 'Conectar GitHub' })).toBeVisible()
+  })
+}

@@ -1,0 +1,44 @@
+:root {
+  color-scheme: dark;
+  --ion-void: #080b0d;
+  --forge: #12171a;
+  --border: #273036;
+  --mint: #5cf2a6;
+  --cyan: #39bff8;
+  --paper: #f1f5f4;
+  --muted: #82908c;
+  --soft-mint: #16382a;
+  /* Failures, denials and removed diff lines only; never decorative. */
+  --danger: #f2777a;
+  --soft-danger: #3a1c1e;
+  /* Waiting on the person (approvals); never decorative. */
+  --amber: #f2c94c;
+  --shadow: #0008;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --radius-control: 8px;
+  --radius-panel: 12px;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+  --focus-ring: 2px solid var(--mint);
+}
+
+/* The light theme keeps the same roles; accents darken so they read as text on white and carry white text as fills. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --ion-void: #f4f6f5;
+  --forge: #ffffff;
+  --border: #d5ddda;
+  --mint: #087f4d;
+  --cyan: #0a6fae;
+  --paper: #121a17;
+  --muted: #5a6864;
+  --soft-mint: #dcf2e6;
+  --danger: #c2363b;
+  --soft-danger: #fbe4e4;
+  --amber: #9a6500;
+  --shadow: #1a2a2433;
+}

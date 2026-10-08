@@ -1,0 +1,7 @@
+{"type":"thread.started","thread_id":"thread_synthetic"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item_1","type":"agent_message","text":"partial"}}
+{"type":"item.updated","item":{"id":"item_1","type":"agent_message","text":"partial update"}}
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"Resposta do Codex.\n"}}
+{"type":"item.completed","item":{"id":"item_2","type":"command_execution","text":"RAW_ONLY"}}
+{"type":"turn.completed","usage":{"input_tokens":12,"output_tokens":8}}

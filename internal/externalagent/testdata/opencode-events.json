@@ -1,0 +1,182 @@
+[
+  {
+    "type": "external.raw",
+    "raw": {
+      "type": "step_start",
+      "sessionID": "ses_synthetic",
+      "part": {
+        "id": "step_1",
+        "type": "step-start",
+        "sessionID": "ses_synthetic",
+        "messageID": "msg_1"
+      }
+    },
+    "sessionId": "ses_synthetic"
+  },
+  {
+    "type": "assistant.message",
+    "text": "Olá",
+    "messageId": "part_1",
+    "mode": "replace",
+    "raw": {
+      "type": "text",
+      "part": {
+        "id": "part_1",
+        "type": "text",
+        "sessionID": "ses_synthetic",
+        "messageID": "msg_1",
+        "text": "Olá",
+        "time": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    "sessionId": "ses_synthetic"
+  },
+  {
+    "type": "external.raw",
+    "raw": {
+      "type": "text",
+      "sessionID": "ses_synthetic",
+      "part": {
+        "id": "part_1",
+        "type": "text",
+        "messageID": "msg_1",
+        "text": "Olá",
+        "time": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    "sessionId": "ses_synthetic"
+  },
+  {
+    "type": "assistant.message",
+    "text": "Olá mundo",
+    "messageId": "part_1",
+    "mode": "replace",
+    "raw": {
+      "type": "text",
+      "sessionID": "ses_synthetic",
+      "part": {
+        "id": "part_1",
+        "type": "text",
+        "messageID": "msg_1",
+        "text": "Olá mundo",
+        "time": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    "sessionId": "ses_synthetic"
+  },
+  {
+    "type": "assistant.message",
+    "raw": {
+      "type": "text",
+      "sessionID": "ses_synthetic",
+      "part": {
+        "id": "part_1",
+        "type": "text",
+        "messageID": "msg_1",
+        "text": "Olá",
+        "time": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    "sessionId": "ses_synthetic",
+    "text": "Olá",
+    "messageId": "part_1",
+    "mode": "replace"
+  },
+  {
+    "type": "assistant.message",
+    "messageId": "part_1",
+    "mode": "replace",
+    "raw": {
+      "type": "text",
+      "sessionID": "ses_synthetic",
+      "part": {
+        "id": "part_1",
+        "type": "text",
+        "messageID": "msg_1",
+        "text": "",
+        "time": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    "sessionId": "ses_synthetic"
+  },
+  {
+    "type": "external.raw",
+    "raw": {
+      "type": "text",
+      "sessionID": "ses_synthetic",
+      "part": {
+        "id": "part_1",
+        "type": "text",
+        "messageID": "msg_1",
+        "text": "",
+        "time": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    "sessionId": "ses_synthetic"
+  },
+  {
+    "type": "assistant.message",
+    "text": "Segunda parte.",
+    "messageId": "part_2",
+    "mode": "replace",
+    "raw": {
+      "type": "text",
+      "sessionID": "ses_synthetic",
+      "part": {
+        "id": "part_2",
+        "type": "text",
+        "messageID": "msg_1",
+        "text": "Segunda parte.",
+        "time": {
+          "start": 5,
+          "end": 6
+        }
+      }
+    },
+    "sessionId": "ses_synthetic"
+  },
+  {
+    "type": "external.raw",
+    "raw": {
+      "type": "tool_use",
+      "sessionID": "ses_synthetic",
+      "part": {
+        "id": "tool_1",
+        "type": "tool",
+        "text": "RAW_ONLY"
+      }
+    },
+    "sessionId": "ses_synthetic"
+  },
+  {
+    "type": "external.raw",
+    "raw": {
+      "type": "step_finish",
+      "sessionID": "ses_synthetic",
+      "part": {
+        "id": "step_2",
+        "type": "step-finish",
+        "reason": "stop"
+      }
+    },
+    "sessionId": "ses_synthetic"
+  }
+]

@@ -1,0 +1,91 @@
+import { expect, test, type Page } from '@playwright/test'
+
+const fixtureKey = 'harflex:conversational-design'
+async function openProject(page: Page) {
+  await page.getByLabel('Caminho da pasta').fill('/synthetic/workspace/faturas')
+  await page.getByRole('button', { name: 'Abrir projeto' }).click()
+  const menu = page.getByRole('button', { name: 'Abrir navegação' })
+  if (await menu.isVisible()) await menu.click()
+  await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('button', { name: 'Pipelines' }).click()
+  const activity = page.getByRole('button', { name: 'Atividade', exact: true })
+  if (await activity.getAttribute('aria-expanded') === 'true') await activity.click()
+}
+async function pane(page: Page, name: 'Conversa' | 'Documentos') {
+  const button = page.getByRole('navigation', { name: 'Área de preparação' }).getByRole('button', { name, exact: true })
+  if (await button.isVisible()) await button.click()
+}
+async function saved(page: Page) { return page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!), fixtureKey) }
+async function dimensions(page: Page, width: number) {
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
+  const controls = await page.locator('.pipeline-design-studio button:visible, .pipeline-design-studio summary:visible').evaluateAll(elements => elements.map(element => ({ text: element.textContent, height: element.getBoundingClientRect().height })))
+  expect(controls.filter(item => item.height < 44)).toEqual([])
+}
+
+for (const width of [320, 768, 900, 1024, 1440]) {
+  test(`conversational preparation, chat, manual editing, reopen and approval at ${width}px`, async ({ page }, info) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.setViewportSize({ width: 1440, height: 1000 })
+    await page.goto('/e2e/fixture.html?scenario=conversational-design')
+    await openProject(page)
+    await page.setViewportSize({ width, height: 1000 })
+    await page.getByLabel('Discovery', { exact: true }).fill('Exportar faturas em CSV para a equipe financeira, com filtros por período e datas legíveis. Preservar todos os caracteres e nomes longos.')
+    await page.getByRole('button', { name: 'Criar pipeline' }).click()
+    await expect.poll(async () => (await saved(page)).prepareCount).toBe(1)
+    await pane(page, 'Documentos')
+    await expect(page.getByRole('article', { name: 'Documento SPEC versão 1' })).toContainText('Critérios de aceite')
+    await expect(page.getByRole('button', { name: 'Preparar SPEC e Plan' })).toHaveCount(0)
+    await dimensions(page, width)
+    await page.screenshot({ path: info.outputPath(`documents-${width}.png`), fullPage: true })
+    if (width >= 768 && !await page.getByRole('navigation', { name: 'Área de preparação' }).isVisible()) {
+      const positions = await page.locator('.design-conversation, .design-document').evaluateAll(elements => elements.map(element => element.getBoundingClientRect().x))
+      expect(positions[1]).toBeGreaterThan(positions[0])
+    }
+    await pane(page, 'Conversa')
+    await page.getByTestId('picker-design-target').locator('button').click()
+    await page.getByRole('option', { name: 'SPEC', exact: true }).click()
+    await page.getByLabel('Pedido para a IA').fill('Especificar o formato ISO das datas e o separador do CSV.')
+    await page.getByRole('button', { name: 'Enviar pedido' }).click()
+    await expect(page.getByLabel('Pedido para a IA')).toHaveValue('')
+    await expect.poll(async () => Object.values((await saved(page)).designs as Record<string, { state: string }>)[0].state).toBe('ready')
+    await pane(page, 'Documentos')
+    await expect(page.getByRole('article', { name: 'Documento SPEC versão 2' })).toContainText('separador do CSV')
+    await page.getByRole('button', { name: 'Editar SPEC' }).click()
+    await expect(page.getByLabel('Texto de SPEC')).toBeFocused()
+    await page.getByLabel('Texto de SPEC').fill('# SPEC final\n\n## Critérios de aceite\n\n- Exportar faturas filtradas.\n- Datas ISO, valores monetários e nomes muito longos devem permanecer íntegros.\n- Não enviar dados pela rede.')
+    await expect(page.getByRole('button', { name: 'Aprovar documentos e continuar para Code' })).toBeDisabled()
+    await page.getByRole('button', { name: 'Salvar SPEC' }).click()
+    await page.getByRole('tab', { name: /Plan/ }).click()
+    await expect(page.getByText('Este documento precisa ser atualizado.')).toBeVisible()
+    await page.getByRole('button', { name: 'Editar Plan' }).click()
+    await page.getByLabel('Texto de Plan').fill('# Plan manual\n\n## Implementação\n\n1. Implementar a exportação.\n2. Verificar filtros, datas ISO e preservação de nomes longos.')
+    await page.getByRole('button', { name: 'Salvar Plan' }).click()
+    await expect(page.getByRole('article', { name: 'Documento Plan versão 3' })).toContainText('Plan manual')
+    await dimensions(page, width)
+    const before = await saved(page)
+    await page.reload()
+    await openProject(page)
+    await expect(page.getByRole('heading', { name: 'Preparar trabalho', exact: true })).toBeVisible()
+    expect((await saved(page)).prepareCount).toBe(before.prepareCount)
+    await pane(page, 'Documentos')
+    await page.getByRole('tab', { name: 'Plan', exact: true }).click()
+    await expect(page.getByRole('article', { name: 'Documento Plan versão 3' })).toContainText('Plan manual')
+    const selectedTab = page.getByRole('tab', { name: 'Plan', exact: true })
+    await selectedTab.focus(); await expect(selectedTab).toBeFocused(); await page.keyboard.press('ArrowLeft')
+    await expect(page.getByRole('tab', { name: 'SPEC', exact: true })).toBeFocused()
+    await expect(page.getByRole('article', { name: 'Documento SPEC versão 3' })).toContainText('SPEC final')
+    const approve = page.getByRole('button', { name: 'Aprovar documentos e continuar para Code' })
+    await expect(approve).toBeEnabled(); await approve.focus(); await expect(approve).toBeFocused()
+    await page.keyboard.press('Enter')
+    const approvedSummary = page.getByText('Discovery, SPEC e Plan aprovados', { exact: true })
+    await expect(approvedSummary).toBeVisible()
+    await expect(approvedSummary.locator('..')).not.toHaveAttribute('open')
+    await expect(page.getByRole('button', { name: 'Executar Coder' })).toBeEnabled()
+    await approvedSummary.click()
+    await expect(page.getByRole('button', { name: 'Criar continuação para editar' })).toBeVisible()
+    const result = await saved(page), pipeline = result.pipelines[0], design = result.designs[pipeline.id]
+    expect(pipeline.currentStage).toBe('code')
+    for (const stage of ['discovery', 'spec', 'plan']) expect(pipeline.artifacts[stage].contentDigest).toBe(design.documents[stage].contentDigest)
+    await dimensions(page, width)
+    await page.screenshot({ path: info.outputPath(`approved-${width}.png`), fullPage: true })
+  })
+}

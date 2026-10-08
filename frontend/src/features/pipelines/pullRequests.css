@@ -1,0 +1,89 @@
+/* Pull request cards with the review watch. */
+.pr-cards { display: flex; flex-direction: column; gap: var(--space-3); }
+.pr-card { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-panel); background: var(--ion-void); animation: activity-enter 180ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.pr-card.is-open { border-color: color-mix(in srgb, var(--mint) 35%, var(--border)); }
+.pr-card-header { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.pr-card-state { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; flex: none; background: color-mix(in srgb, var(--mint) 14%, var(--forge)); color: var(--mint); }
+.pr-card.is-merged .pr-card-state { background: color-mix(in srgb, #a371f7 18%, var(--forge)); color: #a371f7; }
+.pr-card.is-closed .pr-card-state { color: var(--muted); background: var(--forge); }
+.pr-card-state svg { width: 18px; height: 18px; }
+.pr-card-title { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.pr-card-title a { font-weight: 650; color: var(--paper); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-card-title a:hover { color: var(--cyan); text-decoration: underline; }
+.pr-card-title > span { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; font-size: 12px; }
+.pr-card-title code { padding: 1px 6px; border-radius: 6px; background: var(--forge); font-size: 11px; }
+.pr-chip { padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); font-size: 11px; font-weight: 650; }
+.pr-chip.is-open { color: var(--mint); border-color: color-mix(in srgb, var(--mint) 45%, var(--border)); }
+.pr-chip.is-merged { color: #a371f7; border-color: color-mix(in srgb, #a371f7 45%, var(--border)); }
+
+.pr-watch { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 36px; padding: 0 var(--space-3); border: 1px solid var(--border); border-radius: 999px; background: var(--forge); color: var(--paper); font-size: 12px; font-weight: 600; cursor: pointer; }
+.pr-watch-track { position: relative; width: 30px; height: 18px; border-radius: 999px; background: var(--border); transition: background .15s ease; }
+.pr-watch-track span { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--paper); transition: transform .15s ease; }
+.pr-watch.is-on { border-color: color-mix(in srgb, var(--mint) 55%, var(--border)); }
+.pr-watch.is-on .pr-watch-track { background: var(--mint); }
+.pr-watch.is-on .pr-watch-track span { transform: translateX(12px); background: var(--ion-void); }
+
+.pr-watch-status { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; padding: var(--space-2) var(--space-3); border-radius: var(--radius-control); background: color-mix(in srgb, var(--mint) 7%, var(--forge)); font-size: 12px; }
+.pr-watch-status > svg { width: 15px; height: 15px; color: var(--mint); flex: none; }
+.pr-watch-status > span { flex: 1; min-width: 200px; }
+.pr-watch-status.is-checking { background: color-mix(in srgb, var(--cyan) 8%, var(--forge)); }
+.pr-watch-status.is-checking > svg { color: var(--cyan); }
+.pr-watch-status .text-button { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; }
+.pr-watch-status .text-button svg { width: 14px; height: 14px; }
+.pr-spin { animation: activity-spin 1.2s linear infinite; }
+.pr-watch-access { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; padding: var(--space-2) var(--space-3); border: 1px solid color-mix(in srgb, var(--amber) 55%, var(--border)); border-radius: var(--radius-control); font-size: 12px; }
+.pr-watch-access > svg { width: 16px; height: 16px; color: var(--amber); }
+.pr-watch-access p { margin: 0; flex: 1; min-width: 200px; }
+
+.pr-timeline { list-style: none; margin: 0; padding: 0 0 0 var(--space-1); display: flex; flex-direction: column; gap: 6px; border-left: 2px solid var(--border); }
+.pr-timeline li { display: flex; align-items: flex-start; gap: var(--space-2); padding-left: var(--space-2); font-size: 12px; }
+.pr-timeline li svg { width: 14px; height: 14px; margin-top: 2px; flex: none; color: var(--muted); }
+.pr-timeline li span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.pr-timeline li time { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.pr-timeline li.is-fixed svg, .pr-timeline li.is-quiet svg, .pr-timeline li.is-opened svg { color: var(--mint); }
+.pr-timeline li.is-merged svg { color: #a371f7; }
+.pr-timeline li.is-error svg { color: var(--danger); }
+.pr-timeline li.is-needs_access svg { color: var(--amber); }
+.pr-timeline li.is-checking svg { color: var(--cyan); }
+
+/* The road to the merge. */
+.pr-track { list-style: none; margin: 0; padding: var(--space-3) var(--space-2); display: flex; align-items: flex-start; gap: 0; overflow-x: auto; }
+.pr-track-step { position: relative; flex: 1; min-width: 92px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; font-size: 11px; color: var(--muted); }
+.pr-track-step::before { content: ''; position: absolute; top: 14px; left: -50%; right: 50%; height: 2px; background: var(--border); z-index: 0; }
+.pr-track-step:first-child::before { display: none; }
+.pr-track-step.is-done::before, .pr-track-step.is-now::before { background: var(--mint); }
+.pr-track-dot { position: relative; z-index: 1; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--border); background: var(--forge); font-weight: 700; font-size: 12px; color: var(--muted); }
+.pr-track-dot svg { width: 15px; height: 15px; }
+.pr-track-step.is-done { color: var(--paper); }
+.pr-track-step.is-done .pr-track-dot { border-color: var(--mint); background: var(--mint); color: var(--ion-void); }
+.pr-track-step.is-now { color: var(--mint); font-weight: 650; }
+.pr-track-step.is-now .pr-track-dot { border-color: var(--mint); color: var(--mint); box-shadow: 0 0 0 4px color-mix(in srgb, var(--mint) 18%, transparent); animation: flow-glow 2.4s ease-in-out infinite; }
+
+/* What is missing, as pills with the button that solves it. */
+.pr-pills { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.pr-pills li { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 6px 10px; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; background: var(--ion-void); }
+.pr-pills li svg { width: 14px; height: 14px; flex: none; }
+.pr-pills li.is-done svg { color: var(--mint); }
+.pr-pills li.is-pending { border-color: color-mix(in srgb, var(--amber) 50%, var(--border)); }
+.pr-pills li.is-pending svg { color: var(--amber); }
+.pr-pill-action { margin-left: 4px; padding: 2px 10px; border: 1px solid color-mix(in srgb, var(--mint) 50%, var(--border)); border-radius: 999px; background: transparent; color: var(--mint); font-size: 11px; font-weight: 650; cursor: pointer; white-space: nowrap; }
+
+/* The review timeline as notes pinned to the PR sheet. */
+.pr-card { background-image: linear-gradient(180deg, color-mix(in srgb, var(--paper) 3%, transparent), transparent 60%); }
+.pr-notes { list-style: none; margin: 0; padding: var(--space-2) 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(190px, 100%), 1fr)); gap: var(--space-3); }
+.pr-note { position: relative; display: flex; flex-direction: column; gap: 6px; min-height: 92px; padding: 14px 12px 10px; border-radius: 4px 4px 14px 4px; font-size: 12px; line-height: 1.45;
+  background: color-mix(in srgb, var(--amber) 16%, var(--forge)); border: 1px solid color-mix(in srgb, var(--amber) 35%, var(--border)); box-shadow: 0 8px 18px var(--shadow); transform: rotate(-1.2deg); }
+.pr-note:nth-child(even) { transform: rotate(1deg); }
+.pr-note::before { content: ''; position: absolute; top: -6px; left: 50%; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: var(--danger); box-shadow: 0 2px 3px var(--shadow); }
+.pr-note header { display: flex; align-items: center; justify-content: space-between; }
+.pr-note header svg { width: 14px; height: 14px; color: var(--amber); }
+.pr-note header time { font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+.pr-note span { overflow-wrap: anywhere; }
+.pr-note.is-fixed, .pr-note.is-quiet, .pr-note.is-opened { background: color-mix(in srgb, var(--mint) 13%, var(--forge)); border-color: color-mix(in srgb, var(--mint) 35%, var(--border)); }
+.pr-note.is-fixed header svg, .pr-note.is-quiet header svg, .pr-note.is-opened header svg { color: var(--mint); }
+.pr-note.is-merged { background: color-mix(in srgb, #a371f7 16%, var(--forge)); border-color: color-mix(in srgb, #a371f7 40%, var(--border)); }
+.pr-note.is-merged header svg { color: #a371f7; }
+.pr-note.is-checking, .pr-note.is-watch_on { background: color-mix(in srgb, var(--cyan) 12%, var(--forge)); border-color: color-mix(in srgb, var(--cyan) 35%, var(--border)); }
+.pr-note.is-checking header svg, .pr-note.is-watch_on header svg { color: var(--cyan); }
+.pr-note.is-error { background: color-mix(in srgb, var(--danger) 13%, var(--forge)); border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); }
+@media (prefers-reduced-motion: reduce) { .pr-note { transform: none !important; } .pr-track-step.is-now .pr-track-dot { animation: none; } }
