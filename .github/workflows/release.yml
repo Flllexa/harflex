@@ -75,7 +75,7 @@ jobs:
           shopt -s nullglob
           case "${{ matrix.platform }}" in
             macos) cp bin/*.dmg "release/Harflex-$VERSION-macos-universal.dmg" ;;
-            windows) for file in build/windows/nsis/*-installer.exe; do cp "$file" "release/Harflex-$VERSION-windows-amd64-setup.exe"; done ;;
+            windows) for file in bin/*-installer.exe build/windows/nsis/*-installer.exe; do cp "$file" "release/Harflex-$VERSION-windows-amd64-setup.exe"; done ;;
             linux)
               for file in bin/*.AppImage; do cp "$file" "release/Harflex-$VERSION-linux-x86_64.AppImage"; done
               for file in bin/*.deb; do cp "$file" "release/Harflex-$VERSION-linux-amd64.deb"; done

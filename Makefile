@@ -79,7 +79,7 @@ installers: wails-cli
 	@rm -rf bin/harflex bin/harflex.app
 	@PATH="$(BIN_DIR):$$PATH" "$(WAILS_BIN)" task installers $(WAILS_TARGET) $(if $(UNIVERSAL),UNIVERSAL=$(UNIVERSAL),)
 	@printf '%s\n' 'Instaladores gerados:'
-	@ls -1 bin/*.dmg bin/*.AppImage bin/*.deb bin/*.rpm bin/*.pkg.tar.zst build/windows/nsis/*-installer.exe 2>/dev/null || true
+	@ls -1 bin/*.dmg bin/*.AppImage bin/*.deb bin/*.rpm bin/*.pkg.tar.zst bin/*-installer.exe build/windows/nsis/*-installer.exe 2>/dev/null || true
 
 # A release is a version tag: the Release workflow builds the macOS, Windows and Linux installers and publishes them.
 release:
