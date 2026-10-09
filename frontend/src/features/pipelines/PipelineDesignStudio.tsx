@@ -5,13 +5,13 @@ import { IonPicker } from '../../components/IonPicker'
 import { DesignMarkdown, PipelineDesignDocument, designLabels, designStageOrder, savedManualEditorStage } from './PipelineDesignDocument'
 import { PipelineDesignModel } from './PipelineDesignModel'
 import './pipelineDesign.css'
+import { localeTag, useT } from '../../i18n'
 
 type Props = { backend: Backend; pipeline: Pipeline; stageExecutors?: StageExecutor[]; onPipelineChange: (pipeline: Pipeline) => void; onSettings?: () => void; autoPrepareRequest?: string; onAutoPrepareConsumed?: (requestId: string) => void; requestedStage?: PipelineDesignStage; viewRequestId?: number }
 type Command = 'prepare' | 'save' | 'restore' | 'approve' | 'derive' | 'cancel'
 type Receipt = { requestId: string; message: string; clearComposer: boolean; admitted: boolean }
 const running = (design?: PipelineDesign) => design?.state === 'running' || design?.state === 'cancellation_pending'
 const initialPreparation = 'Prepare a SPEC e o Plan para o Discovery salvo.'
-const staleSpecMessage = 'Atualize a SPEC com o Discovery atual antes de preparar o Plan.'
 type ComposerDraft = { message: string; target: PipelineDesignStage | 'all' }
 // Navigation drafts live only in this renderer's memory, scoped to a backend and work.
 // No provider selection, credential, model token or draft is written to browser storage.
@@ -25,6 +25,8 @@ function rememberComposer(backend: Backend, scope: string, draft: ComposerDraft)
 }
 
 export function PipelineDesignStudio({ backend, pipeline, stageExecutors = [], onPipelineChange, onSettings, autoPrepareRequest, onAutoPrepareConsumed, requestedStage, viewRequestId }: Props) {
+  const t = useT()
+  const staleSpecMessage = t('Atualize a SPEC com o Discovery atual antes de preparar o Plan.')
   const scope = `${pipeline.workspaceId}:${pipeline.id}`, scopeRef = useRef(scope), epoch = useRef(0), readNumber = useRef(0)
   const [design, setDesign] = useState<PipelineDesign>(), designRef = useRef<PipelineDesign>()
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading'), [error, setError] = useState(''), [notice, setNotice] = useState('')
@@ -61,7 +63,7 @@ export function PipelineDesignStudio({ backend, pipeline, stageExecutors = [], o
   }, [backend, scope])
   useEffect(() => {
     if (!requestedStage) return
-    if (editing && requestedStage !== stage) { setNotice('Salve ou cancele a edição antes de trocar o documento.'); return }
+    if (editing && requestedStage !== stage) { setNotice(t('Salve ou cancele a edição antes de trocar o documento.')); return }
     setStage(requestedStage); setMobilePane('documents')
   }, [scope, requestedStage, viewRequestId])
 
@@ -90,12 +92,12 @@ export function PipelineDesignStudio({ backend, pipeline, stageExecutors = [], o
     try {
       const current = await backend.getPipeline(value.pipelineId)
       if (!validScope(ticket) || snapshotNumber !== readNumber.current || confirmation !== confirmationNumber.current) return
-      if (current.id !== value.pipelineId || current.workspaceId !== value.workspaceId || current.revision < Math.max(value.currentPipelineRevision, latestPipeline.current.revision)) throw new Error('Pipeline incompatível com os documentos publicados')
+      if (current.id !== value.pipelineId || current.workspaceId !== value.workspaceId || current.revision < Math.max(value.currentPipelineRevision, latestPipeline.current.revision)) throw new Error(t('Pipeline incompatível com os documentos publicados'))
       setConfirmedPipeline(current); setError('')
       if (current.revision !== latestPipeline.current.revision || current.currentStage !== latestPipeline.current.currentStage) onPipelineChange(current)
-      if (value.state === 'approved') setNotice('Documentos aprovados. Code pode começar.')
+      if (value.state === 'approved') setNotice(t('Documentos aprovados. Code pode começar.'))
     } catch {
-      if (validScope(ticket) && snapshotNumber === readNumber.current && confirmation === confirmationNumber.current) setError('Não foi possível confirmar a pipeline publicada. Atualize o trabalho antes de continuar.')
+      if (validScope(ticket) && snapshotNumber === readNumber.current && confirmation === confirmationNumber.current) setError(t('Não foi possível confirmar a pipeline publicada. Atualize o trabalho antes de continuar.'))
     }
   }
   async function refresh(showError = true) {
@@ -103,7 +105,7 @@ export function PipelineDesignStudio({ backend, pipeline, stageExecutors = [], o
     try {
       const value = await backend.openPipelineDesign(pipeline.id)
       if (number !== readNumber.current || !validScope(ticket)) return undefined
-      if (!accept(value, ticket)) { if (showError) setError('O estado retornado não corresponde à versão atual deste trabalho. Atualize novamente.'); return undefined }
+      if (!accept(value, ticket)) { if (showError) setError(t('O estado retornado não corresponde à versão atual deste trabalho. Atualize novamente.')); return undefined }
       await confirmPublishedPipeline(value, ticket, number)
       return value
     } catch (failure) {
@@ -172,7 +174,7 @@ export function PipelineDesignStudio({ backend, pipeline, stageExecutors = [], o
       const result = await resultPromise
       if (!validScope(ticket)) return
       if (!accept(result, ticket)) { const readback = await refresh(); if (!readback) setUncertain(true) }
-      if (validScope(ticket) && !running(designRef.current)) setNotice(designRef.current?.state === 'paused' ? 'A preparação foi interrompida. Os documentos anteriores foram preservados.' : 'Documentos atualizados para revisão.')
+      if (validScope(ticket) && !running(designRef.current)) setNotice(designRef.current?.state === 'paused' ? t('A preparação foi interrompida. Os documentos anteriores foram preservados.') : t('Documentos atualizados para revisão.'))
     } catch (failure) {
       if (!validScope(ticket)) return
       setError(errorMessage(failure))
@@ -215,7 +217,7 @@ export function PipelineDesignStudio({ backend, pipeline, stageExecutors = [], o
     try {
       const result = await backend.approvePipelineDesign({ ref: reference(current), digests: { discovery: current.documents.discovery.contentDigest, spec: current.documents.spec.contentDigest, plan: current.documents.plan.contentDigest } })
       if (!validScope(ticket)) return
-      if (result.id !== pipeline.id || result.workspaceId !== pipeline.workspaceId) throw new Error('A aprovação retornou para outro trabalho. Atualize o estado.')
+      if (result.id !== pipeline.id || result.workspaceId !== pipeline.workspaceId) throw new Error(t('A aprovação retornou para outro trabalho. Atualize o estado.'))
       const readback = await refresh()
       if (validScope(ticket) && !readback) setUncertain(true)
     } catch (failure) { if (validScope(ticket)) { setError(errorMessage(failure)); const readback = await refresh(false); if (validScope(ticket) && !readback) setUncertain(true) } }
@@ -228,7 +230,7 @@ export function PipelineDesignStudio({ backend, pipeline, stageExecutors = [], o
     try {
       const created = await backend.deriveAuthoringPipeline({ parentPipelineId: current.pipelineId, requestId: crypto.randomUUID(), expectedRevision: confirmedPipeline!.revision, discovery: current.documents.discovery.content })
       if (!validScope(ticket)) return
-      if (created.workspaceId !== pipeline.workspaceId || created.derivedFromPipelineId !== pipeline.id) throw new Error('A continuação retornou para outro trabalho. Atualize a lista.')
+      if (created.workspaceId !== pipeline.workspaceId || created.derivedFromPipelineId !== pipeline.id) throw new Error(t('A continuação retornou para outro trabalho. Atualize a lista.'))
       onPipelineChange(created)
     } catch (failure) { if (validScope(ticket)) setError(errorMessage(failure)) }
     finally { if (validScope(ticket)) setCommand(undefined) }
@@ -238,27 +240,27 @@ export function PipelineDesignStudio({ backend, pipeline, stageExecutors = [], o
   const conversation = design?.messages.filter((item, index) => !(index === 0 && item.role === 'user' && item.target === 'discovery' && !item.attemptId && item.content === design.versions.discovery[0]?.content)) ?? []
   const lastAttempt = design?.attempts[design.attempts.length - 1]
   const failedMessage = design?.state === 'paused' && lastAttempt?.status === 'failed' ? design.messages.find(item => item.role === 'user' && item.attemptId === lastAttempt.id) : undefined
-  const phase = design?.phase && designStageOrder.includes(design.phase as PipelineDesignStage) ? designLabels[design.phase as PipelineDesignStage] : 'SPEC e Plan'
+  const phase = design?.phase && designStageOrder.includes(design.phase as PipelineDesignStage) ? designLabels[design.phase as PipelineDesignStage] : t('SPEC e Plan')
   return <section className="pipeline-design-studio" aria-labelledby="design-studio-title" data-pane={mobilePane}>
-    <header className="design-studio-header"><div><h3 id="design-studio-title">Preparar trabalho</h3><p className="muted">{design?.needsDerivation ? 'Documentos aprovados para esta execução.' : 'Converse com a IA ou ajuste os documentos.'}</p></div><button type="button" className="touch-target secondary-button" onClick={() => { pollStarted.current = Date.now(); setPollingStopped(false); void refresh() }} disabled={state === 'loading'}><RefreshCw aria-hidden="true" />Atualizar trabalho</button></header>
-    {state === 'loading' && <div className="design-loading" role="status"><span>Carregando conversa e documentos…</span><div /><div /></div>}
-    {state === 'error' && <div className="inline-error"><p>Não foi possível abrir os documentos deste trabalho.</p><button type="button" className="touch-target secondary-button" onClick={() => void refresh()}>Tentar abrir novamente</button></div>}
+    <header className="design-studio-header"><div><h3 id="design-studio-title">{t('Preparar trabalho')}</h3><p className="muted">{design?.needsDerivation ? t('Documentos aprovados para esta execução.') : t('Converse com a IA ou ajuste os documentos.')}</p></div><button type="button" className="touch-target secondary-button" onClick={() => { pollStarted.current = Date.now(); setPollingStopped(false); void refresh() }} disabled={state === 'loading'}><RefreshCw aria-hidden="true" />{t('Atualizar trabalho')}</button></header>
+    {state === 'loading' && <div className="design-loading" role="status"><span>{t('Carregando conversa e documentos…')}</span><div /><div /></div>}
+    {state === 'error' && <div className="inline-error"><p>{t('Não foi possível abrir os documentos deste trabalho.')}</p><button type="button" className="touch-target secondary-button" onClick={() => void refresh()}>{t('Tentar abrir novamente')}</button></div>}
     {error && <p className="form-error" role="alert">{error}</p>}
-    {uncertain && <p className="design-stale" role="status">O resultado ainda não foi confirmado. Atualize o trabalho antes de enviar outro pedido.</p>}
+    {uncertain && <p className="design-stale" role="status">{t('O resultado ainda não foi confirmado. Atualize o trabalho antes de enviar outro pedido.')}</p>}
     {design && <><PipelineDesignModel key={scope} backend={backend} design={design} stageExecutors={stageExecutors} disabled={fenced || editing || design.needsDerivation} onChange={(value, ready) => { setSelections(value); setModelsReady(ready) }} onSettings={onSettings} />
-      {design.needsDerivation && <div className="design-continuation"><p>Crie uma continuação para ajustar os documentos e preservar esta execução.</p><button type="button" className="touch-target secondary-button" onClick={() => void derive()} disabled={fenced}>Criar continuação para editar<ArrowRight aria-hidden="true" /></button></div>}
-      <nav className="design-mobile-tabs" aria-label="Área de preparação"><button type="button" className="touch-target" aria-pressed={mobilePane === 'conversation'} onClick={() => setMobilePane('conversation')}><MessageSquare aria-hidden="true" />Conversa</button><button type="button" className="touch-target" aria-pressed={mobilePane === 'documents'} onClick={() => setMobilePane('documents')}><FileText aria-hidden="true" />Documentos{stale.length > 0 && <span className="design-count">{stale.length}</span>}</button></nav>
-      <div className="design-workspace"><section className="design-conversation" aria-label="Conversa de preparação"><div className="design-conversation-log" ref={log}>
-        <div className="design-start-message"><span className="design-message-author">Discovery salvo</span><p>{design.documents.discovery.content}</p></div>
-        {conversation.map(item => <div key={item.id} className={`design-message design-message-${item.role}`}><div className="design-message-heading"><strong>{item.role === 'user' ? 'Você' : item.role === 'assistant' ? 'IA' : 'Trabalho'}</strong>{item.role === 'user' && <span className="muted">{item.target === 'all' ? 'Todos os documentos' : designLabels[item.target as PipelineDesignStage] || item.target}</span>}</div>{item.role === 'assistant' ? <DesignMarkdown content={item.content} /> : <p>{item.content}</p>}</div>)}
-        {conversation.length === 0 && <p className="muted design-conversation-hint">A IA prepara SPEC e Plan com base no Discovery. Depois, peça ajustes por aqui.</p>}
+      {design.needsDerivation && <div className="design-continuation"><p>{t('Crie uma continuação para ajustar os documentos e preservar esta execução.')}</p><button type="button" className="touch-target secondary-button" onClick={() => void derive()} disabled={fenced}>{t('Criar continuação para editar')}<ArrowRight aria-hidden="true" /></button></div>}
+      <nav className="design-mobile-tabs" aria-label={t('Área de preparação')}><button type="button" className="touch-target" aria-pressed={mobilePane === 'conversation'} onClick={() => setMobilePane('conversation')}><MessageSquare aria-hidden="true" />{t('Conversa')}</button><button type="button" className="touch-target" aria-pressed={mobilePane === 'documents'} onClick={() => setMobilePane('documents')}><FileText aria-hidden="true" />{t('Documentos')}{stale.length > 0 && <span className="design-count">{stale.length}</span>}</button></nav>
+      <div className="design-workspace"><section className="design-conversation" aria-label={t('Conversa de preparação')}><div className="design-conversation-log" ref={log}>
+        <div className="design-start-message"><span className="design-message-author">{t('Discovery salvo')}</span><p>{design.documents.discovery.content}</p></div>
+        {conversation.map(item => <div key={item.id} className={`design-message design-message-${item.role}`}><div className="design-message-heading"><strong>{item.role === 'user' ? t('Você') : item.role === 'assistant' ? t('IA') : t('Trabalho')}</strong>{item.role === 'user' && <span className="muted">{item.target === 'all' ? t('Todos os documentos') : designLabels[item.target as PipelineDesignStage] || item.target}</span>}</div>{item.role === 'assistant' ? <DesignMarkdown content={item.content} /> : <p>{item.content}</p>}</div>)}
+        {conversation.length === 0 && <p className="muted design-conversation-hint">{t('A IA prepara SPEC e Plan com base no Discovery. Depois, peça ajustes por aqui.')}</p>}
       </div>
-      <div className="design-progress" aria-live="polite">{design.state === 'cancellation_pending' ? <p>Aguardando a confirmação do cancelamento. Os documentos estão protegidos.</p> : design.state === 'running' || pending === 'prepare' ? <><p><RefreshCw className="design-preparing-icon" aria-hidden="true" />{design.state === 'running' ? `Preparando ${phase}…` : 'Iniciando preparação…'}</p>{design.activeAttemptId && <button type="button" className="touch-target secondary-button" onClick={() => void cancel()} disabled={pending === 'cancel'}><Square aria-hidden="true" />Cancelar preparação</button>}</> : latest ? <span className="muted">Última atualização · {designLabels[latest.stage]} v{latest.version} · {new Date(latest.updatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span> : null}{pollingStopped && <p className="muted">O acompanhamento pausou após 3 minutos. Use Atualizar trabalho para conferir o resultado.</p>}</div>
-      {failedMessage && <div className="design-retry"><button type="button" className="touch-target secondary-button" onClick={() => void prepare(failedMessage.content, designStageOrder.includes(failedMessage.target as PipelineDesignStage) ? failedMessage.target as PipelineDesignStage : 'all', undefined, false)} disabled={!canGenerate || failedMessage.target === 'plan' && design.documents.spec.stale}>Tentar preparação novamente</button></div>}
-      {!design.needsDerivation && <form className="design-composer" onSubmit={send}><label className="field">Pedido para a IA<textarea value={message} onChange={event => setMessage(event.target.value)} placeholder="O que você quer ajustar nos documentos?" rows={3} maxLength={20000} /></label>{target === 'plan' && design.documents.spec.stale && <p className="design-stale" role="status">{staleSpecMessage}</p>}<div className="design-composer-actions"><IonPicker id="design-target" label="Alterar" value={target} onChange={value => setTarget(value as PipelineDesignStage | 'all')} disabled={fenced || editing} options={[{ value: 'all', label: 'Todos' }, ...designStageOrder.map(item => ({ value: item, label: designLabels[item] }))]} /><button type="submit" className="touch-target primary-button" disabled={!message.trim() || !canSend}><Send aria-hidden="true" />Enviar pedido</button></div></form>}
-      </section><PipelineDesignDocument key={scope} backend={backend} design={design} stage={stage} disabled={fenced} readOnly={design.needsDerivation} onStageChange={setStage} onEditingChange={setEditing} onSave={(item, content) => mutate('save', current => backend.editPipelineDesignDocument({ ref: reference(current), stage: item, content }), `${designLabels[item]} salvo e versionado.`)} onRestore={(item, version) => mutate('restore', current => backend.restorePipelineDesignDocument({ ref: reference(current), stage: item, version }), `Versão ${version} restaurada em uma nova versão de ${designLabels[item]}.`)} />
+      <div className="design-progress" aria-live="polite">{design.state === 'cancellation_pending' ? <p>{t('Aguardando a confirmação do cancelamento. Os documentos estão protegidos.')}</p> : design.state === 'running' || pending === 'prepare' ? <><p><RefreshCw className="design-preparing-icon" aria-hidden="true" />{design.state === 'running' ? t('Preparando {phase}…', { phase }) : t('Iniciando preparação…')}</p>{design.activeAttemptId && <button type="button" className="touch-target secondary-button" onClick={() => void cancel()} disabled={pending === 'cancel'}><Square aria-hidden="true" />{t('Cancelar preparação')}</button>}</> : latest ? <span className="muted">{t('Última atualização · {label} v{version} · {time}', { label: designLabels[latest.stage], version: latest.version, time: new Date(latest.updatedAt).toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' }) })}</span> : null}{pollingStopped && <p className="muted">{t('O acompanhamento pausou após 3 minutos. Use Atualizar trabalho para conferir o resultado.')}</p>}</div>
+      {failedMessage && <div className="design-retry"><button type="button" className="touch-target secondary-button" onClick={() => void prepare(failedMessage.content, designStageOrder.includes(failedMessage.target as PipelineDesignStage) ? failedMessage.target as PipelineDesignStage : 'all', undefined, false)} disabled={!canGenerate || failedMessage.target === 'plan' && design.documents.spec.stale}>{t('Tentar preparação novamente')}</button></div>}
+      {!design.needsDerivation && <form className="design-composer" onSubmit={send}><label className="field">{t('Pedido para a IA')}<textarea value={message} onChange={event => setMessage(event.target.value)} placeholder={t('O que você quer ajustar nos documentos?')} rows={3} maxLength={20000} /></label>{target === 'plan' && design.documents.spec.stale && <p className="design-stale" role="status">{staleSpecMessage}</p>}<div className="design-composer-actions"><IonPicker id="design-target" label={t('Alterar')} value={target} onChange={value => setTarget(value as PipelineDesignStage | 'all')} disabled={fenced || editing} options={[{ value: 'all', label: t('Todos') }, ...designStageOrder.map(item => ({ value: item, label: designLabels[item] }))]} /><button type="submit" className="touch-target primary-button" disabled={!message.trim() || !canSend}><Send aria-hidden="true" />{t('Enviar pedido')}</button></div></form>}
+      </section><PipelineDesignDocument key={scope} backend={backend} design={design} stage={stage} disabled={fenced} readOnly={design.needsDerivation} onStageChange={setStage} onEditingChange={setEditing} onSave={(item, content) => mutate('save', current => backend.editPipelineDesignDocument({ ref: reference(current), stage: item, content }), t('{label} salvo e versionado.', { label: designLabels[item] }))} onRestore={(item, version) => mutate('restore', current => backend.restorePipelineDesignDocument({ ref: reference(current), stage: item, version }), t('Versão {version} restaurada em uma nova versão de {label}.', { version, label: designLabels[item] }))} />
       </div>
-      {!design.needsDerivation && <footer className="design-studio-footer"><div>{stale.length > 0 ? <p>{stale.map(item => designLabels[item]).join(' e ')} {stale.length > 1 ? 'precisam' : 'precisa'} refletir a última mudança.</p> : <p className="muted">{incomplete ? 'Prepare ou escreva os documentos para continuar.' : 'Revise os três documentos antes de continuar.'}</p>}{manualDraftStage && !editing && <p className="muted">Há um rascunho manual de {designLabels[manualDraftStage]}. Abra esse documento para salvar ou cancelar a edição.</p>}{notice && <p className="form-success" role="status">{notice}</p>}</div><div className="design-footer-actions">{incomplete && <button type="button" className="touch-target primary-button" onClick={() => void prepare(initialPreparation, 'all', undefined, false)} disabled={!canGenerate || !design.documents.discovery.content.trim()}>Preparar SPEC e Plan</button>}{!incomplete && stale.length > 0 && <button type="button" className="touch-target secondary-button" onClick={() => void prepare('Atualize os documentos para refletir as últimas edições salvas.', stale.includes('spec') ? 'spec' : 'plan', undefined, false)} disabled={!canGenerate}>Atualizar documentos</button>}<button type="button" className={`touch-target ${incomplete ? 'secondary-button' : 'primary-button'}`} onClick={() => void approve()} disabled={!mutable || editing || !!manualDraftStage || incomplete || stale.length > 0 || designStageOrder.some(item => !design.documents[item].contentDigest)}><ArrowRight aria-hidden="true" />Aprovar documentos e continuar para Code</button></div></footer>}
+      {!design.needsDerivation && <footer className="design-studio-footer"><div>{stale.length > 0 ? <p>{stale.length > 1 ? t('{list} precisam refletir a última mudança.', { list: stale.map(item => designLabels[item]).join(t(' e ')) }) : t('{list} precisa refletir a última mudança.', { list: stale.map(item => designLabels[item]).join(t(' e ')) })}</p> : <p className="muted">{incomplete ? t('Prepare ou escreva os documentos para continuar.') : t('Revise os três documentos antes de continuar.')}</p>}{manualDraftStage && !editing && <p className="muted">{t('Há um rascunho manual de {label}. Abra esse documento para salvar ou cancelar a edição.', { label: designLabels[manualDraftStage] })}</p>}{notice && <p className="form-success" role="status">{notice}</p>}</div><div className="design-footer-actions">{incomplete && <button type="button" className="touch-target primary-button" onClick={() => void prepare(initialPreparation, 'all', undefined, false)} disabled={!canGenerate || !design.documents.discovery.content.trim()}>{t('Preparar SPEC e Plan')}</button>}{!incomplete && stale.length > 0 && <button type="button" className="touch-target secondary-button" onClick={() => void prepare('Atualize os documentos para refletir as últimas edições salvas.', stale.includes('spec') ? 'spec' : 'plan', undefined, false)} disabled={!canGenerate}>{t('Atualizar documentos')}</button>}<button type="button" className={`touch-target ${incomplete ? 'secondary-button' : 'primary-button'}`} onClick={() => void approve()} disabled={!mutable || editing || !!manualDraftStage || incomplete || stale.length > 0 || designStageOrder.some(item => !design.documents[item].contentDigest)}><ArrowRight aria-hidden="true" />{t('Aprovar documentos e continuar para Code')}</button></div></footer>}
     </>}
   </section>
 }

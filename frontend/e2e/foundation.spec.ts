@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page } from './locale'
 import { undersizedTargets } from './targets'
 
 // Synthetic UI contract tests. No provider, filesystem, shell or Wails execution.
@@ -85,7 +85,7 @@ for (const viewport of viewports) {
     await expect(page.getByRole('status')).toContainText('Falhou')
     await expect(page.getByText(/Erro sintético:/)).toBeVisible()
     await layout(page, viewport.width)
-    const activity = page.getByRole('button', { name: 'Atividade', exact: true })
+    const activity = page.getByRole('button', { name: 'Painel lateral', exact: true })
     if (viewport.width >= 1024) await activity.click()
     await activity.click()
     if (viewport.width < 1024) await expect(page.getByRole('dialog', { name: 'Atividade', exact: true })).toBeVisible()

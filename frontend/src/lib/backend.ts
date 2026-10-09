@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { t } from '../i18n'
 import { pipelineDesignSchema, type PipelineDesign, type PreparePipelineDesignInput, type EditPipelineDesignDocumentInput, type RestorePipelineDesignDocumentInput, type ApprovePipelineDesignInput } from './pipelineDesign'
 export type { PipelineDesign, PipelineDesignDocument, PipelineDesignStage, PipelineDesignRef, PreparePipelineDesignInput, EditPipelineDesignDocumentInput, RestorePipelineDesignDocumentInput, ApprovePipelineDesignInput } from './pipelineDesign'
 
@@ -364,7 +365,7 @@ export const LOCAL_DIAGNOSTIC_STREAM = 'frontend:diagnostics'
 let diagnosticSequence = 0
 export function invalidEventDiagnostic(): AgentEvent {
   return { id: `frontend-diagnostic-${++diagnosticSequence}`, streamId: LOCAL_DIAGNOSTIC_STREAM, sequence: 0,
-    type: 'diagnostic.invalid_event', data: { code: 'invalid_backend_event', message: 'Evento do backend inválido.' }, createdAt: '' }
+    type: 'diagnostic.invalid_event', data: { code: 'invalid_backend_event', message: t('Evento do backend inválido.') }, createdAt: '' }
 }
 
 /** Everything the UI may ask of the desktop backend. Tests inject a fake. */
@@ -747,15 +748,15 @@ const phaseNames: Record<string, string> = { discovery: 'Discovery', spec: 'SPEC
 
 export function errorMessage(error: unknown): string {
   const code = errorCode(error)
-  if (code === 'pipeline_design_phase_executor_unusable') return `O provedor ou o modelo escolhido para ${phaseNames[errorStage(error)] ?? 'uma das fases'} não está disponível agora. Abra "Provedor e modelo por fase", no alto desta página, e escolha outro ou volte ao padrão.`
-  return errorMessages[code] ?? 'A operação falhou. Consulte os eventos da sessão.'
+  if (code === 'pipeline_design_phase_executor_unusable') return t('O provedor ou o modelo escolhido para {phase} não está disponível agora. Abra "Provedor e modelo por fase", no alto desta página, e escolha outro ou volte ao padrão.', { phase: phaseNames[errorStage(error)] ?? t('uma das fases') })
+  return t(errorMessages[code] ?? 'A operação falhou. Consulte os eventos da sessão.')
 }
 
 // cliCatalogProblem explains why a local CLI did not hand over its model list.
 export function cliCatalogProblem(result: Pick<ModelCatalogResult, 'errorCode'>, name: string) {
-  if (result.errorCode === 'catalog_not_logged_in') return `${name} não está autenticado. Faça o login no terminal com "claude auth login" e tente de novo.`
-  if (result.errorCode === 'catalog_cli_unavailable') return `${name} não foi encontrado nesta máquina.`
-  return `Não foi possível confirmar o catálogo local de ${name}.`
+  if (result.errorCode === 'catalog_not_logged_in') return t('{name} não está autenticado. Faça o login no terminal com "claude auth login" e tente de novo.', { name })
+  if (result.errorCode === 'catalog_cli_unavailable') return t('{name} não foi encontrado nesta máquina.', { name })
+  return t('Não foi possível confirmar o catálogo local de {name}.', { name })
 }
 
 // The CLIs that can work as a model only in the SDD phases, with the catalog source that lists their models.

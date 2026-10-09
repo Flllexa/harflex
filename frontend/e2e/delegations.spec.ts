@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page } from './locale'
 
 async function openAgents(page: Page, width: number) {
   if (width < 768) await page.getByRole('button', { name: 'Abrir navegação' }).click()

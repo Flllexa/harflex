@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './locale'
 
 const providerName = 'API de testes financeiros com identificação extensa'
 const modelName = 'Modelo de teste com descrição longa para validar truncamento responsivo'

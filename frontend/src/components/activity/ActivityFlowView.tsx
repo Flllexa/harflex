@@ -5,6 +5,7 @@ import { Bot, Check, Circle, CircleAlert, CircleCheck, CircleSlash, FileText, Gl
 import { beforePlan, type Action, type ActionKind, type ActivityFlow } from './activityFlow'
 import './activityFlow.css'
 import { useTheme } from '../../state/theme'
+import { t, useT } from '../../i18n'
 
 type RequestData = { text: string }
 type StepData = { text: string; status: 'pending' | 'in_progress' | 'completed'; index: number; total: number; live: boolean }
@@ -18,19 +19,24 @@ const statusText: Record<Action['status'], string> = { waiting: 'Na fila', runni
 const hidden = { opacity: 0, width: 1, height: 1, minWidth: 1, minHeight: 1, border: 0 }
 const spine = { ...hidden, left: 14 }
 
-const RequestNode = memo(({ data }: NodeProps<Node<RequestData>>) => <div className="flow-node flow-request">
-  <span className="flow-node-eyebrow"><MessageSquare aria-hidden="true" />Pedido</span>
+const RequestNode = memo(({ data }: NodeProps<Node<RequestData>>) => {
+  const t = useT()
+  return <div className="flow-node flow-request">
+  <span className="flow-node-eyebrow"><MessageSquare aria-hidden="true" />{t('Pedido')}</span>
   <p className="flow-node-text">{data.text}</p>
   <Handle type="source" position={Position.Bottom} style={spine} isConnectable={false} />
-</div>)
+</div>
+})
 
 const StepNode = memo(({ data }: NodeProps<Node<StepData>>) => {
+  const t = useT()
+  const position = { number: data.index + 1, total: data.total }
   const Icon = data.status === 'completed' ? Check : data.status === 'in_progress' ? LoaderCircle : Circle
   return <div className={`flow-node flow-step is-${data.status}${data.live && data.status === 'in_progress' ? ' is-live' : ''}`}>
     <Handle type="target" position={Position.Top} style={spine} isConnectable={false} />
     <span className="flow-step-badge" aria-hidden="true"><Icon /></span>
     <div className="flow-step-body">
-      <span className="flow-node-eyebrow">Etapa {data.index + 1} de {data.total}{data.status === 'in_progress' ? ' · agora' : data.status === 'completed' ? ' · feita' : ''}</span>
+      <span className="flow-node-eyebrow">{data.status === 'in_progress' ? t('Etapa {number} de {total} · agora', position) : data.status === 'completed' ? t('Etapa {number} de {total} · feita', position) : t('Etapa {number} de {total}', position)}</span>
       <p className="flow-node-text">{data.text}</p>
     </div>
     <Handle type="source" position={Position.Bottom} style={spine} isConnectable={false} />
@@ -38,6 +44,7 @@ const StepNode = memo(({ data }: NodeProps<Node<StepData>>) => {
 })
 
 const ActionNode = memo(({ data }: NodeProps<Node<ActionData>>) => {
+  const t = useT()
   const { action } = data
   const Icon = kindIcons[action.kind]
   const StatusIcon = action.status === 'done' ? CircleCheck : action.status === 'failed' ? CircleAlert : action.status === 'approval' ? ShieldQuestion : action.status === 'running' ? LoaderCircle : Circle
@@ -47,15 +54,18 @@ const ActionNode = memo(({ data }: NodeProps<Node<ActionData>>) => {
     <div className="flow-action-body">
       <p className="flow-action-label">{action.label}</p>
       {action.detail && <p className="flow-action-detail" title={action.detail}>{action.detail}</p>}
-      {(action.note || action.status !== 'done') && <span className="flow-action-status"><StatusIcon aria-hidden="true" />{action.note || statusText[action.status]}</span>}
+      {(action.note || action.status !== 'done') && <span className="flow-action-status"><StatusIcon aria-hidden="true" />{action.note || t(statusText[action.status])}</span>}
     </div>
   </div>
 })
 
-const MoreNode = memo(({ data }: NodeProps<Node<MoreData>>) => <div className="flow-node flow-more">
+const MoreNode = memo(({ data }: NodeProps<Node<MoreData>>) => {
+  const t = useT()
+  return <div className="flow-node flow-more">
   <Handle type="target" position={Position.Left} style={hidden} isConnectable={false} />
-  +{data.count} {data.count === 1 ? 'ação anterior' : 'ações anteriores'}
-</div>)
+  {data.count === 1 ? t('+{count} ação anterior', { count: data.count }) : t('+{count} ações anteriores', { count: data.count })}
+</div>
+})
 
 const OutcomeNode = memo(({ data }: NodeProps<Node<OutcomeData>>) => {
   const Icon = data.status === 'completed' ? CircleCheck : data.status === 'failed' ? CircleAlert : CircleSlash
@@ -116,7 +126,7 @@ function layout(flow: ActivityFlow, width: number, heights: Map<string, number>,
     if (shown.length || hiddenCount) y += gap.spine - gap.branch
   }
 
-  const requestText = flow.request || 'Trabalho em andamento'
+  const requestText = flow.request || t('Trabalho em andamento')
   spineNode({ id: 'request', type: 'request', position: { x: 0, y }, data: { text: requestText }, style: { width }, draggable: false, selectable: false }, height('request', estimate('request', requestText, width)))
   const loose = flow.actions.filter(action => action.step === beforePlan)
   const activeIndex = flow.plan.findIndex(step => step.status === 'in_progress')
@@ -139,6 +149,7 @@ function layout(flow: ActivityFlow, width: number, heights: Map<string, number>,
 type Props = { flow: ActivityFlow; live: boolean }
 
 function FlowCanvas({ flow, live }: Props) {
+  const t = useT()
   const host = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(280)
   const [heights, setHeights] = useState(() => new Map<string, number>())
@@ -192,10 +203,10 @@ function FlowCanvas({ flow, live }: Props) {
   return <div ref={host} className="activity-flow-canvas">
     <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} defaultViewport={{ x: 20, y: 16, zoom: 1 }}
       minZoom={0.35} maxZoom={1.6} nodesDraggable={false} nodesConnectable={false} elementsSelectable={false} proOptions={{ hideAttribution: true }}
-      onMoveStart={event => { if (event) setFollow(false) }} zoomOnDoubleClick={false} colorMode={theme} aria-label="Fluxo do plano de execução">
+      onMoveStart={event => { if (event) setFollow(false) }} zoomOnDoubleClick={false} colorMode={theme} aria-label={t('Fluxo do plano de execução')}>
       <Background variant={BackgroundVariant.Dots} gap={18} size={1} className="activity-flow-bg" />
       <Controls showInteractive={false} position="bottom-right" className="activity-flow-controls" />
-      {!follow && <Panel position="top-right"><button type="button" className="activity-flow-follow" onClick={() => setFollow(true)}><LocateFixed aria-hidden="true" />Acompanhar</button></Panel>}
+      {!follow && <Panel position="top-right"><button type="button" className="activity-flow-follow" onClick={() => setFollow(true)}><LocateFixed aria-hidden="true" />{t('Acompanhar')}</button></Panel>}
     </ReactFlow>
   </div>
 }

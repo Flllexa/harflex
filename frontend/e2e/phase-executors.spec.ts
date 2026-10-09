@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page } from './locale'
 
 // Each phase of a pipeline can have its own provider (or Codex) and model, chosen where the pipelines are.
 async function openPipelines(page: Page, width: number, extra = '') {

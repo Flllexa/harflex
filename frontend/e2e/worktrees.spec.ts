@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page } from './locale'
 import { undersizedTargets } from './targets'
 
 const root = '/synthetic/workspace/api-faturas'

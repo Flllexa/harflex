@@ -8,64 +8,64 @@ web
 
 ## Users
 
-Desenvolvedores e profissionais técnicos que querem delegar trabalho completo a agentes de IA em um aplicativo desktop local, mantendo visibilidade e controle sobre cada etapa. A primeira distribuição deve atender macOS, Windows e Linux.
+Developers and technical professionals who want to delegate complete work to AI agents in a local desktop app, while keeping visibility and control over each stage. The first distribution must serve macOS, Windows, and Linux.
 
 ## Product Purpose
 
-Harflex é um harness desktop local-first para conversar com agentes, desenvolver software e automatizar trabalho na própria máquina. Seu engine de agentes será implementado nativamente em Go, inspirado nos contratos e comportamentos do Pi. O principal fluxo de desenvolvimento segue Specification-Driven Development (SDD), tornando descoberta, especificação, planejamento, implementação e avaliação visíveis e retomáveis.
+Harflex is a local-first desktop harness for talking to agents, developing software, and automating work on the user's own machine. Its agent engine will be implemented natively in Go, inspired by the contracts and behaviors of Pi. The main development flow follows Specification-Driven Development (SDD), making discovery, specification, planning, implementation, and evaluation visible and resumable.
 
-O SDD é o caminho padrão, mas o usuário pode pular etapas conscientemente. O produto deve registrar o bypass para que a execução continue auditável.
+SDD is the default path, but the user may consciously skip steps. The product must record the bypass so that execution stays auditable.
 
 ## Positioning
 
-O produto combina um runtime extensível nativo em Go, compatível com APIs de modelos e agentes CLI, com uma experiência desktop visual orientada a SDD. Em vez de esconder a execução em um chat linear, ele expõe estado, decisões, evidências, agentes, ferramentas, custo, tokens e resultados como partes navegáveis do trabalho.
+The product combines an extensible runtime native to Go, compatible with model APIs and CLI agents, with a visual desktop experience oriented to SDD. Instead of hiding execution in a linear chat, it exposes state, decisions, evidence, agents, tools, cost, tokens, and results as navigable parts of the work.
 
 ## Operating Context
 
-- O aplicativo trabalha sobre repositórios e diretórios escolhidos pelo usuário.
-- Sessões, projetos, skills, conhecimento, métricas e configurações permanecem na máquina local.
-- A rede é usada somente quando necessária para provedores de IA, servidores MCP e conectores habilitados pelo usuário.
-- O usuário pode executar fluxos interativos, acompanhar execuções longas, revisar mudanças e retomar trabalho após reiniciar o aplicativo.
+- The app works on repositories and directories chosen by the user.
+- Sessions, projects, skills, knowledge, metrics, and settings stay on the local machine.
+- The network is used only when needed for AI providers, MCP servers, and connectors enabled by the user.
+- The user can run interactive flows, follow long executions, review changes, and resume work after restarting the app.
 
 ## Capabilities and Constraints
 
-- Base conceitual: contratos e comportamentos públicos do Pi serão reimplementados em Go, preservando atribuição e avisos exigidos pela licença MIT quando houver código derivado.
-- Engine: loop de agente, streaming, tool calling, sessões ramificáveis, compactação, skills, extensões e telemetria implementados em Go.
-- Integrações nativas de modelos: OpenAI, OpenRouter e APIs compatíveis, com arquitetura para Anthropic, Google, Ollama, LM Studio e outros provedores.
-- Integrações de agentes externos: adaptadores para Codex CLI, Claude Code, OpenCode e outros CLIs com descoberta explícita de capacidades.
-- Ferramentas de código: paridade funcional com `read`, `write`, `edit`, `bash`/PowerShell, `grep`, `find` e `ls` do Pi, acrescida de políticas de permissão e auditoria do Harflex.
-- Shell desktop: Wails com backend em Go e frontend web.
-- Distribuição: macOS, Windows e Linux.
-- Provedores: múltiplos provedores de IA, inclusive serviços remotos e modelos locais compatíveis.
-- SDD: pipeline padrão com fases explícitas, critérios de aceite, implementação e avaliação; etapas podem ser puladas pelo usuário com registro do motivo e do estado resultante.
-- Extensibilidade: subagentes, skills, ferramentas, servidores MCP e automações locais.
-- Persistência: local-first, retomável e sem backend proprietário obrigatório.
-- Segurança: nenhuma credencial deve ser armazenada em texto puro; ações de terminal, arquivos, rede e integrações precisam de políticas e consentimento configuráveis.
-- Funcionalidades inspiradas na referência LionClaw devem ser reimplementadas com identidade própria, sem copiar ativos proprietários ou alegar compatibilidade não validada.
-- O escopo completo será entregue em incrementos funcionais, mantendo todas as capacidades aprovadas no roadmap e validando cada incremento de ponta a ponta.
+- Conceptual basis: Pi's public contracts and behaviors will be reimplemented in Go, preserving the attribution and notices required by the MIT license when derived code is involved.
+- Engine: agent loop, streaming, tool calling, branchable sessions, compaction, skills, extensions, and telemetry implemented in Go.
+- Native model integrations: OpenAI, OpenRouter, and compatible APIs, with an architecture ready for Anthropic, Google, Ollama, LM Studio, and other providers.
+- External agent integrations: adapters for Codex CLI, Claude Code, OpenCode, and other CLIs, with explicit capability discovery.
+- Code tools: functional parity with Pi's `read`, `write`, `edit`, `bash`/PowerShell, `grep`, `find`, and `ls`, plus Harflex's permission policies and audit.
+- Desktop shell: Wails with a Go backend and a web frontend.
+- Distribution: macOS, Windows, and Linux.
+- Providers: multiple AI providers, including remote services and compatible local models.
+- SDD: a default pipeline with explicit phases, acceptance criteria, implementation, and evaluation; the user may skip steps, with a record of the reason and the resulting state.
+- Extensibility: subagents, skills, tools, MCP servers, and local automations.
+- Persistence: local-first, resumable, and without a mandatory proprietary backend.
+- Security: no credential may be stored in plain text; terminal, file, network, and integration actions require configurable policies and consent.
+- Features inspired by the LionClaw reference must be reimplemented with their own identity, without copying proprietary assets or claiming unvalidated compatibility.
+- The full scope will be delivered in functional increments, keeping every capability approved in the roadmap and validating each increment end to end.
 
 ## Brand Commitments
 
-- Nome de trabalho: Harflex.
-- Idioma principal da interface: português do Brasil, com arquitetura pronta para localização.
-- Referência funcional e de densidade operacional: LionClaw.
-- A interface deve ter identidade própria; a referência orienta hierarquia, legibilidade e transparência do pipeline, não uma cópia literal.
+- Working name: Harflex.
+- Primary interface language: Brazilian Portuguese, with an architecture ready for localization.
+- Functional and operational-density reference: LionClaw.
+- The interface must have its own identity; the reference guides hierarchy, readability, and pipeline transparency, not a literal copy.
 
 ## Evidence on Hand
 
-- O repositório público Pi fornece runtime de agente, API multiprovider, sessões, ferramentas, skills, extensões, telemetria e integração RPC/JSONL.
-- A página pública do LionClaw descreve chat local, subagentes multiprovider, skills, MCPs, conhecimento local, pipelines de desenvolvimento e métricas por fase.
-- A imagem de referência mostra navegação lateral, pipeline SDD em etapas, sprints, métricas agregadas e custo por etapa em uma interface desktop escura.
-- Ainda não existem identidade final, logotipo, conteúdo comercial, benchmarks próprios nem dados reais de usuários. Trabalho futuro não deve fabricá-los.
+- The public Pi repository provides an agent runtime, a multi-provider API, sessions, tools, skills, extensions, telemetry, and RPC/JSONL integration.
+- The public LionClaw page describes local chat, multi-provider subagents, skills, MCPs, local knowledge, development pipelines, and per-phase metrics.
+- The reference image shows side navigation, an SDD pipeline in stages, sprints, aggregated metrics, and cost per stage in a dark desktop interface.
+- There is still no final identity, logo, commercial content, own benchmarks, or real user data. Future work must not fabricate them.
 
 ## Product Principles
 
-1. Local por padrão, rede por consentimento.
-2. SDD visível e retomável, nunca uma caixa-preta.
-3. Poder com limites explícitos: permissões, isolamento e auditoria acompanham a automação.
-4. Extensão sem aprisionamento: provedores, modelos, skills e MCPs permanecem substituíveis.
-5. Evidência antes de sucesso: cada etapa mostra artefatos, verificações e resultado real.
+1. Local by default, network by consent.
+2. SDD visible and resumable, never a black box.
+3. Power with explicit limits: permissions, isolation, and audit accompany automation.
+4. Extension without lock-in: providers, models, skills, and MCPs remain replaceable.
+5. Evidence before success: each stage shows artifacts, checks, and the real result.
 
 ## Accessibility & Inclusion
 
-A interface deve funcionar por teclado, expor foco visível, respeitar redução de movimento, manter contraste adequado e permanecer utilizável de 320 px até telas desktop amplas. Alvos de toque devem ter no mínimo 44 px em superfícies touch.
+The interface must work with the keyboard, expose visible focus, respect reduced motion, maintain adequate contrast, and remain usable from 320 px up to wide desktop screens. Touch targets must be at least 44 px on touch surfaces.

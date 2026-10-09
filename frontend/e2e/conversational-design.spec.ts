@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page } from './locale'
 
 const fixtureKey = 'harflex:conversational-design'
 async function openProject(page: Page) {
@@ -7,7 +7,7 @@ async function openProject(page: Page) {
   const menu = page.getByRole('button', { name: 'Abrir navegação' })
   if (await menu.isVisible()) await menu.click()
   await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('button', { name: 'Pipelines' }).click()
-  const activity = page.getByRole('button', { name: 'Atividade', exact: true })
+  const activity = page.getByRole('button', { name: 'Painel lateral', exact: true })
   if (await activity.getAttribute('aria-expanded') === 'true') await activity.click()
 }
 async function pane(page: Page, name: 'Conversa' | 'Documentos') {

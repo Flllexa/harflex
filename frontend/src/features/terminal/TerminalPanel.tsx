@@ -4,6 +4,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { errorMessage, type Backend, type TerminalOutput, type Workspace } from '../../lib/backend'
+import { useT } from '../../i18n'
 import './terminal.css'
 
 type Props = { backend: Backend; workspace?: Workspace; onClose: () => void; visible: boolean }
@@ -47,6 +48,7 @@ const theme = {
 }
 
 export function TerminalPanel({ backend, workspace, onClose, visible }: Props) {
+  const t = useT()
   const host = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<'starting' | 'ready' | 'exited' | 'error'>('starting')
   const [error, setError] = useState('')
@@ -112,18 +114,18 @@ export function TerminalPanel({ backend, workspace, onClose, visible }: Props) {
   }
 
   const name = workspace ? workspace.path.split(/[\\/]/).filter(Boolean).pop() : ''
-  return <aside className="terminal-panel" aria-label="Terminal" hidden={!visible}>
+  return <aside className="terminal-panel" aria-label={t('Terminal')} hidden={!visible}>
     <div className="panel-heading terminal-heading">
-      <div className="terminal-title"><SquareTerminal aria-hidden="true" /><div><h2>Terminal</h2>{workspace && <span className="muted mono" title={workspace.path}>{shell ? `${shell.split('/').pop()} · ` : ''}{name}</span>}</div></div>
+      <div className="terminal-title"><SquareTerminal aria-hidden="true" /><div><h2>{t('Terminal')}</h2>{workspace && <span className="muted mono" title={workspace.path}>{shell ? `${shell.split('/').pop()} · ` : ''}{name}</span>}</div></div>
       <div className="terminal-actions">
-        {workspace && <button type="button" className="touch-target icon-button" aria-label="Novo terminal" title="Novo terminal" onClick={newShell}><RotateCcw aria-hidden="true" /></button>}
-        <button type="button" className="touch-target icon-button" aria-label="Fechar painel" onClick={onClose}><X aria-hidden="true" /></button>
+        {workspace && <button type="button" className="touch-target icon-button" aria-label={t('Novo terminal')} title={t('Novo terminal')} onClick={newShell}><RotateCcw aria-hidden="true" /></button>}
+        <button type="button" className="touch-target icon-button" aria-label={t('Fechar painel')} onClick={onClose}><X aria-hidden="true" /></button>
       </div>
     </div>
-    {!workspace && <p className="muted terminal-note">Abra um projeto para usar o terminal na pasta dele.</p>}
-    {state === 'starting' && workspace && <p className="muted terminal-note" role="status">Abrindo o shell…</p>}
-    {state === 'error' && <div className="terminal-note" role="alert"><span className="form-error">{error}</span><button type="button" className="touch-target text-button" onClick={newShell}>Tentar de novo</button></div>}
-    {state === 'exited' && <div className="terminal-note" role="status"><span className="muted">O shell foi encerrado.</span><button type="button" className="touch-target text-button" onClick={newShell}>Abrir um novo</button></div>}
+    {!workspace && <p className="muted terminal-note">{t('Abra um projeto para usar o terminal na pasta dele.')}</p>}
+    {state === 'starting' && workspace && <p className="muted terminal-note" role="status">{t('Abrindo o shell…')}</p>}
+    {state === 'error' && <div className="terminal-note" role="alert"><span className="form-error">{error}</span><button type="button" className="touch-target text-button" onClick={newShell}>{t('Tentar de novo')}</button></div>}
+    {state === 'exited' && <div className="terminal-note" role="status"><span className="muted">{t('O shell foi encerrado.')}</span><button type="button" className="touch-target text-button" onClick={newShell}>{t('Abrir um novo')}</button></div>}
     {workspace && <div ref={host} className="terminal-host" />}
   </aside>
 }

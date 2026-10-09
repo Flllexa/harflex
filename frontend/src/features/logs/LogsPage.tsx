@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Download, Filter, RefreshCw, ScrollText } from 'lucide-react'
 import { IonPicker } from '../../components/IonPicker'
 import { errorMessage, type Backend, type LogEntry } from '../../lib/backend'
+import { localeTag, useT } from '../../i18n'
 import { AuditDialog } from '../workbench/AuditDialog'
 
 type Props = { backend: Backend; workspaceId?: string }
@@ -9,6 +10,7 @@ const eventTypes = ['', 'run.started', 'run.completed', 'run.failed', 'run.cance
 const pageSize = 50
 
 export function LogsPage({ backend, workspaceId }: Props) {
+  const t = useT()
   const [items, setItems] = useState<LogEntry[]>([])
   const [eventType, setEventType] = useState('')
   const [allProjects, setAllProjects] = useState(false)
@@ -47,16 +49,16 @@ export function LogsPage({ backend, workspaceId }: Props) {
   }
 
   return <div className="logs-page">
-    <div className="destination-heading"><div><h2>Logs e auditoria</h2><p className="muted">Eventos persistidos das sessões. Conteúdo sensível não aparece neste índice.</p></div><button type="button" className="touch-target secondary-button" onClick={() => void refresh()} disabled={state === 'loading'}><RefreshCw aria-hidden="true" />Atualizar</button></div>
-    <div className="logs-filter"><Filter aria-hidden="true" /><IonPicker id="logs-event-type" label="Tipo de evento" value={eventType} onChange={setEventType} searchable options={eventTypes.map(type => ({ value: type, label: type || 'Todos os tipos' }))} />
-      {workspaceId && <label className="logs-scope"><input type="checkbox" checked={allProjects} onChange={event => setAllProjects(event.target.checked)} />Todos os projetos</label>}
+    <div className="destination-heading"><div><h2>{t('Logs e auditoria')}</h2><p className="muted">{t('Eventos persistidos das sessões. Conteúdo sensível não aparece neste índice.')}</p></div><button type="button" className="touch-target secondary-button" onClick={() => void refresh()} disabled={state === 'loading'}><RefreshCw aria-hidden="true" />{t('Atualizar')}</button></div>
+    <div className="logs-filter"><Filter aria-hidden="true" /><IonPicker id="logs-event-type" label={t('Tipo de evento')} value={eventType} onChange={setEventType} searchable options={eventTypes.map(type => ({ value: type, label: type || t('Todos os tipos') }))} />
+      {workspaceId && <label className="logs-scope"><input type="checkbox" checked={allProjects} onChange={event => setAllProjects(event.target.checked)} />{t('Todos os projetos')}</label>}
     </div>
-    {state === 'loading' && <p className="muted" role="status">Carregando eventos…</p>}
-    {state === 'error' && <div className="inline-error" role="alert"><p>Não foi possível carregar os eventos.</p><button type="button" className="touch-target secondary-button" onClick={() => void refresh()}>Tentar novamente</button></div>}
-    {state === 'ready' && (items.length === 0 ? <div className="catalog-empty"><ScrollText aria-hidden="true" /><strong>Nenhum evento encontrado</strong><span className="muted">Inicie uma sessão ou ajuste o filtro.</span></div>
-      : <><div className="logs-table-wrap"><table className="event-table logs-table"><caption className="visually-hidden">Índice de eventos persistidos</caption><thead><tr><th scope="col">Horário</th><th scope="col">Tipo</th><th scope="col">Sessão</th><th scope="col">#</th><th scope="col">Auditoria</th></tr></thead><tbody>{items.map(item => <tr key={item.id}>
-        <td data-label="Horário"><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString('pt-BR')}</time></td><td data-label="Tipo" className="mono">{item.type}</td><td data-label="Sessão" className="mono" title={item.sessionId}>{item.sessionId.slice(0, 10)}</td><td data-label="#" className="mono">{item.sequence}</td><td data-label="Auditoria"><button type="button" className="touch-target icon-button" aria-label={`Exportar auditoria da sessão ${item.sessionId.slice(0, 10)}`} onClick={() => setAuditSession(item.sessionId)}><Download aria-hidden="true" /></button></td>
-      </tr>)}</tbody></table></div>{hasMore && <button type="button" className="touch-target secondary-button logs-more" onClick={() => void loadMore()} disabled={more}>{more ? 'Carregando…' : 'Carregar mais'}</button>}</>)}
+    {state === 'loading' && <p className="muted" role="status">{t('Carregando eventos…')}</p>}
+    {state === 'error' && <div className="inline-error" role="alert"><p>{t('Não foi possível carregar os eventos.')}</p><button type="button" className="touch-target secondary-button" onClick={() => void refresh()}>{t('Tentar novamente')}</button></div>}
+    {state === 'ready' && (items.length === 0 ? <div className="catalog-empty"><ScrollText aria-hidden="true" /><strong>{t('Nenhum evento encontrado')}</strong><span className="muted">{t('Inicie uma sessão ou ajuste o filtro.')}</span></div>
+      : <><div className="logs-table-wrap"><table className="event-table logs-table"><caption className="visually-hidden">{t('Índice de eventos persistidos')}</caption><thead><tr><th scope="col">{t('Horário')}</th><th scope="col">{t('Tipo')}</th><th scope="col">{t('Sessão')}</th><th scope="col">#</th><th scope="col">{t('Auditoria')}</th></tr></thead><tbody>{items.map(item => <tr key={item.id}>
+        <td data-label={t('Horário')}><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString(localeTag())}</time></td><td data-label={t('Tipo')} className="mono">{item.type}</td><td data-label={t('Sessão')} className="mono" title={item.sessionId}>{item.sessionId.slice(0, 10)}</td><td data-label="#" className="mono">{item.sequence}</td><td data-label={t('Auditoria')}><button type="button" className="touch-target icon-button" aria-label={t('Exportar auditoria da sessão {id}', { id: item.sessionId.slice(0, 10) })} onClick={() => setAuditSession(item.sessionId)}><Download aria-hidden="true" /></button></td>
+      </tr>)}</tbody></table></div>{hasMore && <button type="button" className="touch-target secondary-button logs-more" onClick={() => void loadMore()} disabled={more}>{more ? t('Carregando…') : t('Carregar mais')}</button>}</>)}
     {error && <p className="form-error" role="alert">{error}</p>}
     {auditSession && <AuditDialog backend={backend} sessionId={auditSession} onClose={() => setAuditSession(undefined)} />}
   </div>

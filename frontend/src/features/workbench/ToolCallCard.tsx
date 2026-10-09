@@ -1,6 +1,7 @@
 import { Check, CircleDashed, CircleSlash, LoaderCircle, ShieldAlert, TriangleAlert, Wrench } from 'lucide-react'
 import type { ToolCallView, ToolStatus } from '../../state/session'
 import { DiffView } from '../../components/DiffView'
+import { t, useT } from '../../i18n'
 
 const statusCopy: Record<ToolStatus, string> = {
   pending: 'Na fila', awaiting_approval: 'Aguardando aprovação', running: 'Executando', completed: 'Concluída',
@@ -34,10 +35,10 @@ export type ToolFailureText = { summary: string; detail?: string; note?: string 
 /** What to tell the person about a call that did not complete, in plain Portuguese. */
 export function toolFailureText(call: Pick<ToolCallView, 'errorCode' | 'error' | 'recoverable'>): ToolFailureText | undefined {
   const code = call.errorCode ?? ''
-  if (code === 'outcome_unknown') return { summary: 'Resultado desconhecido após a interrupção. Verifique os efeitos antes de executar novamente.' }
-  if (code === 'not_executed') return { summary: 'Não executada antes da interrupção.' }
-  if (call.recoverable && adjustable[code]) return { summary: `${adjustable[code]}.`, detail: answerIsTheDetail.has(code) ? undefined : call.error, note: 'A execução continuou e o modelo foi avisado.' }
-  if (final[code]) return { summary: final[code] }
+  if (code === 'outcome_unknown') return { summary: t('Resultado desconhecido após a interrupção. Verifique os efeitos antes de executar novamente.') }
+  if (code === 'not_executed') return { summary: t('Não executada antes da interrupção.') }
+  if (call.recoverable && adjustable[code]) return { summary: `${t(adjustable[code])}.`, detail: answerIsTheDetail.has(code) ? undefined : call.error, note: t('A execução continuou e o modelo foi avisado.') }
+  if (final[code]) return { summary: t(final[code]) }
   return call.error ? { summary: call.error } : undefined
 }
 
@@ -51,20 +52,21 @@ export function toolTarget(args: unknown): string {
 }
 
 export function ToolCallCard({ call }: { call: ToolCallView }) {
+  const t = useT()
   const Icon = statusIcon[call.status]
   const target = toolTarget(call.arguments)
   const output = call.output || call.result
   const failure = toolFailureText(call)
   const diffLines = call.diff ? call.diff.split('\n').length : 0
-  return <article className={`tool-card tool-${call.status}`} aria-label={`Ferramenta ${call.name}`}>
+  return <article className={`tool-card tool-${call.status}`} aria-label={t('Ferramenta {name}', { name: call.name })}>
     <header className="tool-card-header">
       <Wrench aria-hidden="true" />
       <strong className="mono">{call.name}</strong>
       {target && <span className="mono tool-target">{target}</span>}
-      <span className="tool-status"><Icon aria-hidden="true" />{statusCopy[call.status]}</span>
+      <span className="tool-status"><Icon aria-hidden="true" />{t(statusCopy[call.status])}</span>
     </header>
     {failure && <p className="tool-error">{failure.summary}{failure.detail && <> <span className="mono tool-error-detail">{failure.detail}</span></>}{failure.note && <span className="muted tool-error-note"> {failure.note}</span>}</p>}
-    {call.diff && <details className="tool-output tool-diff" open={diffLines <= 30}><summary>Alterações{call.path ? ` em ${call.path}` : ''}</summary><DiffView diff={call.diff} /></details>}
-    {output && <details className="tool-output" open={call.status === 'running' || call.status === 'failed'}><summary>Saída</summary><pre className="mono">{output}</pre></details>}
+    {call.diff && <details className="tool-output tool-diff" open={diffLines <= 30}><summary>{call.path ? t('Alterações em {path}', { path: call.path }) : t('Alterações')}</summary><DiffView diff={call.diff} /></details>}
+    {output && <details className="tool-output" open={call.status === 'running' || call.status === 'failed'}><summary>{t('Saída')}</summary><pre className="mono">{output}</pre></details>}
   </article>
 }

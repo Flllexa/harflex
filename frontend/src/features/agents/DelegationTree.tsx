@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronRight, RefreshCw } from 'lucide-react'
 import { errorMessage, type Agent, type Backend, type Delegation } from '../../lib/backend'
 import { delegationBudgetText } from '../../lib/delegationBudget'
+import { useT } from '../../i18n'
 
 type Props = { backend: Backend; sessionId: string; agents: Agent[]; onOpenSession: (id: string) => Promise<void> }
 
@@ -18,6 +19,7 @@ const shortID = (id: string) => id.slice(0, 8)
 const active = (status: Delegation['status']) => status === 'running' || status === 'awaiting_approval'
 
 export function DelegationTree({ backend, sessionId, agents, onOpenSession }: Props) {
+  const t = useT()
   const [rootId, setRootId] = useState('')
   const [parentId, setParentId] = useState('')
   const [children, setChildren] = useState<Record<string, Delegation[]>>({})
@@ -88,7 +90,7 @@ export function DelegationTree({ backend, sessionId, agents, onOpenSession }: Pr
       'run.completed', 'run.failed', 'run.cancelled', 'run.interrupted',
       'external.run.completed', 'external.run.failed', 'external.run.cancelled', 'external.run.interrupted'].includes(event.type)) return
     const parent = knownParents.current[event.streamId]
-    if (parent) void refreshParent(parent).catch(() => setError('Não foi possível atualizar o estado do subagente.'))
+    if (parent) void refreshParent(parent).catch(() => setError(t('Não foi possível atualizar o estado do subagente.')))
     else if (readingParents.current > 0) pendingTerminals.current.add(event.streamId)
   }), [backend])
 
@@ -122,7 +124,7 @@ export function DelegationTree({ backend, sessionId, agents, onOpenSession }: Pr
       await backend.cancel(link.childSessionId)
       const links = await refreshParent(link.parentSessionId)
       const updated = links.find(item => item.id === link.id)
-      setNotice(updated?.status === 'cancelled' ? 'Cancelamento confirmado no journal.' : 'Cancelamento solicitado; aguardando registro no journal.')
+      setNotice(updated?.status === 'cancelled' ? t('Cancelamento confirmado no journal.') : t('Cancelamento solicitado; aguardando registro no journal.'))
     } catch (failure) {
       setError(errorMessage(failure))
       try {
@@ -133,27 +135,27 @@ export function DelegationTree({ backend, sessionId, agents, onOpenSession }: Pr
 
   function branch(parent: string): ReactNode {
     const links = children[parent] ?? []
-    if (links.length === 0) return <p className="muted delegation-empty">Nenhum subagente nesta sessão.</p>
+    if (links.length === 0) return <p className="muted delegation-empty">{t('Nenhum subagente nesta sessão.')}</p>
     return <ul className="delegation-tree">{links.map(link => {
-      const name = agents.find(agent => agent.id === link.agentId)?.name ?? `Agente ${shortID(link.agentId)}`
+      const name = agents.find(agent => agent.id === link.agentId)?.name ?? t('Agente {id}', { id: shortID(link.agentId) })
       const isCurrent = link.childSessionId === sessionId
       const openBranch = expanded.has(link.childSessionId)
       return <li key={link.id}>
         <div className={`delegation-node${isCurrent ? ' delegation-current' : ''}`}>
           <div className="delegation-node-main">
-            {link.depth < 3 && <button type="button" className="touch-target delegation-expand" onClick={() => void toggle(link.childSessionId)} disabled={!!pendingId} aria-expanded={openBranch} aria-label={`${openBranch ? 'Ocultar' : 'Ver'} subagentes de ${shortID(link.childSessionId)}`}>{openBranch ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}</button>}
-            <div className="delegation-identity"><strong>{name}</strong><span className="muted mono">{shortID(link.childSessionId)} · nível {link.depth}{isCurrent ? ' · sessão atual' : ''}</span></div>
-            <span className={`status-chip delegation-status delegation-status-${link.status}`}>{labels[link.status]}</span>
+            {link.depth < 3 && <button type="button" className="touch-target delegation-expand" onClick={() => void toggle(link.childSessionId)} disabled={!!pendingId} aria-expanded={openBranch} aria-label={openBranch ? t('Ocultar subagentes de {id}', { id: shortID(link.childSessionId) }) : t('Ver subagentes de {id}', { id: shortID(link.childSessionId) })}>{openBranch ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}</button>}
+            <div className="delegation-identity"><strong>{name}</strong><span className="muted mono">{shortID(link.childSessionId)} · {t('nível {level}', { level: link.depth })}{isCurrent ? ` · ${t('sessão atual')}` : ''}</span></div>
+            <span className={`status-chip delegation-status delegation-status-${link.status}`}>{t(labels[link.status])}</span>
           </div>
-          {link.taskPrompt && <p className="delegation-outcome">Prévia da tarefa registrada (redigida): {link.taskPrompt}</p>}
-          <p className="muted delegation-outcome">{delegationBudgetText(link)}. A espera por aprovação não conta; tentativas interrompidas contam. Não é limite de custo ou tokens.</p>
-          {link.status === 'ready' && link.taskPrompt && <p className="muted delegation-outcome">Abra a conversa e use “Preparar tarefa delegada” para revisar o texto completo no rascunho. Não há reexecução automática.</p>}
-          {link.status === 'completed' && <p className="delegation-outcome">{link.result ? <>Resultado: <span>{link.result}</span></> : 'Concluído sem resposta textual no journal.'}</p>}
-          {link.status === 'failed' && <p className="delegation-outcome delegation-error">{reasons[link.errorCode] ?? 'Falha registrada sem detalhe no journal.'}</p>}
+          {link.taskPrompt && <p className="delegation-outcome">{t('Prévia da tarefa registrada (redigida): {prompt}', { prompt: link.taskPrompt })}</p>}
+          <p className="muted delegation-outcome">{t('{budget}. A espera por aprovação não conta; tentativas interrompidas contam. Não é limite de custo ou tokens.', { budget: delegationBudgetText(link) })}</p>
+          {link.status === 'ready' && link.taskPrompt && <p className="muted delegation-outcome">{t('Abra a conversa e use “Preparar tarefa delegada” para revisar o texto completo no rascunho. Não há reexecução automática.')}</p>}
+          {link.status === 'completed' && <p className="delegation-outcome">{link.result ? <>{t('Resultado: ')}<span>{link.result}</span></> : t('Concluído sem resposta textual no journal.')}</p>}
+          {link.status === 'failed' && <p className="delegation-outcome delegation-error">{t(reasons[link.errorCode] ?? 'Falha registrada sem detalhe no journal.')}</p>}
           <div className="delegation-actions">
-            {!isCurrent && <button type="button" className="touch-target secondary-button" onClick={() => void open(link.childSessionId)} disabled={!!pendingId} aria-label={`Abrir conversa do subagente ${shortID(link.childSessionId)}`}>Abrir conversa</button>}
-            {active(link.status) && <button type="button" className="touch-target secondary-button delegation-cancel" onClick={() => void cancel(link)} disabled={!!pendingId} aria-label={`Cancelar subagente ${shortID(link.childSessionId)}`}>Cancelar execução</button>}
-            {active(link.status) && link.depth < 3 && <span className="muted delegation-cancel-note">Também cancela descendentes em execução.</span>}
+            {!isCurrent && <button type="button" className="touch-target secondary-button" onClick={() => void open(link.childSessionId)} disabled={!!pendingId} aria-label={t('Abrir conversa do subagente {id}', { id: shortID(link.childSessionId) })}>{t('Abrir conversa')}</button>}
+            {active(link.status) && <button type="button" className="touch-target secondary-button delegation-cancel" onClick={() => void cancel(link)} disabled={!!pendingId} aria-label={t('Cancelar subagente {id}', { id: shortID(link.childSessionId) })}>{t('Cancelar execução')}</button>}
+            {active(link.status) && link.depth < 3 && <span className="muted delegation-cancel-note">{t('Também cancela descendentes em execução.')}</span>}
           </div>
         </div>
         {openBranch && <div className="delegation-branch">{branch(link.childSessionId)}</div>}
@@ -162,12 +164,12 @@ export function DelegationTree({ backend, sessionId, agents, onOpenSession }: Pr
   }
 
   return <section className="delegation-panel" aria-labelledby="delegation-heading">
-    <div className="destination-heading"><div><h3 id="delegation-heading">Delegações da sessão</h3><p className="muted">Vínculos e desfechos registrados localmente.</p></div><button type="button" className="touch-target secondary-button" onClick={() => setRefreshKey(value => value + 1)} disabled={state === 'loading'} aria-label="Atualizar delegações"><RefreshCw aria-hidden="true" />Atualizar</button></div>
-    {state === 'loading' && <p role="status" className="muted">Lendo delegações…</p>}
-    {state === 'error' && <div className="inline-error" role="alert"><p>Não foi possível ler as delegações. {error}</p><button type="button" className="touch-target secondary-button" onClick={() => setRefreshKey(value => value + 1)}>Tentar novamente</button></div>}
+    <div className="destination-heading"><div><h3 id="delegation-heading">{t('Delegações da sessão')}</h3><p className="muted">{t('Vínculos e desfechos registrados localmente.')}</p></div><button type="button" className="touch-target secondary-button" onClick={() => setRefreshKey(value => value + 1)} disabled={state === 'loading'} aria-label={t('Atualizar delegações')}><RefreshCw aria-hidden="true" />{t('Atualizar')}</button></div>
+    {state === 'loading' && <p role="status" className="muted">{t('Lendo delegações…')}</p>}
+    {state === 'error' && <div className="inline-error" role="alert"><p>{t('Não foi possível ler as delegações. {error}', { error })}</p><button type="button" className="touch-target secondary-button" onClick={() => setRefreshKey(value => value + 1)}>{t('Tentar novamente')}</button></div>}
     {state === 'ready' && <>
-      {parentId && <button type="button" className="touch-target secondary-button delegation-back" onClick={() => void open(parentId)} disabled={!!pendingId}>Voltar para sessão pai</button>}
-      <div className="delegation-root"><div><strong>Sessão principal</strong><span className="muted mono">{shortID(rootId)}{rootId === sessionId ? ' · sessão atual' : ''}</span></div>{rootId !== sessionId && <button type="button" className="touch-target secondary-button" onClick={() => void open(rootId)} disabled={!!pendingId}>Abrir conversa principal</button>}</div>
+      {parentId && <button type="button" className="touch-target secondary-button delegation-back" onClick={() => void open(parentId)} disabled={!!pendingId}>{t('Voltar para sessão pai')}</button>}
+      <div className="delegation-root"><div><strong>{t('Sessão principal')}</strong><span className="muted mono">{shortID(rootId)}{rootId === sessionId ? ` · ${t('sessão atual')}` : ''}</span></div>{rootId !== sessionId && <button type="button" className="touch-target secondary-button" onClick={() => void open(rootId)} disabled={!!pendingId}>{t('Abrir conversa principal')}</button>}</div>
       {branch(rootId)}
     </>}
     {state !== 'error' && error && <p className="form-error" role="alert">{error}</p>}

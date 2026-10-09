@@ -5,6 +5,8 @@ import { AppShell, type AppShellProps } from '../components/AppShell'
 // STORY: Identify the project and phase, then inspect conversation or activity.
 // FIRST VIEWPORT: 240px navigation, flexible workspace, 320px activity; pipeline above.
 // FORM: Approved composition 2, conversation/evidence workbench, limited to its shell.
+import { LocaleProvider } from '../i18n'
+
 export default function App(props: AppShellProps) {
-  return <AppShell {...props} />
+  return <LocaleProvider><AppShell {...props} /></LocaleProvider>
 }

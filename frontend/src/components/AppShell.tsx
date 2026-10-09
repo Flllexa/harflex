@@ -13,11 +13,13 @@ import { Workbench, type HistoryOpenRequest, type ProjectOpenRequest, type Workb
 import type { AgentEvent, Backend, Pipeline, PipelineStage } from '../lib/backend'
 import { readAppMode, writeAppMode, type AppMode } from '../state/appMode'
 import { useTheme } from '../state/theme'
+import { useT } from '../i18n'
 
 export type AppShellProps = { initialActivityOpen?: boolean; workState?: 'empty' | 'loading'; backend?: Backend; /** Reopen the most recently used project at startup (default). */ restoreProject?: boolean }
 const desktopQuery = '(min-width: 1024px)'
 
 export function AppShell({ initialActivityOpen, workState = 'empty', backend, restoreProject = true }: AppShellProps) {
+  const t = useT()
   const [desktop, setDesktop] = useState(() => window.matchMedia?.(desktopQuery).matches ?? true)
   const [viewMode, setViewMode] = useState<AppMode>(() => readAppMode())
   const [activityOpen, setActivityOpen] = useState(initialActivityOpen ?? (desktop && viewMode === 'professional'))
@@ -195,9 +197,9 @@ export function AppShell({ initialActivityOpen, workState = 'empty', backend, re
   }, [activityOpen, sidebarOpen, overlayOpen])
 
   return <div className={`app-shell mode-${viewMode}${activityOpen && desktop ? ' has-activity' : ''}${panelWidth.dragging ? ' is-resizing-panel' : ''}`} style={{ '--side-panel-width': `${panelWidth.width}px` } as CSSProperties}>
-    <a className="skip-link touch-target" href="#work-area">Ir para o trabalho</a>
+    <a className="skip-link touch-target" href="#work-area">{t('Ir para o trabalho')}</a>
     {overlayOpen && <div className="drawer-scrim" aria-hidden="true" />}
-    <div ref={sidebarContainer} id="sidebar" className={`sidebar${sidebarOpen ? ' is-open' : ''}`} role={sidebarOpen ? 'dialog' : undefined} aria-modal={sidebarOpen || undefined} aria-label={sidebarOpen ? viewMode === 'casual' ? 'Histórico de conversas' : 'Navegação' : undefined}>
+    <div ref={sidebarContainer} id="sidebar" className={`sidebar${sidebarOpen ? ' is-open' : ''}`} role={sidebarOpen ? 'dialog' : undefined} aria-modal={sidebarOpen || undefined} aria-label={sidebarOpen ? viewMode === 'casual' ? t('Histórico de conversas') : t('Navegação') : undefined}>
       {viewMode === 'professional'
         ? <Sidebar selected={selected} onClose={closeSidebar} onSelect={selectDestination} onNewWork={startNewChat} onToggleMode={() => changeMode('casual')} />
         : <CasualSidebar backend={backend} workspace={workbenchContext.workspace} activeSessionId={workbenchContext.session?.id} activeSessionUpdatedAt={workbenchContext.session?.updatedAt} historyHasUserMessage={workbenchContext.historyHasUserMessage} recoveryPrompt={workbenchContext.recoveryPrompt} selected={selected} busy={workbenchContext.busy} loadingHistory={workbenchContext.loadingHistory} hasDraft={workbenchContext.hasDraft} mobileOpen={sidebarOpen} onOpenSession={openHistorySession} onOpenPipeline={openPipeline} pipelineRevision={currentPipeline ? `${currentPipeline.id}:${currentPipeline.revision}` : ''} onOpenProject={openProjectFromSidebar} onSelectDestination={selectDestination} onNewChat={startNewChat} onProjects={() => selectDestination('Projetos')} onToggleMode={() => changeMode('professional')} onClose={closeSidebar} />}
@@ -205,27 +207,27 @@ export function AppShell({ initialActivityOpen, workState = 'empty', backend, re
     <div className="workspace" ref={background}>
       <header ref={shellHeader} className="shell-header">
         <div className="compact-toolbar">
-          <button ref={sidebarTrigger} className="touch-target icon-button sidebar-toggle" aria-label={viewMode === 'casual' ? 'Abrir histórico de chats' : 'Abrir navegação'} aria-expanded={sidebarOpen} aria-controls="sidebar" onClick={() => { setActivityOpen(false); setSidebarOpen(true) }}><Menu aria-hidden="true" /></button>
-          <span className="toolbar-title">{selected}</span>
-          <div className="top-mode-switch" role="group" aria-label="Modo de uso">
-            <button type="button" className="touch-target top-mode-option" aria-pressed={viewMode === 'casual'} disabled={workbenchContext.loadingHistory || workbenchContext.startingSession} title={workbenchContext.loadingHistory ? 'Aguarde o carregamento da conversa' : undefined} onClick={() => changeMode('casual')}>Casual</button>
-            <button type="button" className="touch-target top-mode-option" aria-pressed={viewMode === 'professional'} disabled={workbenchContext.loadingHistory || workbenchContext.startingSession} title={workbenchContext.loadingHistory ? 'Aguarde o carregamento da conversa' : undefined} onClick={() => changeMode('professional')}>Professional</button>
+          <button ref={sidebarTrigger} className="touch-target icon-button sidebar-toggle" aria-label={viewMode === 'casual' ? t('Abrir histórico de chats') : t('Abrir navegação')} aria-expanded={sidebarOpen} aria-controls="sidebar" onClick={() => { setActivityOpen(false); setSidebarOpen(true) }}><Menu aria-hidden="true" /></button>
+          <span className="toolbar-title">{t(selected)}</span>
+          <div className="top-mode-switch" role="group" aria-label={t('Modo de uso')}>
+            <button type="button" className="touch-target top-mode-option" aria-pressed={viewMode === 'casual'} disabled={workbenchContext.loadingHistory || workbenchContext.startingSession} title={workbenchContext.loadingHistory ? t('Aguarde o carregamento da conversa') : undefined} onClick={() => changeMode('casual')}>Casual</button>
+            <button type="button" className="touch-target top-mode-option" aria-pressed={viewMode === 'professional'} disabled={workbenchContext.loadingHistory || workbenchContext.startingSession} title={workbenchContext.loadingHistory ? t('Aguarde o carregamento da conversa') : undefined} onClick={() => changeMode('professional')}>Professional</button>
           </div>
-          {viewMode === 'casual' && (workbenchContext.session || workbenchContext.loadingHistory) && workbenchContext.session?.purpose !== 'preparation' && currentPipeline?.currentStage && <button type="button" className="touch-target casual-pipeline-link" onClick={() => setSelected('Pipelines')} disabled={workbenchContext.loadingHistory || workbenchContext.startingSession} aria-label={`Abrir pipeline ${currentPipeline.title}, fase ${stageNames[currentPipeline.currentStage]}`} title={workbenchContext.loadingHistory ? 'Aguarde o carregamento da conversa' : undefined}><span>{currentPipeline.title}</span><strong>{stageNames[currentPipeline.currentStage]}</strong></button>}
-          <button type="button" className="touch-target icon-button theme-toggle" aria-label={theme === 'dark' ? 'Mudar para o tema claro' : 'Mudar para o tema escuro'} title={theme === 'dark' ? 'Tema claro' : 'Tema escuro'} onClick={toggleTheme}>{theme === 'dark' ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}</button>
-          <button ref={activityTrigger} className="touch-target icon-button side-panel-toggle" aria-label="Painel lateral" title={activityOpen ? 'Fechar painel lateral' : 'Abrir painel lateral (atividade e terminal)'} aria-expanded={activityOpen} aria-controls="side-panel" onClick={() => { if (activityOpen) closeActivity(); else setActivityOpen(true) }}>{activityOpen ? <PanelRightClose aria-hidden="true" /> : <PanelRightOpen aria-hidden="true" />}</button>
+          {viewMode === 'casual' && (workbenchContext.session || workbenchContext.loadingHistory) && workbenchContext.session?.purpose !== 'preparation' && currentPipeline?.currentStage && <button type="button" className="touch-target casual-pipeline-link" onClick={() => setSelected('Pipelines')} disabled={workbenchContext.loadingHistory || workbenchContext.startingSession} aria-label={t('Abrir pipeline {title}, fase {stage}', { title: currentPipeline.title, stage: stageNames[currentPipeline.currentStage] })} title={workbenchContext.loadingHistory ? t('Aguarde o carregamento da conversa') : undefined}><span>{currentPipeline.title}</span><strong>{stageNames[currentPipeline.currentStage]}</strong></button>}
+          <button type="button" className="touch-target icon-button theme-toggle" aria-label={theme === 'dark' ? t('Mudar para o tema claro') : t('Mudar para o tema escuro')} title={theme === 'dark' ? t('Tema claro') : t('Tema escuro')} onClick={toggleTheme}>{theme === 'dark' ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}</button>
+          <button ref={activityTrigger} className="touch-target icon-button side-panel-toggle" aria-label={t('Painel lateral')} title={activityOpen ? t('Fechar painel lateral') : t('Abrir painel lateral (atividade e terminal)')} aria-expanded={activityOpen} aria-controls="side-panel" onClick={() => { if (activityOpen) closeActivity(); else setActivityOpen(true) }}>{activityOpen ? <PanelRightClose aria-hidden="true" /> : <PanelRightOpen aria-hidden="true" />}</button>
         </div>
         {viewMode === 'professional' && <PipelineBar pipeline={currentPipeline} activity={stageActivity} viewStage={selected === 'Pipelines' && shownStage ? shownStage : stageViewRequest?.pipelineId===currentPipeline?.id ? stageViewRequest?.stage : undefined} onViewStage={stage => { if (!workbenchContext.startingSession && currentPipeline) { setStageViewRequest({requestId:++stageViewSequence.current,pipelineId:currentPipeline.id,workspaceId:currentPipeline.workspaceId,stage}); setSelected('Pipelines') } }} />}
       </header>
       {backend ? <Workbench backend={backend} restoreProject={restoreProject} selected={selected} newWorkRequest={newWorkRequest} newChatPrompt={newChatPrompt} viewMode={viewMode} historyOpenRequest={historyRequest} projectOpenRequest={projectRequest} stageViewRequest={stageViewRequest} onNavigate={selectDestination} onActivity={setActivityEvents} onPipeline={setCurrentPipeline} onShownStage={setShownStage} onOpenPipeline={openPipeline} onContextChange={reportWorkbenchContext} /> : <WorkArea selected={selected} workState={workState} />}
     </div>
     {activityOpen && <div ref={activityContainer} className={`activity-container${!desktop ? ' is-overlay' : ''}`} role={!desktop ? 'dialog' : undefined} aria-modal={!desktop || undefined} aria-labelledby={!desktop ? 'activity-title' : undefined}>
-      {desktop && <div className="side-panel-resizer" role="separator" aria-orientation="vertical" aria-label="Redimensionar painel lateral" aria-controls="side-panel" tabIndex={0}
-        aria-valuenow={panelWidth.width} aria-valuemin={minSidePanelWidth} aria-valuemax={maxSidePanelWidth()} title="Arraste para redimensionar · duplo clique volta ao tamanho padrão"
+      {desktop && <div className="side-panel-resizer" role="separator" aria-orientation="vertical" aria-label={t('Redimensionar painel lateral')} aria-controls="side-panel" tabIndex={0}
+        aria-valuenow={panelWidth.width} aria-valuemin={minSidePanelWidth} aria-valuemax={maxSidePanelWidth()} title={t('Arraste para redimensionar · duplo clique volta ao tamanho padrão')}
         onPointerDown={panelWidth.onPointerDown} onKeyDown={panelWidth.onKeyDown} onDoubleClick={panelWidth.reset} />}
       <div id="side-panel" className="side-panel">
-        <div className="side-panel-tabs" role="tablist" aria-label="Painel lateral">
-          <button type="button" role="tab" className="side-panel-tab" aria-selected={sidePanel === 'activity'} onClick={() => setSidePanel('activity')}><Activity aria-hidden="true" />Atividade</button>
+        <div className="side-panel-tabs" role="tablist" aria-label={t('Painel lateral')}>
+          <button type="button" role="tab" className="side-panel-tab" aria-selected={sidePanel === 'activity'} onClick={() => setSidePanel('activity')}><Activity aria-hidden="true" />{t('Atividade')}</button>
           <button type="button" role="tab" className="side-panel-tab" aria-selected={sidePanel === 'terminal'} onClick={() => { setSidePanel('terminal'); setTerminalUsed(true) }}><SquareTerminal aria-hidden="true" />Terminal</button>
         </div>
         <div className="side-panel-body">

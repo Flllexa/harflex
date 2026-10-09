@@ -1,6 +1,6 @@
 ---
 name: Harflex
-description: Sala de controle local-first para desenvolvimento agentic orientado a SDD
+description: Local-first control room for SDD-oriented agentic development
 colors:
   ion-void: "#080b0d"
   forge: "#12171a"
@@ -90,109 +90,109 @@ components:
 
 ## Overview
 
-**Creative North Star: "Sala de Controle Auditável"**
+**Creative North Star: "Auditable Control Room"**
 
-Harflex parece um instrumento técnico preciso que permanece legível durante execuções longas. A interface usa superfícies escuras estratificadas, informação compacta e sinais luminosos com significado operacional. O pipeline, as evidências e o estado atual devem ser compreendidos antes dos detalhes decorativos.
+Harflex feels like a precise technical instrument that stays legible during long runs. The interface uses layered dark surfaces, compact information, and luminous signals with operational meaning. The pipeline, the evidence, and the current state must be understood before any decorative detail.
 
-A densidade e a navegação persistente reconhecem a referência LionClaw, mas a assinatura visual é própria: menta elétrica e ciano sobre obsidiana, composição mais disciplinada e ausência de laranja como cor estrutural. A personalidade vem da clareza dos estados, do ritmo dos dados e de transições que mostram causalidade.
+The density and persistent navigation acknowledge the LionClaw reference, but the visual signature is its own: electric mint and cyan over obsidian, a more disciplined composition, and no orange as a structural color. The personality comes from the clarity of the states, the rhythm of the data, and transitions that show cause and effect.
 
 **Key Characteristics:**
 
-- Escura, precisa e operacional.
-- Densa sem ser apertada.
-- Progresso, risco e evidência visualmente distintos.
-- Movimento usado para explicar mudança de estado.
-- Controles familiares com acabamento próprio, nunca futurismo genérico.
+- Dark, precise, and operational.
+- Dense without being cramped.
+- Progress, risk, and evidence visually distinct.
+- Motion used to explain state changes.
+- Familiar controls with their own finish, never generic futurism.
 
 ## Colors
 
-A estratégia é restrita: neutros frios ocupam a maior parte da tela; menta e ciano aparecem somente onde existe estado, ação ou evidência.
+The strategy is restrained: cool neutrals take up most of the screen; mint and cyan appear only where there is state, action, or evidence.
 
 ### Primary
 
-- **Signal Mint** (`#5CF2A6`): ação principal, etapa concluída, execução saudável e foco ativo.
+- **Signal Mint** (`#5CF2A6`): primary action, completed stage, healthy execution, and active focus.
 
 ### Secondary
 
-- **Evidence Cyan** (`#39BFF8`): links, evidências, atividade informativa e relações secundárias em gráficos.
+- **Evidence Cyan** (`#39BFF8`): links, evidence, informative activity, and secondary relations in charts.
 
-Falhas e negações usam danger; soft-danger reserva o fundo de falha. Os valores canônicos estão no frontmatter e em `frontend/src/styles/tokens.css`.
+Failures and denials use danger; soft-danger is reserved for the failure background. The canonical values are in the frontmatter and in `frontend/src/styles/tokens.css`.
 
 ### Neutral
 
-- **Ion Void** (`#080B0D`): fundo estrutural da aplicação.
-- **Forge Surface** (`#12171A`): painéis, navegação e cartões em repouso.
-- **Interface Border** (`#273036`): divisores e limites funcionais.
-- **Paper White** (`#F1F5F4`): texto principal e valores críticos.
-- **Muted Sage** (`#82908C`): texto secundário e metadados.
-- **Soft Mint** (`#16382A`): fundo de seleção e sucesso discreto.
+- **Ion Void** (`#080B0D`): the application's structural background.
+- **Forge Surface** (`#12171A`): panels, navigation, and cards at rest.
+- **Interface Border** (`#273036`): dividers and functional boundaries.
+- **Paper White** (`#F1F5F4`): primary text and critical values.
+- **Muted Sage** (`#82908C`): secondary text and metadata.
+- **Soft Mint** (`#16382A`): selection background and discreet success.
 
-**The Signal Has Meaning Rule.** Signal Mint não é decoração. Cada ocorrência deve indicar ação, progresso confirmado, foco ou saúde.
+**The Signal Has Meaning Rule.** Signal Mint is not decoration. Each occurrence must indicate action, confirmed progress, focus, or health.
 
-**The No Ambient Rainbow Rule.** Provedores, fases e ferramentas podem ter cores categóricas, mas nunca transformam a superfície em uma coleção de acentos concorrentes.
+**The No Ambient Rainbow Rule.** Providers, phases, and tools may have categorical colors, but they never turn the surface into a collection of competing accents.
 
 ## Typography
 
-A implementação usa pilhas do sistema: `-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif` para interface e `ui-monospace, SFMono-Regular, Consolas, monospace` para caminhos, comandos e diff. Mona Sans e Commit Mono eram intenção do seed; não estão empacotadas nem carregadas.
+The implementation uses system stacks: `-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif` for the interface and `ui-monospace, SFMono-Regular, Consolas, monospace` for paths, commands, and diffs. Mona Sans and Commit Mono were the seed's intent; they are neither packaged nor loaded.
 
-A hierarquia está no frontmatter: headline no projeto, title nos grupos, body na conversa, label nos estados e mono nos artefatos. Subtítulos do setup usam 16 px; metadados menores usam 11 px. A conversa limita linhas a 72ch e quebra conteúdo longo.
+The hierarchy is in the frontmatter: headline for the project, title for groups, body in the conversation, label for states, and mono for artifacts. Setup subtitles use 16 px; smaller metadata uses 11 px. The conversation limits lines to 72ch and breaks long content.
 
-**The Numbers Stay Still Rule.** Métricas, tokens, duração, custos, caminhos e logs usam numerais tabulares; valores dinâmicos não podem deslocar a composição.
+**The Numbers Stay Still Rule.** Metrics, tokens, durations, costs, paths, and logs use tabular numerals; dynamic values must not shift the composition.
 
 ## Layout
 
-A composição aprovada organiza navegação, trabalho central e atividade. Desde 320 px, navegação e atividade são gavetas temporárias. A partir de 768 px, a navegação ocupa um trilho de 72 px; a partir de 1024 px, ocupa 240 px e a atividade aberta ocupa 320 px.
+The approved composition organizes navigation, central work, and activity. From 320 px, navigation and activity are temporary drawers. From 768 px, navigation takes a 72 px rail; from 1024 px, it takes 240 px, and an open activity panel takes 320 px.
 
-A partir de 768 px o shell ocupa exatamente a janela: o centro, a navegação e a atividade rolam sozinhos, o rodapé de status fica sempre visível e a conversa mantém o compositor fixo, com a lista de mensagens rolando por dentro e acompanhando a mensagem mais nova enquanto o leitor estiver no fim. Abaixo de 768 px a página rola normalmente. Cada destino abre no topo.
+From 768 px the shell fills the window exactly: the center, the navigation, and the activity scroll on their own, the status footer stays always visible, and the conversation keeps the composer fixed, with the message list scrolling inside and following the newest message while the reader is at the end. Below 768 px the page scrolls normally. Each destination opens at the top.
 
-**A Drag Strip Is Not A Toolbar Rule.** O app desktop esconde a barra de título nativa e trata os 50 px superiores como faixa de arraste (`InvisibleTitleBarHeight`): nenhum controle interativo pode ficar nessa faixa. A primeira linha do cabeçalho apenas nomeia o destino; o seletor Casual/Professional e o botão de atividade ficam na linha seguinte, junto do pipeline. No macOS, os semáforos da janela flutuam sobre o canto superior esquerdo, então a navegação reserva uma área segura (`html[data-platform="mac"]`).
+**A Drag Strip Is Not A Toolbar Rule.** The desktop app hides the native title bar and treats the top 50 px as a drag strip (`InvisibleTitleBarHeight`): no interactive control may sit in that strip. The first line of the header only names the destination; the Casual/Professional selector and the activity button sit on the next line, together with the pipeline. On macOS, the window's traffic-light buttons float over the top-left corner, so navigation reserves a safe area (`html[data-platform="mac"]`).
 
-Navegação agrupada (trabalho, automação, contexto, sistema) cabe em 900 px sem rolagem. Alvos de 44 px valem para toque e abaixo de 768 px; com mouse em janelas largas, linhas compactas de 32 px mantêm os 17 destinos à vista.
+Grouped navigation (work, automation, context, system) fits in 900 px without scrolling. 44 px targets apply to touch and below 768 px; with a mouse on wide windows, compact 32 px rows keep the 17 destinations in view.
 
-O centro usa `minmax(0, 1fr)`; o pipeline admite rolagem interna e mantém a etapa atual visível após resize. Espaços seguem a escala do frontmatter. Ações principais têm pelo menos 44 × 44 px; títulos e caminhos quebram linha. O diálogo mede no máximo 440 px, respeita 16 px de margem e rola verticalmente quando necessário.
+The center uses `minmax(0, 1fr)`; the pipeline supports internal scrolling and keeps the current stage visible after a resize. Spacing follows the frontmatter scale. Primary actions are at least 44 × 44 px; titles and paths wrap. The dialog measures at most 440 px, keeps a 16 px margin, and scrolls vertically when needed.
 
 ## Elevation & Depth
 
-O sistema é plano por padrão. Profundidade nasce de camadas tonais, bordas finas e oclusão clara; sombras aparecem somente em superfícies temporárias como menus, diálogos e gavetas flutuantes. Não há vidro fosco, brilho ambiental ou halos neon permanentes.
+The system is flat by default. Depth comes from tonal layers, thin borders, and clear occlusion; shadows appear only on temporary surfaces such as menus, dialogs, and floating drawers. There is no frosted glass, ambient glow, or permanent neon halo.
 
-**The Flat Until Lifted Rule.** Uma superfície só recebe sombra quando realmente se move acima de outra.
+**The Flat Until Lifted Rule.** A surface only receives a shadow when it actually moves above another surface.
 
-Sombras observadas: gaveta esquerda (`12px 0 40px var(--shadow)`), direita (`-12px 0 40px var(--shadow)`) e diálogo (`0 24px 64px var(--shadow)`). O scrim usa `var(--shadow)`; o token muda com o tema claro ou escuro.
+Observed shadows: left drawer (`12px 0 40px var(--shadow)`), right drawer (`-12px 0 40px var(--shadow)`), and dialog (`0 24px 64px var(--shadow)`). The scrim uses `var(--shadow)`; the token changes with the light or dark theme.
 
 ## Shapes
 
-Controles pequenos usam cantos de 6–8 px; painéis e cartões usam 10–12 px. Pills ficam restritas a estados, filtros e categorias curtas. Bordas são contínuas e discretas; recortes decorativos, cápsulas gigantes e cartões excessivamente arredondados não pertencem ao produto.
+Small controls use corners of 6–8 px; panels and cards use 10–12 px. Pills are restricted to states, filters, and short categories. Borders are continuous and discreet; decorative cutouts, giant capsules, and excessively rounded cards do not belong to the product.
 
 ## Components
 
-Botão primário: fundo mint, texto ion-void, peso 650, altura mínima 44 px e hover paper. Secundário: borda border e hover border; desabilitados têm opacidade 0.55 e cursor de indisponibilidade.
+Primary button: mint background, ion-void text, weight 650, minimum height 44 px, and paper on hover. Secondary: Interface Border and a border highlight on hover; disabled controls have an opacity of 0.55 and an unavailable cursor.
 
-Campos: fundo ion-void, borda border, padding da variante input e altura mínima 44 px. Foco usa contorno sólido mint de 2 px, offset de 1 px em campos e 3 px nos demais controles. Erros de formulário usam danger.
+Fields: ion-void background, Interface Border, the padding of the input variant, and a minimum height of 44 px. Focus uses a solid 2 px mint outline, offset by 1 px on fields and 3 px on other controls. Form errors use danger.
 
-Navegação: seleção soft-mint com texto mint. O trilho esconde apenas o rótulo visual; a gaveta preserva nome acessível, Escape e retorno de foco. Chip local: texto mint e borda soft-mint, sem interação.
+Navigation: soft-mint selection with mint text. The rail hides only the visual label; the drawer keeps the accessible name, Escape, and focus return. Local chip: mint text and soft-mint border, with no interaction.
 
-Cartão de ferramenta: superfície forge, nome, caminho, status e saída expansível; o diff gravado aparece dentro do cartão. Aprovação separa risco, destino, **o que será feito** (conteúdo a gravar, substituição ou comando completo) e decisão, e fica fixa acima do compositor. Diff usa mint para adições, danger para remoções e cyan para hunks.
+Tool card: forge surface, name, path, status, and an expandable output; the recorded diff appears inside the card. Approval separates the risk, the target, **what will be done** (the content to write, the replacement, or the full command), and the decision, and stays fixed above the composer. The diff uses mint for additions, danger for removals, and cyan for hunks.
 
-Respostas do agente usam Markdown renderizado como elementos (sem HTML bruto): títulos a partir de h3, listas, tabelas, citações, código em bloco com botão de copiar e links externos abertos no navegador do sistema.
+Agent responses use Markdown rendered as elements (no raw HTML): headings from h3, lists, tables, quotes, code blocks with a copy button, and external links that open in the system browser.
 
-Worktrees: cada linha é um cartão forge com borda esquerda de 3 px que dá o veredito de relance (mint para pode excluir, danger para não pode, cyan para o principal), nome da branch, caminho curto, fatos (alterações, commits à frente, mesclado) e, em coluna própria, o veredito escrito com os motivos em lista. Os botões ficam à direita em telas largas e abaixo do texto em telas estreitas; excluir usa o botão danger (borda soft-danger, texto danger), e **Salvar e mesclar com a IA…** é o único primário da linha. Itens ignorados pelo Git aparecem num bloco danger com confirmação explícita antes de qualquer exclusão. O cabeçalho do projeto repete o estado do worktree numa linha só (branch, fatos, veredito, ações) e mostra um aviso de execução com papel `status` enquanto a IA trabalha ou terminou, ou `alert` quando algo ficou pendente.
+Worktrees: each row is a forge card with a 3 px left border that gives the verdict at a glance (mint for can delete, danger for cannot, cyan for the main one), the branch name, a short path, facts (changes, commits ahead, merged) and, in its own column, the verdict written out with its reasons as a list. Buttons sit on the right on wide screens and below the text on narrow ones; delete uses the danger button (soft-danger border, danger text), and **Save and merge with AI…** is the only primary button in the row. Git-ignored items appear in a danger block with explicit confirmation before any deletion. The project header repeats the worktree state on one line (branch, facts, verdict, actions) and shows a run notice with the `status` role while the AI works or has finished, or the `alert` role when something remained pending.
 
-Páginas de catálogo (agentes, skills, MCP, workflows, agendamentos) começam pela lista; o formulário de criação aparece aberto quando não há itens e fica a um clique (`Novo …`) quando há.
+Catalog pages (agents, skills, MCP, workflows, schedules) start with the list; the creation form appears open when there are no items and sits one click away (`New …`) when there are.
 
-Pipeline: lista horizontal com etapa atual mint e `aria-current="step"`; etapas pendentes usam muted. Tabs mantêm estado e evidências da sessão. Transições de fundo duram 120 ms com ease-out. `prefers-reduced-motion: reduce` remove transições/animações e fixa scroll automático.
+Pipeline: horizontal list with the current stage in mint and `aria-current="step"`; pending stages use muted. Tabs keep the session's state and evidence. Background transitions last 120 ms with ease-out. `prefers-reduced-motion: reduce` removes transitions and animations and fixes automatic scrolling.
 
 ## Do's and Don'ts
 
 ### Do:
 
-- **Do** manter o pipeline e o estado atual identificáveis em um olhar.
-- **Do** usar a cor para semântica operacional e preservar grandes áreas neutras.
-- **Do** revelar detalhes progressivamente em gavetas, inspeções e painéis contextuais.
-- **Do** mostrar loading, vazio, erro, permissão, execução, pausa, bypass e conclusão como estados completos.
+- **Do** keep the pipeline and the current state identifiable at a glance.
+- **Do** use color for operational meaning and preserve large neutral areas.
+- **Do** reveal details progressively in drawers, inspections, and contextual panels.
+- **Do** show loading, empty, error, permission, execution, pause, bypass, and completion as complete states.
 
 ### Don't:
 
-- **Don't** copiar marca, ícones, textos ou composição pixel a pixel do LionClaw.
-- **Don't** usar glassmorphism, gradientes ornamentais, halos neon ou cards dentro de cards sem necessidade estrutural.
-- **Don't** esconder risco, custo, permissões ou falhas atrás de linguagem vaga.
-- **Don't** reduzir a experiência a um chat genérico com uma barra lateral decorativa.
+- **Don't** copy LionClaw's brand, icons, texts, or composition pixel by pixel.
+- **Don't** use glassmorphism, ornamental gradients, neon halos, or cards inside cards without structural need.
+- **Don't** hide risk, cost, permissions, or failures behind vague language.
+- **Don't** reduce the experience to a generic chat with a decorative sidebar.

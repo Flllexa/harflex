@@ -1,4 +1,5 @@
 import type { AgentEvent } from '../../lib/backend'
+import { t } from '../../i18n'
 
 export type StepStatus = 'pending' | 'in_progress' | 'completed'
 export type ActionStatus = 'waiting' | 'running' | 'approval' | 'done' | 'failed'
@@ -56,47 +57,47 @@ export function describeTool(rawName: string, args: unknown): { kind: ActionKind
   const path = text(input.path) || text(input.file_path) || text(input.notebook_path)
   switch (name) {
     case 'read': case 'Read': case 'NotebookRead':
-      return { kind: 'read', label: path ? `Lendo ${describePath(path)}` : 'Lendo um arquivo', detail: pathDetail(path) }
+      return { kind: 'read', label: path ? t('Lendo {file}', { file: describePath(path) }) : t('Lendo um arquivo'), detail: pathDetail(path) }
     case 'write': case 'Write':
-      return { kind: 'write', label: path ? `Escrevendo ${describePath(path)}` : 'Escrevendo um arquivo', detail: pathDetail(path) }
+      return { kind: 'write', label: path ? t('Escrevendo {file}', { file: describePath(path) }) : t('Escrevendo um arquivo'), detail: pathDetail(path) }
     case 'edit': case 'Edit': case 'MultiEdit': case 'NotebookEdit':
-      return { kind: 'write', label: path ? `Editando ${describePath(path)}` : 'Editando um arquivo', detail: pathDetail(path) }
+      return { kind: 'write', label: path ? t('Editando {file}', { file: describePath(path) }) : t('Editando um arquivo'), detail: pathDetail(path) }
     case 'ls': case 'LS':
-      return { kind: 'search', label: path ? `Listando ${describePath(path)}` : 'Listando a pasta do projeto', detail: pathDetail(path) }
+      return { kind: 'search', label: path ? t('Listando {file}', { file: describePath(path) }) : t('Listando a pasta do projeto'), detail: pathDetail(path) }
     case 'find': case 'Glob': {
       const pattern = text(input.pattern) || text(input.glob) || text(input.name)
-      return { kind: 'search', label: pattern ? `Procurando ${shorten(pattern, 60)}` : 'Procurando arquivos' }
+      return { kind: 'search', label: pattern ? t('Procurando {pattern}', { pattern: shorten(pattern, 60) }) : t('Procurando arquivos') }
     }
     case 'grep': case 'Grep': {
       const query = text(input.query) || text(input.pattern)
-      return { kind: 'search', label: query ? `Buscando “${shorten(query, 60)}”` : 'Buscando no código' }
+      return { kind: 'search', label: query ? t('Buscando “{query}”', { query: shorten(query, 60) }) : t('Buscando no código') }
     }
     case 'knowledge_search': {
       const query = text(input.query)
-      return { kind: 'search', label: query ? `Consultando a base: “${shorten(query, 60)}”` : 'Consultando a base de conhecimento' }
+      return { kind: 'search', label: query ? t('Consultando a base: “{query}”', { query: shorten(query, 60) }) : t('Consultando a base de conhecimento') }
     }
     case 'bash': case 'powershell': case 'Bash': {
       const command = unwrapCommand(text(input.command))
       const description = text(input.description)
-      return { kind: 'shell', label: description ? shorten(description, 90) : 'Rodando um comando', detail: command ? shorten(command, 220) : undefined }
+      return { kind: 'shell', label: description ? shorten(description, 90) : t('Rodando um comando'), detail: command ? shorten(command, 220) : undefined }
     }
     case 'WebFetch': case 'WebSearch': {
       const target = text(input.url) || text(input.query)
-      return { kind: 'web', label: name === 'WebFetch' ? 'Lendo uma página' : 'Pesquisando na web', detail: target ? shorten(target, 160) : undefined }
+      return { kind: 'web', label: name === 'WebFetch' ? t('Lendo uma página') : t('Pesquisando na web'), detail: target ? shorten(target, 160) : undefined }
     }
     case 'harflex_create_pipeline': {
       const title = /^#\s*(.+)$/m.exec(text(input.discovery))?.[1]
-      return { kind: 'agent', label: 'Criando um pipeline SDD', detail: title ? shorten(title, 120) : undefined }
+      return { kind: 'agent', label: t('Criando um pipeline SDD'), detail: title ? shorten(title, 120) : undefined }
     }
     case 'harflex_list_pipelines':
-      return { kind: 'search', label: 'Consultando os pipelines do projeto' }
+      return { kind: 'search', label: t('Consultando os pipelines do projeto') }
     case 'harflex_get_pipeline':
-      return { kind: 'search', label: input.includeDocuments === true ? 'Lendo os documentos do pipeline' : 'Consultando um pipeline' }
+      return { kind: 'search', label: input.includeDocuments === true ? t('Lendo os documentos do pipeline') : t('Consultando um pipeline') }
     case 'Task': case 'Agent':
-      return { kind: 'agent', label: text(input.description) ? `Delegando: ${shorten(text(input.description), 80)}` : 'Delegando uma tarefa' }
+      return { kind: 'agent', label: text(input.description) ? t('Delegando: {description}', { description: shorten(text(input.description), 80) }) : t('Delegando uma tarefa') }
     default: {
       const title = text(input.title) || text(input.description)
-      return { kind: 'tool', label: title ? shorten(title, 90) : `Usando ${name}`, detail: title ? name : undefined }
+      return { kind: 'tool', label: title ? shorten(title, 90) : t('Usando {name}', { name }), detail: title ? name : undefined }
     }
   }
 }
@@ -245,21 +246,21 @@ export function buildActivityFlow(events: AgentEvent[]): ActivityFlow {
         }
         break
       case 'tool.called': update(text(data.toolCallId), 'running'); break
-      case 'approval.requested': update(text(data.toolCallId), 'approval', 'Aprovação solicitada'); break
+      case 'approval.requested': update(text(data.toolCallId), 'approval', t('Aprovação solicitada')); break
       case 'approval.approved': update(text(data.toolCallId), 'waiting', ''); break
-      case 'approval.denied': update(text(data.toolCallId), 'failed', 'Aprovação negada'); break
+      case 'approval.denied': update(text(data.toolCallId), 'failed', t('Aprovação negada')); break
       case 'tool.completed': update(text(data.toolCallId), 'done'); break
       // Raw tool errors stay in the conversation and the audit export; the flow says what happened in plain words.
-      case 'tool.failed': update(text(data.toolCallId), 'failed', data.errorCode === 'outcome_unknown' ? 'Resultado desconhecido' : 'Falhou'); break
-      case 'tool.denied': update(text(data.toolCallId), 'failed', 'Negada'); break
-      case 'tool.skipped': update(text(data.toolCallId), 'failed', 'Não executada'); break
+      case 'tool.failed': update(text(data.toolCallId), 'failed', data.errorCode === 'outcome_unknown' ? t('Resultado desconhecido') : t('Falhou')); break
+      case 'tool.denied': update(text(data.toolCallId), 'failed', t('Negada')); break
+      case 'tool.skipped': update(text(data.toolCallId), 'failed', t('Não executada')); break
       case 'external.event':
         if (data.type === 'assistant.message') setChecklist(text(data.text))
         externalEvent(record(data.raw))
         break
       default:
         if (terminal[event.type]) {
-          flow.outcome = terminal[event.type]
+          flow.outcome = { status: terminal[event.type].status, label: t(terminal[event.type].label) }
           for (const action of flow.actions) if (action.status === 'running' || action.status === 'waiting' || action.status === 'approval') action.status = flow.outcome.status === 'completed' ? 'done' : 'failed'
         }
     }
@@ -286,14 +287,15 @@ export function buildActivityFlow(events: AgentEvent[]): ActivityFlow {
           const command = unwrapCommand(text(item.command))
           const exit = typeof item.exit_code === 'number' ? item.exit_code : undefined
           const failed = text(item.status) === 'failed' || (done && exit !== undefined && exit !== 0)
-          upsert(id, () => ({ kind: 'shell', label: 'Rodando um comando', detail: shorten(command, 220) }), failed ? 'failed' : done ? 'done' : 'running', failed && exit !== undefined ? `Saiu com código ${exit}` : undefined)
+          upsert(id, () => ({ kind: 'shell', label: t('Rodando um comando'), detail: shorten(command, 220) }), failed ? 'failed' : done ? 'done' : 'running', failed && exit !== undefined ? t('Saiu com código {code}', { code: exit }) : undefined)
           return
         }
         case 'file_change': {
           const changes = list(item.changes).map(change => record(change))
           const names = changes.map(change => basename(text(change.path))).filter(Boolean)
           const adding = changes.length > 0 && changes.every(change => text(change.kind) === 'add')
-          const label = names.length === 1 ? `${adding ? 'Criando' : 'Alterando'} ${names[0]}` : `${adding ? 'Criando' : 'Alterando'} ${names.length} arquivos`
+          const verb = adding ? t('Criando') : t('Alterando')
+          const label = names.length === 1 ? t('{verb} {file}', { verb, file: names[0] }) : t('{verb} {count} arquivos', { verb, count: names.length })
           upsert(id, () => ({ kind: 'write', label, detail: names.length > 1 ? shorten(names.join(', '), 200) : pathDetail(text(changes[0]?.path)) }), text(item.status) === 'failed' ? 'failed' : done ? 'done' : 'running')
           return
         }
@@ -305,11 +307,11 @@ export function buildActivityFlow(events: AgentEvent[]): ActivityFlow {
           const args = record(item.arguments)
           const title = text(args.title)
           const tool = [text(item.server), text(item.tool)].filter(Boolean).join(' · ')
-          upsert(id, () => ({ kind: 'tool', label: title ? shorten(title, 90) : `Usando ${tool || 'uma ferramenta'}`, detail: title ? tool : undefined }), text(item.status) === 'failed' ? 'failed' : done ? 'done' : 'running')
+          upsert(id, () => ({ kind: 'tool', label: title ? shorten(title, 90) : t('Usando {tool}', { tool: tool || t('uma ferramenta') }), detail: title ? tool : undefined }), text(item.status) === 'failed' ? 'failed' : done ? 'done' : 'running')
           return
         }
         case 'web_search':
-          upsert(id, () => ({ kind: 'web', label: 'Pesquisando na web', detail: shorten(text(item.query), 160) || undefined }), done ? 'done' : 'running')
+          upsert(id, () => ({ kind: 'web', label: t('Pesquisando na web'), detail: shorten(text(item.query), 160) || undefined }), done ? 'done' : 'running')
           return
         default:
           return

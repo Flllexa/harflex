@@ -1,27 +1,29 @@
 import { useEffect, useRef, useState } from 'react'
 import { Activity, RefreshCw } from 'lucide-react'
 import { errorMessage, type AgentEvent, type Backend, type Pipeline, type PipelineStage, type PipelineStageActivity } from '../../lib/backend'
+import { localeTag, useT } from '../../i18n'
 import { DesignMarkdown } from './PipelineDesignDocument'
 import './stageActivity.css'
 
+type Translate = ReturnType<typeof useT>
+
 const names = { discovery: 'Discovery', spec: 'SPEC', plan: 'Plan', code: 'Code', eval: 'QA', prs: 'PRs' }
-const labels: Record<string,string> = { pending: 'Ainda não iniciou', ready: 'Pronto', active: 'Em andamento', running: 'IA trabalhando', completed: 'IA concluiu a etapa', failed: 'Execução falhou', cancelled: 'Cancelada', paused: 'Pausada', stale: 'Documento desatualizado', waiting_user: 'Aguardando revisão', awaiting_approval: 'Aguardando sua autorização' }
 const busy = (value?: PipelineStageActivity) => !!value && (value.phase !== '' || ['running','awaiting_approval','cancellation_pending'].includes(value.status))
 const follow = (value?:PipelineStageActivity) => busy(value) || !!value?.sessionId && value.status==='ready'
 
-function eventLabel(event: AgentEvent): string | undefined {
+function eventLabel(event: AgentEvent, translate: Translate): string | undefined {
   const data = event.data as Record<string,unknown>
   switch (event.type) {
-    case 'run.started': case 'external.run.started': return 'IA iniciou a execução'
-    case 'run.completed': case 'external.run.completed': return 'Execução concluída'
-    case 'run.failed': case 'external.run.failed': return 'Execução interrompida por erro'
-    case 'run.cancelled': case 'external.run.cancelled': return 'Execução cancelada'
-    case 'approval.requested': return 'Autorização solicitada'
-    case 'approval.approved': return 'Autorização concedida'
-    case 'approval.denied': return 'Autorização recusada'
-    case 'tool.called': return `Executando ${typeof data.name === 'string' ? data.name : 'ferramenta'}`
-    case 'tool.completed': return `Concluiu ${typeof data.name === 'string' ? data.name : 'a ação'}`
-    case 'tool.failed': case 'tool.denied': return 'Ação não executada'
+    case 'run.started': case 'external.run.started': return translate('IA iniciou a execução')
+    case 'run.completed': case 'external.run.completed': return translate('Execução concluída')
+    case 'run.failed': case 'external.run.failed': return translate('Execução interrompida por erro')
+    case 'run.cancelled': case 'external.run.cancelled': return translate('Execução cancelada')
+    case 'approval.requested': return translate('Autorização solicitada')
+    case 'approval.approved': return translate('Autorização concedida')
+    case 'approval.denied': return translate('Autorização recusada')
+    case 'tool.called': return translate('Executando {name}', { name: typeof data.name === 'string' ? data.name : translate('ferramenta') })
+    case 'tool.completed': return translate('Concluiu {name}', { name: typeof data.name === 'string' ? data.name : translate('a ação') })
+    case 'tool.failed': case 'tool.denied': return translate('Ação não executada')
     default: return undefined
   }
 }
@@ -35,6 +37,8 @@ function preparedText(events: AgentEvent[], stage: PipelineStage): string {
 }
 
 export function StageActivityPane({backend,pipeline,stage}: {backend:Backend; pipeline:Pipeline; stage:PipelineStage}) {
+  const t = useT()
+  const labels: Record<string,string> = { pending: t('Ainda não iniciou'), ready: t('Pronto'), active: t('Em andamento'), running: t('IA trabalhando'), completed: t('IA concluiu a etapa'), failed: t('Execução falhou'), cancelled: t('Cancelada'), paused: t('Pausada'), stale: t('Documento desatualizado'), waiting_user: t('Aguardando revisão'), awaiting_approval: t('Aguardando sua autorização') }
   const panel = useRef<HTMLElement>(null)
   const scope = `${pipeline.workspaceId}:${pipeline.id}:${stage}`, epoch = useRef(0), session = useRef(''), order = useRef(0)
   const [activity,setActivity] = useState<PipelineStageActivity>(), [events,setEvents] = useState<AgentEvent[]>([]), [error,setError] = useState(''), [retry,setRetry] = useState(0), [paused,setPaused] = useState(false)
@@ -68,15 +72,15 @@ export function StageActivityPane({backend,pipeline,stage}: {backend:Backend; pi
     void read()
     return () => { live = false; epoch.current++; order.current++; if (timer) clearTimeout(timer); unsubscribe() }
   },[backend,scope,retry])
-  const timeline = events.map(event => ({event,label:eventLabel(event)})).filter(item => item.label), document = preparedText(events,stage)
-  return <section ref={panel} tabIndex={-1} className="stage-activity-pane" aria-label={`Atividade de ${names[stage]}`}>
-    <header><div><h3><Activity aria-hidden="true" />Atividade de {names[stage]}</h3><p className="muted">{activity ? labels[activity.status] ?? activity.status : 'Carregando atividade…'}{activity?.modelId && ` · ${activity.modelId}`}</p></div><button type="button" className="touch-target secondary-button" onClick={() => setRetry(value => value+1)}><RefreshCw aria-hidden="true" />Atualizar atividade</button></header>
+  const timeline = events.map(event => ({event,label:eventLabel(event,t)})).filter(item => item.label), document = preparedText(events,stage)
+  return <section ref={panel} tabIndex={-1} className="stage-activity-pane" aria-label={t('Atividade de {stage}', { stage: names[stage] })}>
+    <header><div><h3><Activity aria-hidden="true" />{t('Atividade de {stage}', { stage: names[stage] })}</h3><p className="muted">{activity ? labels[activity.status] ?? activity.status : t('Carregando atividade…')}{activity?.modelId && ` · ${activity.modelId}`}</p></div><button type="button" className="touch-target secondary-button" onClick={() => setRetry(value => value+1)}><RefreshCw aria-hidden="true" />{t('Atualizar atividade')}</button></header>
     {error && <p className="form-error" role="alert">{error}</p>}
-    {activity?.errorCode && <p className="form-error" role="alert">{errorMessage({cause:{code:activity.errorCode}})} Os documentos desta tentativa não foram publicados.</p>}
-    {busy(activity) && <p className="stage-live" role="status"><span aria-hidden="true" />{activity?.phase === stage ? `A IA está preparando ${names[stage]}…` : 'Acompanhe as ações desta etapa abaixo.'}</p>}
-    {!activity?.sessionId && activity && <p className="muted">{stage === 'discovery' ? 'O Discovery foi escrito por você. Os ajustes feitos pela IA aparecerão aqui.' : 'Esta etapa ainda não tem execução da IA registrada.'}</p>}
-    {timeline.length > 0 && <ol className="stage-event-log">{timeline.map(({event,label}) => <li key={event.id}><span>{label}</span><time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleTimeString('pt-BR')}</time></li>)}</ol>}
-    {document && <details className="stage-prepared-preview"><summary className="touch-target">Ver texto produzido pela IA nesta execução</summary><DesignMarkdown content={document} /></details>}
-    {paused && <p className="muted" role="status">O acompanhamento pausou após 3 minutos. Atualize para conferir o resultado.</p>}
+    {activity?.errorCode && <p className="form-error" role="alert">{errorMessage({cause:{code:activity.errorCode}})} {t('Os documentos desta tentativa não foram publicados.')}</p>}
+    {busy(activity) && <p className="stage-live" role="status"><span aria-hidden="true" />{activity?.phase === stage ? t('A IA está preparando {stage}…', { stage: names[stage] }) : t('Acompanhe as ações desta etapa abaixo.')}</p>}
+    {!activity?.sessionId && activity && <p className="muted">{stage === 'discovery' ? t('O Discovery foi escrito por você. Os ajustes feitos pela IA aparecerão aqui.') : t('Esta etapa ainda não tem execução da IA registrada.')}</p>}
+    {timeline.length > 0 && <ol className="stage-event-log">{timeline.map(({event,label}) => <li key={event.id}><span>{label}</span><time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleTimeString(localeTag())}</time></li>)}</ol>}
+    {document && <details className="stage-prepared-preview"><summary className="touch-target">{t('Ver texto produzido pela IA nesta execução')}</summary><DesignMarkdown content={document} /></details>}
+    {paused && <p className="muted" role="status">{t('O acompanhamento pausou após 3 minutos. Atualize para conferir o resultado.')}</p>}
   </section>
 }

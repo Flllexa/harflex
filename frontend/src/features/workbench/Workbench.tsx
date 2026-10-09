@@ -45,6 +45,7 @@ import { KnowledgePage } from '../knowledge/KnowledgePage'
 import { VaultPage } from '../vault/VaultPage'
 import { ChannelsPage } from '../channels/ChannelsPage'
 import type { AppMode } from '../../state/appMode'
+import { localeTag, t, useT } from '../../i18n'
 
 const basename = (path: string) => path.split(/[\\/]/).filter(Boolean).pop() ?? path
 function backendLabel(state: Pick<SessionState, 'session' | 'backends'>): string | undefined {
@@ -116,6 +117,7 @@ function userMessageContent(event: AgentEvent): string | undefined {
 }
 
 export function Workbench({ backend, restoreProject = true, selected, newWorkRequest = 0, newChatPrompt = '', viewMode = 'professional', historyOpenRequest, projectOpenRequest, stageViewRequest, onOpenPipeline, onNavigate = () => undefined, onActivity = () => undefined, onPipeline = () => undefined, onShownStage, onContextChange }: WorkbenchProps) {
+  const t = useT()
   const [store] = useState(createSessionStore)
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [cancelPending, setCancelPending] = useState(false)
@@ -290,7 +292,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     const current = store.getState()
     if (current.calling && !loadingHistory || runIsLive(current)) {
       onNavigate('Conversas')
-      store.setState({ error: 'Cancele ou conclua a execução atual antes de iniciar outro trabalho.' })
+      store.setState({ error: t('Cancele ou conclua a execução atual antes de iniciar outro trabalho.') })
       return
     }
     stashDraft()
@@ -338,7 +340,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     } catch {
       if (!current()) return false
       store.getState().setConnection('degraded')
-      store.getState().finishCall(undefined, replayErrorMessage)
+      store.getState().finishCall(undefined, t(replayErrorMessage))
       return false
     } finally {
       if (current()) setLoadingHistory(false)
@@ -387,7 +389,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     if (signal.aborted) return false
     let delegationReadbackError: string | undefined
     try { await refreshDelegation(session.id) }
-    catch { delegationReadbackError = 'Não foi possível reler o orçamento do subagente. Atualize a sessão antes de enviar outra mensagem.' }
+    catch { delegationReadbackError = t('Não foi possível reler o orçamento do subagente. Atualize a sessão antes de enviar outra mensagem.') }
     expectedReplay.current = result ? { after, approval: result.status === 'awaiting_approval' } : undefined
     try {
       await catchUp()
@@ -404,7 +406,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     } catch {
       if (!signal.aborted) {
         store.getState().setConnection('degraded')
-        store.getState().finishCall(undefined, replayErrorMessage)
+        store.getState().finishCall(undefined, t(replayErrorMessage))
       }
       return false
     }
@@ -426,7 +428,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
       store.getState().finishCall()
       pendingDraft.current = undefined
     } catch {
-      if (!signal.aborted) store.getState().finishCall(undefined, replayErrorMessage)
+      if (!signal.aborted) store.getState().finishCall(undefined, t(replayErrorMessage))
     }
   }
 
@@ -486,7 +488,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     modelOptions={chatChoice.listed.map(item => ({ value: item.id, label: item.displayName || item.id, disabled: item.availability === 'unavailable' }))} modelId={chatChoice.choice.modelId} onModel={chatChoice.setModel}
     efforts={chatChoice.model?.supportedReasoningEfforts ?? []} effort={chatChoice.choice.effort} onEffort={chatChoice.setEffort} disabled={busy || loadingHistory} /> : undefined
   const conversation = state.session?.purpose === 'preparation'
-    ? <section className="setup-step"><h2>Preparação do trabalho</h2><p className="muted">A conversa de Discovery, SPEC e Plan está na área do trabalho.</p><button type="button" className="touch-target primary-button" onClick={() => onNavigate('Pipelines')}>Abrir documentos e atividade</button></section>
+    ? <section className="setup-step"><h2>{t('Preparação do trabalho')}</h2><p className="muted">{t('A conversa de Discovery, SPEC e Plan está na área do trabalho.')}</p><button type="button" className="touch-target primary-button" onClick={() => onNavigate('Pipelines')}>{t('Abrir documentos e atividade')}</button></section>
     : state.session
     ? <ConversationPane state={state} loadingHistory={loadingHistory} cancelPending={cancelPending} permissionControl={state.workspace ? <PermissionPicker backend={backend} workspace={state.workspace} onWorkspaceUpdated={workspace => store.setState({ workspace })} /> : undefined} viewMode={viewMode} backendLabel={backendLabel(state)} modelBar={modelBar} projectControl={viewMode === 'casual' && state.workspace ? <ChatProjectPicker backend={backend} workspace={state.workspace} disabled={busy || loadingHistory} onPick={path => void switchProject(path)} /> : undefined} switchModel={chatChoice.changed ? { usable: chatChoice.usable, onReset: chatChoice.reset } : undefined} delegationParentId={delegation?.parentSessionId} delegation={delegation} queuedTask={queuedTask} onPrepareDelegatedTask={() => { if (!store.getState().draft && queuedTask) store.getState().setDraft(queuedTask) }} onOpenParent={() => { if (delegation) void openDelegatedSession(delegation.parentSessionId).catch(failure => store.setState({ error: errorMessage(failure) })) }} onDraft={updateDraft} onPrompt={sendPrompt} onResolve={(approvalId, allow) => { void run(id => backend.approve(id, approvalId, allow)) }} onCancel={cancel} onRetry={retryReplay} onContinue={text => continueInNewChat(text, chatChoice.changed ? chatChoice.choice : undefined)} onNewWork={recoveryPrompt => {
       if (!state.workspace || executionBusy || state.readOnly && loadingHistory) return
@@ -499,8 +501,8 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
       store.getState().setWorkspace(state.workspace)
     }} />
       : <WorkspaceSetup backend={backend} workRevision={currentPipeline ? `${currentPipeline.id}:${currentPipeline.revision}` : ''} onOpenPipeline={onOpenPipeline} onSeeAllWork={() => onNavigate('Pipelines')} state={state} store={store} onSwitchProject={(path, draft) => void switchProject(path, draft)} onAdmissionStateChange={setStartingSession} activateSession={activateSession} recents={savedProjects} preferredBackendId={defaultBackendId} onBackendUsed={id => { rememberBackend(id); setLastBackendId(id) }} settingsReadState={settingsReadState} viewMode={viewMode} initialPrompt={initialChatPrompt} onPrompt={sendPrompt} onStartSDD={discovery => { setInitialDiscoverySeed({workspaceId:state.workspace!.id,requestId:crypto.randomUUID(),text:discovery ?? ''}); setSDDLaunchRequest(current => current + 1); onNavigate('Pipelines') }} />
-  const project = state.workspace ? { name: basename(state.workspace.path), detail: state.workspace.path } : { name: 'Nenhum projeto aberto', detail: 'Escolha uma pasta local para começar.' }
-  const connection = state.connectionState === 'ready' ? 'Backend local conectado' : state.connectionState === 'connecting' ? 'Conectando ao backend local' : state.connectionState === 'degraded' ? 'Atualização dos eventos pendente' : 'Backend local indisponível'
+  const project = state.workspace ? { name: basename(state.workspace.path), detail: state.workspace.path } : { name: t('Nenhum projeto aberto'), detail: t('Escolha uma pasta local para começar.') }
+  const connection = state.connectionState === 'ready' ? t('Backend local conectado') : state.connectionState === 'connecting' ? t('Conectando ao backend local') : state.connectionState === 'degraded' ? t('Atualização dos eventos pendente') : t('Backend local indisponível')
   // The project picker of a chat: open the other project, bringing along what was typed on a new chat.
   async function switchProject(path: string, draft = '') {
     try {
@@ -545,7 +547,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     const name = plan.branch || basename(plan.path)
     cleanupSawRun.current = false
     setWorktreeCleanup({ workspaceId: workspace.id, path: plan.path, name, branch: plan.branch, base: plan.base, sessionId: session.id, isMain: plan.path === plan.workspace.path, deleteWhenSaved: options.deleteWhenSaved, deleteBranch: options.deleteBranch,
-      acknowledgeIgnored: options.acknowledgeIgnored, phase: 'saving', message: `A IA está salvando ${name} na conversa. Cada comando pede a sua aprovação; o Harflex confere no fim.` })
+      acknowledgeIgnored: options.acknowledgeIgnored, phase: 'saving', message: t('A IA está salvando {name} na conversa. Cada comando pede a sua aprovação; o Harflex confere no fim.', { name }) })
     onNavigate('Conversas')
     await sendPrompt(plan.prompt)
   }
@@ -554,30 +556,30 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     // The list on screen belongs to the open project; only adopt an answer about that same project.
     const adopt = (list: WorktreeList) => { if (store.getState().workspace?.id === workspaceId) worktrees.replace(list) }
     const update = (phase: WorktreeCleanup['phase'], message: string) => setWorktreeCleanup(current => current && current.sessionId === cleanup.sessionId ? { ...current, phase, message } : current)
-    update('checking', cleanup.isMain ? 'Conferindo se tudo foi commitado…' : 'Conferindo se tudo foi salvo e mesclado…')
+    update('checking', cleanup.isMain ? t('Conferindo se tudo foi commitado…') : t('Conferindo se tudo foi salvo e mesclado…'))
     try {
       const list = await backend.listWorktrees(workspaceId)
       const item = list.items.find(entry => entry.path === cleanup.path)
-      if (!item) { adopt(list); update('deleted', `O worktree ${cleanup.name} não existe mais.`); return }
+      if (!item) { adopt(list); update('deleted', t('O worktree {name} não existe mais.', { name: cleanup.name })); return }
       if (cleanup.isMain) {
         adopt(list)
-        if (item.changed === 0) update('saved', `As alterações de ${cleanup.name} foram commitadas. Os outros worktrees já podem ser salvos e mesclados na página Worktrees.`)
-        else update('attention', `${cleanup.name} ainda tem ${item.changed} ${item.changed === 1 ? 'alteração não salva' : 'alterações não salvas'}. Se a conversa continuar, o Harflex confere de novo quando a IA terminar.`)
+        if (item.changed === 0) update('saved', t('As alterações de {name} foram commitadas. Os outros worktrees já podem ser salvos e mesclados na página Worktrees.', { name: cleanup.name }))
+        else update('attention', t('{name} ainda tem {count} {changes}. Se a conversa continuar, o Harflex confere de novo quando a IA terminar.', { name: cleanup.name, count: item.changed, changes: item.changed === 1 ? t('alteração não salva') : t('alterações não salvas') }))
         return
       }
       if (!item.canDelete) {
         adopt(list)
         const reasons = item.blockers.filter(blocker => blocker.code !== 'nothing_to_save').map(blocker => blockerText(blocker, list.base)).join(' ')
         const onlyInUse = item.blockers.every(blocker => blocker.code === 'in_use' || blocker.code === 'nothing_to_save')
-        update('attention', `Ainda não dá para excluir ${cleanup.name}: ${reasons} Nada foi excluído. ${onlyInUse ? 'Depois de fechar, use Conferir agora.' : 'Se a conversa continuar, o Harflex confere de novo quando a IA terminar.'}`)
+        update('attention', t('Ainda não dá para excluir {name}: {reasons} Nada foi excluído. {next}', { name: cleanup.name, reasons, next: onlyInUse ? t('Depois de fechar, use Conferir agora.') : t('Se a conversa continuar, o Harflex confere de novo quando a IA terminar.') }))
         return
       }
-      if (!cleanup.deleteWhenSaved) { adopt(list); update('saved', `Tudo salvo e mesclado em ${cleanup.base}. ${cleanup.name} já pode ser excluído na página Worktrees.`); return }
+      if (!cleanup.deleteWhenSaved) { adopt(list); update('saved', t('Tudo salvo e mesclado em {base}. {name} já pode ser excluído na página Worktrees.', { base: cleanup.base, name: cleanup.name })); return }
       const result = await backend.deleteWorktree({ workspaceId, path: cleanup.path, deleteBranch: cleanup.deleteBranch, acknowledgeIgnored: cleanup.acknowledgeIgnored })
       adopt(result.list)
-      update('deleted', `Worktree ${cleanup.name} excluído. Tudo estava salvo e mesclado em ${cleanup.base}${result.branchDeleted ? `; a branch ${result.branch} também foi apagada` : ''}.`)
+      update('deleted', t('Worktree {name} excluído. Tudo estava salvo e mesclado em {base}{extra}.', { name: cleanup.name, base: cleanup.base, extra: result.branchDeleted ? t('; a branch {branch} também foi apagada', { branch: result.branch }) : '' }))
     } catch (failure) {
-      update('attention', `Não foi possível conferir ${cleanup.name}: ${errorMessage(failure)} Nada foi excluído.`)
+      update('attention', t('Não foi possível conferir {name}: {error} Nada foi excluído.', { name: cleanup.name, error: errorMessage(failure) }))
     }
   }
   // A conversation that cannot be resumed (a finished CLI run, a Code or QA conversation already verified, a backend
@@ -596,7 +598,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     // whose catalog does not confirm its model, or that refuses to start, does not leave the person stuck.
     const candidates = (override ? [state.backends.find(item => item.id === override.backendId)] : [state.backends.find(item => item.id === previous.backendId), ...orderedBackends])
       .filter((option, index, all): option is BackendOption => usable(option) && all.findIndex(other => other?.id === option?.id) === index)
-    if (candidates.length === 0) { store.setState({ error: 'Nenhuma IA disponível para continuar. Configure um perfil de API, ou o modelo padrão de um CLI, em Configurações.' }); return }
+    if (candidates.length === 0) { store.setState({ error: t('Nenhuma IA disponível para continuar. Configure um perfil de API, ou o modelo padrão de um CLI, em Configurações.') }); return }
     continuationPending.current = true
     store.getState().startCall()
     try {
@@ -655,7 +657,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     if (delegated.created) await sendPrompt(delegated.prompt)
     else {
       store.getState().setDraft(delegated.prompt)
-      store.setState({ error: 'Tarefa já registrada neste subagente. Nenhuma execução foi repetida; revise o histórico e envie manualmente se necessário.' })
+      store.setState({ error: t('Tarefa já registrada neste subagente. Nenhuma execução foi repetida; revise o histórico e envie manualmente se necessário.') })
     }
   }
   async function openDelegatedSession(sessionId: string, draft?: string, keepTyped = false) {
@@ -701,7 +703,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
   async function openSidebarSession(request: HistoryOpenRequest) {
     const current = store.getState()
     if ((current.calling && !loadingHistory) || runIsLive(current)) {
-      store.setState({ error: 'Conclua ou cancele a execução atual antes de trocar de conversa.' })
+      store.setState({ error: t('Conclua ou cancele a execução atual antes de trocar de conversa.') })
       return
     }
     stashDraft()
@@ -721,7 +723,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
       if (!await activateSession(session, request.workspaceId)) {
         if (order === historyOpenOrder.current && store.getState().session?.id !== request.sessionId) {
           store.getState().finishCall()
-          store.setState({ error: 'Esta conversa pertence a outro projeto ou não está mais disponível. Atualize o histórico.' })
+          store.setState({ error: t('Esta conversa pertence a outro projeto ou não está mais disponível. Atualize o histórico.') })
         }
         return
       }
@@ -745,12 +747,12 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
   }, [projectOpenRequest?.requestId])
 
   const memoryPrompt = memoryQuestion && <ProjectMemoryPrompt backend={backend} workspaceId={memoryQuestion.workspaceId} projectName={memoryQuestion.name}
-    onClose={answer => { setMemoryQuestion(undefined); if (answer === 'read') setMemoryNotice({ workspaceId: memoryQuestion.workspaceId, text: `A IA está lendo ${memoryQuestion.name} para a memória do projeto. Leva cerca de um minuto.` }) }} />
+    onClose={answer => { setMemoryQuestion(undefined); if (answer === 'read') setMemoryNotice({ workspaceId: memoryQuestion.workspaceId, text: t('A IA está lendo {name} para a memória do projeto. Leva cerca de um minuto.', { name: memoryQuestion.name }) }) }} />
   const agentPipelineNotice = agentPipeline && agentPipeline.workspaceId === state.workspace?.id && <div className="agent-pipeline-notice" role="status">
     <Workflow aria-hidden="true" />
-    <div><strong>Pipeline criado pelo agente</strong><span>{agentPipeline.title}</span></div>
-    <button type="button" className="touch-target primary-button" onClick={() => { setCurrentPipeline(agentPipeline); setAgentPipeline(undefined); onNavigate('Pipelines') }}>Abrir</button>
-    <button type="button" className="touch-target icon-button" aria-label="Dispensar aviso do pipeline" onClick={() => setAgentPipeline(undefined)}><X aria-hidden="true" /></button>
+    <div><strong>{t('Pipeline criado pelo agente')}</strong><span>{agentPipeline.title}</span></div>
+    <button type="button" className="touch-target primary-button" onClick={() => { setCurrentPipeline(agentPipeline); setAgentPipeline(undefined); onNavigate('Pipelines') }}>{t('Abrir')}</button>
+    <button type="button" className="touch-target icon-button" aria-label={t('Dispensar aviso do pipeline')} onClick={() => setAgentPipeline(undefined)}><X aria-hidden="true" /></button>
   </div>
   return <>{memoryPrompt}{agentPipelineNotice}<WorkArea selected={selected} workState="empty" project={project} compact={viewMode==='casual' && selected==='Conversas'}
     panels={[conversation, <ArtifactPane messages={state.messages} events={state.events} backend={backend} sessionId={state.session?.id} pipeline={sessionPipeline} onPipelines={() => onNavigate('Pipelines')} />, <MetricsPane events={state.events} />]}
@@ -771,9 +773,9 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
       onOpenWorktrees={() => onNavigate('Worktrees')} onSettings={() => onNavigate('Configurações')} onSaveWithAI={startWorktreeSave} /> : undefined}
     projectNotice={worktreeCleanup && worktreeCleanup.workspaceId === state.workspace?.id ? <WorktreeNotice cleanup={worktreeCleanup} showManage={selected !== 'Worktrees'} onOpenWorktrees={() => onNavigate('Worktrees')}
       onCheckCleanup={() => void finishWorktreeCleanup(worktreeCleanup)} onDismissCleanup={() => setWorktreeCleanup(undefined)} />
-      : memoryNotice && memoryNotice.workspaceId === state.workspace?.id ? <div className="worktree-cleanup is-saving" role="status" aria-label="Leitura do projeto"><span>{memoryNotice.text}</span>
-        <div className="worktree-bar-actions">{selected !== 'Memória' && <button type="button" className="touch-target secondary-button" onClick={() => onNavigate('Memória')}>Abrir Memória</button>}
-          <button type="button" className="touch-target icon-button" aria-label="Fechar aviso" onClick={() => setMemoryNotice(undefined)}><X aria-hidden="true" /></button></div></div> : undefined}
+      : memoryNotice && memoryNotice.workspaceId === state.workspace?.id ? <div className="worktree-cleanup is-saving" role="status" aria-label={t('Leitura do projeto')}><span>{memoryNotice.text}</span>
+        <div className="worktree-bar-actions">{selected !== 'Memória' && <button type="button" className="touch-target secondary-button" onClick={() => onNavigate('Memória')}>{t('Abrir Memória')}</button>}
+          <button type="button" className="touch-target icon-button" aria-label={t('Fechar aviso')} onClick={() => setMemoryNotice(undefined)}><X aria-hidden="true" /></button></div></div> : undefined}
     pipelineContent={<PipelinesPage backend={backend} backends={orderedBackends} settingsStatus={settingsReadState} preferredBackendId={defaultBackendId} preferredModelBackendId={defaultModelBackendId} preferredModelId={defaultModelId} workspaceId={state.workspace?.id} selectedPipeline={currentPipeline} creationDraft={pipelineCreationDrafts.current.get(backend)?.get(state.workspace?.id ?? '')} onCreationDraftChange={rememberPipelineCreation} initialDiscovery={initialDiscoverySeed?.workspaceId===state.workspace?.id ? initialDiscoverySeed?.text : undefined} initialDiscoveryRequestId={initialDiscoverySeed?.workspaceId===state.workspace?.id ? initialDiscoverySeed?.requestId : undefined} onInitialDiscoveryConsumed={requestId => setInitialDiscoverySeed(current => current?.requestId===requestId ? undefined : current)} viewStage={stageViewRequest && stageViewRequest.pipelineId===currentPipeline?.id ? stageViewRequest.stage : undefined} viewRequestId={stageViewRequest?.requestId} newWorkRequest={newWorkRequest + sddLaunchRequest} onSelectPipeline={setCurrentPipeline} onProjects={() => onNavigate('Projetos')} onSettings={() => onNavigate('Configurações')} onMCPServers={() => onNavigate('MCP Servers')} onShownStage={onShownStage} onStartRole={startPipelineRole} onOpenSession={(sessionId, draft) => openDelegatedSession(sessionId, draft, true)} onFollowSession={sessionId => void followPipelineSession(sessionId)} permissionProfile={state.workspace?.profile} permissionControl={state.workspace ? <PermissionPicker backend={backend} workspace={state.workspace} onWorkspaceUpdated={workspace => store.setState({ workspace })} /> : undefined} />}
     agentsContent={<AgentsPage backend={backend} backends={orderedBackends} workspaceId={state.workspace?.id} parentSessionId={state.session?.id} onStart={startAgent} onDelegate={delegateAgent} onOpenSession={openDelegatedSession} onProjects={() => onNavigate('Projetos')} onSettings={() => onNavigate('Configurações')} />}
     workflowsContent={<WorkflowsPage backend={backend} backends={orderedBackends} workspaceId={state.workspace?.id} reviewedSessions={reviewedWorkflowSessions} onProjects={() => onNavigate('Projetos')} onSettings={() => onNavigate('Configurações')} onOpenSession={openWorkflowSession} />}
@@ -786,12 +788,13 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     knowledgeContent={<KnowledgePage backend={backend} workspaceId={state.workspace?.id} onProjects={() => onNavigate('Projetos')} />}
     vaultContent={<VaultPage backend={backend} workspaceId={state.workspace?.id} onSettings={() => onNavigate('Configurações')} onMCP={() => onNavigate('MCP Servers')} onProjects={() => onNavigate('Projetos')} />}
     channelsContent={<ChannelsPage backend={backend} workspaceId={state.workspace?.id} onProjects={() => onNavigate('Projetos')} />}
-    footer={[connection, state.session ? `Sessão ${state.session.id.slice(0, 8)}` : 'Nenhuma sessão ativa']} /></>
+    footer={[connection, state.session ? t('Sessão {id}', { id: state.session.id.slice(0, 8) }) : t('Nenhuma sessão ativa')]} /></>
 }
 
 type SetupProps = { backend: Backend; workRevision?: string; onOpenPipeline?: (pipelineId: string, workspaceId: string) => void; onSeeAllWork?: () => void; state: SessionState; store: ReturnType<typeof createSessionStore>; activateSession: (session: Session, workspaceId: string) => Promise<boolean>; recents: WorkspaceSummary[]; preferredBackendId: string; onBackendUsed: (id: string) => void; settingsReadState: SettingsReadState; viewMode: AppMode; initialPrompt: string; onPrompt: (text: string) => Promise<void>; onStartSDD: (discovery?: string) => void; onAdmissionStateChange?: (pending: boolean) => void ; onSwitchProject: (path: string, draft: string) => void }
 
 function WorkspaceSetup({ backend, workRevision, onOpenPipeline, onSeeAllWork, state, store, activateSession, recents, preferredBackendId, onBackendUsed, settingsReadState, viewMode, initialPrompt, onPrompt, onStartSDD, onAdmissionStateChange, onSwitchProject }: SetupProps) {
+  const t = useT()
   const [path, setPath] = useState('')
   const [choice, setChoice] = useState('')
   const [directReason, setDirectReason] = useState('')
@@ -924,7 +927,7 @@ function WorkspaceSetup({ backend, workRevision, onOpenPipeline, onSeeAllWork, s
       if (controller.signal.aborted || catalogRequest.current !== controller || store.getState().workspace?.id !== workspace.id) return
       setModelCatalog(result)
       if (!result.complete || result.status !== 'complete') {
-        setCatalogError(result.status === 'empty' ? 'Nenhum modelo disponível neste CLI.' : result.status === 'partial' ? 'A lista veio parcial; nenhuma seleção foi liberada.' : cliCatalogProblem(result, selectedOption?.name ?? 'este CLI'))
+        setCatalogError(result.status === 'empty' ? t('Nenhum modelo disponível neste CLI.') : result.status === 'partial' ? t('A lista veio parcial; nenhuma seleção foi liberada.') : cliCatalogProblem(result, selectedOption?.name ?? t('este CLI')))
       } else if (preferredModel && result.models.some(item => item.id === preferredModel && item.backendId === selectedBackend && item.source === result.source && item.availability !== 'unavailable')) {
         setModelId(preferredModel)
       }
@@ -939,13 +942,13 @@ function WorkspaceSetup({ backend, workRevision, onOpenPipeline, onSeeAllWork, s
   const internalSessions = sessions.filter(session => !isUserSession(session))
   const userSessions = sessions.filter(isUserSession)
   function sessionRow(session: Session) {
-    const title = session.title || (isUserSession(session) ? 'Sessão sem mensagens' : 'Sessão do SDD')
+    const title = session.title || (isUserSession(session) ? t('Sessão sem mensagens') : t('Sessão do SDD'))
     return <li key={session.id}>
       <div className="session-summary"><strong className="session-title" title={session.title || undefined}>{title}</strong>
         <div className="session-meta"><span>{state.backends.find(item => item.id === session.backendId)?.name ?? session.backendId}</span>
-          <span>{session.resumable ? 'Retomável' : sessionReadOnly(session, state.backends) ? 'Somente leitura' : 'Nova execução isolada'}</span>
-          <span className="muted">{sessionStatus(session.status)} · <time dateTime={session.updatedAt}>{new Date(session.updatedAt).toLocaleString('pt-BR')}</time></span></div></div>
-      <button type="button" className="touch-target secondary-button" disabled={pending} onClick={() => openHistory(session.id)}>Abrir histórico</button>
+          <span>{session.resumable ? t('Retomável') : sessionReadOnly(session, state.backends) ? t('Somente leitura') : t('Nova execução isolada')}</span>
+          <span className="muted">{sessionStatus(session.status)} · <time dateTime={session.updatedAt}>{new Date(session.updatedAt).toLocaleString(localeTag())}</time></span></div></div>
+      <button type="button" className="touch-target secondary-button" disabled={pending} onClick={() => openHistory(session.id)}>{t('Abrir histórico')}</button>
     </li>
   }
   function openHistory(id: string) {
@@ -959,89 +962,89 @@ function WorkspaceSetup({ backend, workRevision, onOpenPipeline, onSeeAllWork, s
   }
   function closeProvider() { setProviderOpen(false); providerTrigger.current?.focus() }
 
-  if (state.connectionState === 'connecting') return <div className="empty-state" role="status"><p>Conectando ao backend local</p></div>
-  if (state.connectionState === 'unavailable') return <div className="empty-state"><p>Backend local indisponível</p><span className="muted">Abra o Harflex pelo aplicativo desktop para usar projetos e sessões.</span></div>
+  if (state.connectionState === 'connecting') return <div className="empty-state" role="status"><p>{t('Conectando ao backend local')}</p></div>
+  if (state.connectionState === 'unavailable') return <div className="empty-state"><p>{t('Backend local indisponível')}</p><span className="muted">{t('Abra o Harflex pelo aplicativo desktop para usar projetos e sessões.')}</span></div>
   // A new Casual chat is drawn in the conversation's own frame, so starting it does not change the screen.
   if (state.workspace && viewMode === 'casual') return <CasualStartPanel firstPrompt={firstPrompt} onFirstPrompt={setFirstPrompt} onSubmit={startSession} backends={state.backends} selectedBackend={selectedBackend} onBackend={setChoice} apiModelName={casualProfiles.find(profile => profile.id === selectedBackend)?.model ?? ''} catalog={modelCatalog} modelId={modelId} onModel={value => { setModelId(value); setReasoningEffort('') }} effort={reasoningEffort} onEffort={setReasoningEffort} catalogLoading={catalogLoading} catalogError={catalogError} onQueryModels={() => void queryModels()} settingsStatus={settingsReadState} pending={pending} canStart={!!selectedOption?.available && !!firstPrompt.trim() && (selectedOption.kind !== 'cli' || !!catalogReady)} onConfigure={() => setProviderOpen(true)} providerTrigger={providerTrigger} onStartSDD={() => onStartSDD(firstPrompt)} projectName={basename(state.workspace.path)} error={error ?? state.error}
     projectControl={<ChatProjectPicker backend={backend} workspace={state.workspace} disabled={pending} onPick={path => onSwitchProject(path, firstPrompt)} />}
     permissionControl={<PermissionPicker backend={backend} workspace={state.workspace} onWorkspaceUpdated={workspace => store.setState({ workspace })} />} />
   return <div className="setup">
     {!state.workspace ? <form className="setup-step" onSubmit={openWorkspace} aria-labelledby="setup-workspace">
-      <h2 id="setup-workspace">Abrir projeto</h2>
-      <p className="muted">{capabilityNote}</p>
-      <button type="button" className="touch-target secondary-button" onClick={pick} disabled={pending}><FolderOpen aria-hidden="true" />Escolher pasta</button>
-      <label className="field">Caminho da pasta<input className="mono" value={path} onChange={event => setPath(event.target.value)} autoComplete="off" spellCheck={false} /></label>
-      <button type="submit" className="touch-target primary-button" disabled={pending || !path.trim()}>Abrir projeto</button>
+      <h2 id="setup-workspace">{t('Abrir projeto')}</h2>
+      <p className="muted">{t(capabilityNote)}</p>
+      <button type="button" className="touch-target secondary-button" onClick={pick} disabled={pending}><FolderOpen aria-hidden="true" />{t('Escolher pasta')}</button>
+      <label className="field">{t('Caminho da pasta')}<input className="mono" value={path} onChange={event => setPath(event.target.value)} autoComplete="off" spellCheck={false} /></label>
+      <button type="submit" className="touch-target primary-button" disabled={pending || !path.trim()}>{t('Abrir projeto')}</button>
     </form> : <div className={`setup-step setup-step-${viewMode}`} aria-labelledby="setup-backend">
       {viewMode === 'professional' ? <>
-        <h2 id="setup-backend">Começar pelo SDD</h2>
-        <p className="muted">Discovery, SPEC, plano, código e avaliação formam o caminho padrão. Você pode pular fases com registro do motivo.</p>
-        <button type="button" className="touch-target primary-button" onClick={() => onStartSDD(firstPrompt || undefined)}>Iniciar trabalho SDD</button>
+        <h2 id="setup-backend">{t('Começar pelo SDD')}</h2>
+        <p className="muted">{t('Discovery, SPEC, plano, código e avaliação formam o caminho padrão. Você pode pular fases com registro do motivo.')}</p>
+        <button type="button" className="touch-target primary-button" onClick={() => onStartSDD(firstPrompt || undefined)}>{t('Iniciar trabalho SDD')}</button>
       </> : <>
-        <h2 id="setup-backend">Nova conversa</h2>
-        <p className="muted">Converse diretamente com um agente neste projeto. O histórico fica na lista à esquerda.</p>
+        <h2 id="setup-backend">{t('Nova conversa')}</h2>
+        <p className="muted">{t('Converse diretamente com um agente neste projeto. O histórico fica na lista à esquerda.')}</p>
       </>}
-      <form className="setup-direct" onSubmit={startSession}><h3>Conversa livre sem pipeline</h3><p className="project-warning">Esta escolha pula o SDD para a sessão; o motivo fica registrado no journal local.</p>
-      <p className="muted">{capabilityNote}</p>
-      {selectedBackend === 'opencode' && <p className="project-warning">O OpenCode recebe o prompt por argumento de processo; ele pode ficar visível temporariamente a ferramentas locais de inspeção de processos.</p>}
-      {settingsReadState === 'loading' && <p className="muted" role="status">Lendo o provedor padrão das Configurações. Você também pode escolher manualmente.</p>}
-      {settingsReadState === 'error' && <p className="project-warning" role="alert">Não foi possível ler o padrão salvo. Escolha um executor manualmente; a seleção vale apenas para esta sessão.</p>}
-      {viewMode === 'professional' && initialPrompt && <label className="field">Pedido anterior · rascunho<textarea value={firstPrompt} onChange={event => setFirstPrompt(event.target.value)} rows={4} maxLength={20000} placeholder="Revise o pedido antes de iniciar a sessão" /></label>}
-      {state.backends.length === 0 ? <p className="muted">Nenhum backend configurado. Configure um provedor para começar.</p>
-        : <fieldset className="backend-list"><legend className="visually-hidden">Backend da sessão</legend>
+      <form className="setup-direct" onSubmit={startSession}><h3>{t('Conversa livre sem pipeline')}</h3><p className="project-warning">{t('Esta escolha pula o SDD para a sessão; o motivo fica registrado no journal local.')}</p>
+      <p className="muted">{t(capabilityNote)}</p>
+      {selectedBackend === 'opencode' && <p className="project-warning">{t('O OpenCode recebe o prompt por argumento de processo; ele pode ficar visível temporariamente a ferramentas locais de inspeção de processos.')}</p>}
+      {settingsReadState === 'loading' && <p className="muted" role="status">{t('Lendo o provedor padrão das Configurações. Você também pode escolher manualmente.')}</p>}
+      {settingsReadState === 'error' && <p className="project-warning" role="alert">{t('Não foi possível ler o padrão salvo. Escolha um executor manualmente; a seleção vale apenas para esta sessão.')}</p>}
+      {viewMode === 'professional' && initialPrompt && <label className="field">{t('Pedido anterior · rascunho')}<textarea value={firstPrompt} onChange={event => setFirstPrompt(event.target.value)} rows={4} maxLength={20000} placeholder={t('Revise o pedido antes de iniciar a sessão')} /></label>}
+      {state.backends.length === 0 ? <p className="muted">{t('Nenhum backend configurado. Configure um provedor para começar.')}</p>
+        : <fieldset className="backend-list"><legend className="visually-hidden">{t('Backend da sessão')}</legend>
           {state.backends.map(item => <label key={item.id} className={`backend-option touch-target${item.available ? '' : ' is-unavailable'}`}>
             <input type="radio" name="backend" value={item.id} checked={selectedBackend === item.id} disabled={!item.available} onChange={() => setChoice(item.id)} />
-            <span>{item.name}</span><span className="muted mono backend-kind">{item.kind === 'api' ? 'API' : 'CLI'}{item.available ? '' : ' · indisponível'}</span>{item.id === 'codex' && <span className="muted backend-note">Uma mensagem por sessão; para continuar, inicie outra sessão.</span>}
+            <span>{item.name}</span><span className="muted mono backend-kind">{item.kind === 'api' ? 'API' : 'CLI'}{item.available ? '' : t(' · indisponível')}</span>{item.id === 'codex' && <span className="muted backend-note">{t('Uma mensagem por sessão; para continuar, inicie outra sessão.')}</span>}
           </label>)}
         </fieldset>}
-      {selectedOption?.kind === 'cli' && <section className="session-model-catalog" aria-label="Modelo da sessão CLI">
-        <div className="session-model-catalog-heading"><strong>Modelo e esforço</strong><span className="muted">Consulta local explícita no CLI instalado; a escolha fica vinculada a esta sessão.</span></div>
-        <button type="button" className="touch-target secondary-button" disabled={pending || catalogLoading} onClick={() => void queryModels()}>{catalogLoading ? 'Consultando…' : 'Consultar modelos'}</button>
-        {selectedBackend === 'opencode' && <p className="project-warning">A execução OpenCode aguarda prova de isolamento dos plugins nesta instalação. A lista pode ser consultada, mas não inicia uma sessão.</p>}
+      {selectedOption?.kind === 'cli' && <section className="session-model-catalog" aria-label={t('Modelo da sessão CLI')}>
+        <div className="session-model-catalog-heading"><strong>{t('Modelo e esforço')}</strong><span className="muted">{t('Consulta local explícita no CLI instalado; a escolha fica vinculada a esta sessão.')}</span></div>
+        <button type="button" className="touch-target secondary-button" disabled={pending || catalogLoading} onClick={() => void queryModels()}>{catalogLoading ? t('Consultando…') : t('Consultar modelos')}</button>
+        {selectedBackend === 'opencode' && <p className="project-warning">{t('A execução OpenCode aguarda prova de isolamento dos plugins nesta instalação. A lista pode ser consultada, mas não inicia uma sessão.')}</p>}
         {catalogError && <p className="form-error" role="alert">{catalogError}</p>}
         {modelCatalog?.complete && modelCatalog.status === 'complete' && <>
-          <p className="muted session-model-source">{modelCatalog.models.length} modelos · {modelCatalog.destination || selectedBackend} · consulta de {new Date(modelCatalog.checkedAt).toLocaleString('pt-BR')}</p>
-          <IonPicker id="session-model" label="Modelo da sessão" value={modelId} onChange={value => { setModelId(value); setReasoningEffort('') }} searchable required
-            options={[{ value: '', label: 'Escolha um modelo' }, ...modelCatalog.models.map(item => ({ value: item.id, label: item.displayName || item.id }))]} />
-          {selectedModel && <><IonPicker id="session-effort" label="Esforço do modelo" value={reasoningEffort} onChange={setReasoningEffort}
-            options={[{ value: '', label: 'Automático' }, ...(selectedModel.supportedReasoningEfforts ?? []).map(value => ({ value, label: value }))]} />
-            {!selectedModel.supportedReasoningEfforts?.length && <p className="muted session-model-source">Este catálogo não informa níveis de esforço; Automático não envia essa opção.</p>}</>}
+          <p className="muted session-model-source">{t('{count} modelos · {destination} · consulta de {date}', { count: modelCatalog.models.length, destination: modelCatalog.destination || selectedBackend, date: new Date(modelCatalog.checkedAt).toLocaleString(localeTag()) })}</p>
+          <IonPicker id="session-model" label={t('Modelo da sessão')} value={modelId} onChange={value => { setModelId(value); setReasoningEffort('') }} searchable required
+            options={[{ value: '', label: t('Escolha um modelo') }, ...modelCatalog.models.map(item => ({ value: item.id, label: item.displayName || item.id }))]} />
+          {selectedModel && <><IonPicker id="session-effort" label={t('Esforço do modelo')} value={reasoningEffort} onChange={setReasoningEffort}
+            options={[{ value: '', label: t('Automático') }, ...(selectedModel.supportedReasoningEfforts ?? []).map(value => ({ value, label: value }))]} />
+            {!selectedModel.supportedReasoningEfforts?.length && <p className="muted session-model-source">{t('Este catálogo não informa níveis de esforço; Automático não envia essa opção.')}</p>}</>}
         </>}
       </section>}
           {viewMode === 'professional' && <>
-            <label className="field">Motivo para pular SDD nesta sessão<input value={directReason} onChange={event => setDirectReason(event.target.value)} maxLength={1000} required placeholder="Ex.: pesquisa rápida sem edição" /></label>
-            <div className="reason-chips" role="group" aria-label="Motivos comuns">{skipReasons.map(reason => <button key={reason} type="button" className="chip-button" aria-pressed={directReason === reason} onClick={() => setDirectReason(reason)}>{reason}</button>)}</div>
+            <label className="field">{t('Motivo para pular SDD nesta sessão')}<input value={directReason} onChange={event => setDirectReason(event.target.value)} maxLength={1000} required placeholder={t('Ex.: pesquisa rápida sem edição')} /></label>
+            <div className="reason-chips" role="group" aria-label={t('Motivos comuns')}>{skipReasons.map(reason => <button key={reason} type="button" className="chip-button" aria-pressed={directReason === reason} onClick={() => setDirectReason(reason)}>{t(reason)}</button>)}</div>
           </>}
       <div className="setup-actions">
-        <button ref={providerTrigger} type="button" className="touch-target secondary-button" onClick={() => setProviderOpen(true)}><Settings2 aria-hidden="true" />Configurar provedor</button>
-        <button type="submit" className="touch-target secondary-button" disabled={pending || !selectedBackend || !directReason.trim() || selectedOption?.kind === 'cli' && !catalogReady}>Iniciar sessão livre</button>
+        <button ref={providerTrigger} type="button" className="touch-target secondary-button" onClick={() => setProviderOpen(true)}><Settings2 aria-hidden="true" />{t('Configurar provedor')}</button>
+        <button type="submit" className="touch-target secondary-button" disabled={pending || !selectedBackend || !directReason.trim() || selectedOption?.kind === 'cli' && !catalogReady}>{t('Iniciar sessão livre')}</button>
       </div>
       </form>
     </div>}
     {!state.workspace && recents.length > 0 && <section className="recent-projects" aria-labelledby="recent-projects-title">
-      <h3 id="recent-projects-title">Continuar em um projeto recente</h3>
-      <ul>{recents.map(item => <li key={item.id}><button type="button" className="touch-target secondary-button recent-project" disabled={pending} aria-label={`Abrir ${basename(item.path)}`} onClick={() => openRecent(item.path)}>
+      <h3 id="recent-projects-title">{t('Continuar em um projeto recente')}</h3>
+      <ul>{recents.map(item => <li key={item.id}><button type="button" className="touch-target secondary-button recent-project" disabled={pending} aria-label={t('Abrir {name}', { name: basename(item.path) })} onClick={() => openRecent(item.path)}>
         <FolderOpen aria-hidden="true" /><span><strong>{basename(item.path)}</strong><span className="muted mono" title={item.path}>{shortPath(item.path)}</span></span></button></li>)}</ul>
     </section>}
     {state.workspace && viewMode === 'professional' && <section className="recent-sessions" aria-labelledby="recent-sessions-title">
-      <div className="recent-heading"><h2 id="recent-sessions-title">Sessões recentes</h2><button type="button" className="touch-target secondary-button" disabled={listState === 'loading' || pending} onClick={() => void loadSessions(state.workspace!.id)}>Atualizar sessões</button></div>
+      <div className="recent-heading"><h2 id="recent-sessions-title">{t('Sessões recentes')}</h2><button type="button" className="touch-target secondary-button" disabled={listState === 'loading' || pending} onClick={() => void loadSessions(state.workspace!.id)}>{t('Atualizar sessões')}</button></div>
       {recentWork.runs.length > 0 && <div className="recent-work">
-        <h3 id="recent-work-title">Trabalhos</h3>
+        <h3 id="recent-work-title">{t('Trabalhos')}</h3>
         <ul className="session-list" aria-labelledby="recent-work-title">{recentWork.runs.slice(0, 5).map(run => <li key={run.id}>
-          <div className="session-summary"><strong className="session-title" title={run.title}>{run.title || 'Trabalho sem título'}</strong>
-            <div className="session-meta"><span>{workProgress(run)}</span><span className="muted"><time dateTime={run.updatedAt}>{new Date(run.updatedAt).toLocaleString('pt-BR')}</time></span></div></div>
-          <button type="button" className="touch-target secondary-button" disabled={pending} onClick={() => onOpenPipeline?.(run.id, run.workspaceId)}>Abrir trabalho</button>
+          <div className="session-summary"><strong className="session-title" title={run.title}>{run.title || t('Trabalho sem título')}</strong>
+            <div className="session-meta"><span>{workProgress(run)}</span><span className="muted"><time dateTime={run.updatedAt}>{new Date(run.updatedAt).toLocaleString(localeTag())}</time></span></div></div>
+          <button type="button" className="touch-target secondary-button" disabled={pending} onClick={() => onOpenPipeline?.(run.id, run.workspaceId)}>{t('Abrir trabalho')}</button>
         </li>)}</ul>
-        {recentWork.runs.length > 5 && <button type="button" className="touch-target text-button" onClick={() => onSeeAllWork?.()}>Ver todos os {recentWork.runs.length} trabalhos</button>}
-        <h3>Conversas</h3>
+        {recentWork.runs.length > 5 && <button type="button" className="touch-target text-button" onClick={() => onSeeAllWork?.()}>{t('Ver todos os {count} trabalhos', { count: recentWork.runs.length })}</button>}
+        <h3>{t('Conversas')}</h3>
       </div>}
-      {listState === 'loading' && <p className="muted">Carregando sessões…</p>}
-      {listState === 'error' && <p className="form-error" role="alert">Não foi possível listar as sessões. Use Atualizar sessões para tentar novamente.</p>}
-      {listState === 'ready' && (sessions.length === 0 ? <p className="muted">Nenhuma sessão salva neste projeto.</p> : <>
-        <ul className="session-list" aria-label="Sessões recentes">{userSessions.map(session => sessionRow(session))}</ul>
-        {internalSessions.length > 0 && <details className="session-internal"><summary>Sessões internas do SDD ({internalSessions.length})</summary>
-          <p className="muted">Criadas pelo pipeline para gerar perguntas, SPEC e Plan. Servem só para consulta.</p>
-          <ul className="session-list" aria-label="Sessões internas do SDD">{internalSessions.map(session => sessionRow(session))}</ul></details>}
+      {listState === 'loading' && <p className="muted">{t('Carregando sessões…')}</p>}
+      {listState === 'error' && <p className="form-error" role="alert">{t('Não foi possível listar as sessões. Use Atualizar sessões para tentar novamente.')}</p>}
+      {listState === 'ready' && (sessions.length === 0 ? <p className="muted">{t('Nenhuma sessão salva neste projeto.')}</p> : <>
+        <ul className="session-list" aria-label={t('Sessões recentes')}>{userSessions.map(session => sessionRow(session))}</ul>
+        {internalSessions.length > 0 && <details className="session-internal"><summary>{t('Sessões internas do SDD ({count})', { count: internalSessions.length })}</summary>
+          <p className="muted">{t('Criadas pelo pipeline para gerar perguntas, SPEC e Plan. Servem só para consulta.')}</p>
+          <ul className="session-list" aria-label={t('Sessões internas do SDD')}>{internalSessions.map(session => sessionRow(session))}</ul></details>}
       </>)}
     </section>}
     {(error ?? state.error) && <p className="form-error" role="alert">{error ?? state.error}</p>}
@@ -1050,5 +1053,6 @@ function WorkspaceSetup({ backend, workRevision, onOpenPipeline, onSeeAllWork, s
 }
 
 function sessionStatus(status: string) {
-  return ({ ready: 'Pronta', running: 'Em execução', paused: 'Interrompida', completed: 'Concluída', failed: 'Falhou', cancelled: 'Cancelada', awaiting_approval: 'Aguardando aprovação' } as Record<string, string>)[status] ?? 'Histórico salvo'
+  const label = ({ ready: 'Pronta', running: 'Em execução', paused: 'Interrompida', completed: 'Concluída', failed: 'Falhou', cancelled: 'Cancelada', awaiting_approval: 'Aguardando aprovação' } as Record<string, string>)[status]
+  return t(label ?? 'Histórico salvo')
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Check, Circle, CircleAlert, CircleDot } from 'lucide-react'
+import { t, useT } from '../i18n'
 import type { Pipeline, PipelineStage, PipelineStageActivity } from '../lib/backend'
 import './pipelineBar.css'
 
@@ -14,16 +15,17 @@ const short: Partial<Record<PipelineStage, string>> = { code: 'verificar', eval:
 /** What the session behind the current stage is doing, in the words the bar has room for. */
 export function stageProgress(stage: PipelineStage, name: string, activity?: PipelineStageActivity): Progress | undefined {
   switch (activity?.status) {
-    case 'running': case 'cancellation_pending': return { text: 'IA trabalhando', tone: 'working', hint: `${name}: a IA está executando esta etapa.` }
-    case 'awaiting_approval': return { text: 'Aguardando autorização', tone: 'ready', hint: `${name}: a IA está esperando a sua autorização.` }
-    case 'completed': return short[stage] ? { text: `Executado · ${short[stage]}`, tone: 'ready', hint: `${name}: a execução terminou. Para seguir, ${afterRun[stage]} na página Pipelines.` } : undefined
-    case 'failed': return { text: 'Execução falhou', tone: 'failed', hint: `${name}: a execução parou por um erro. Veja a atividade da etapa.` }
-    case 'cancelled': return { text: 'Execução cancelada', tone: 'failed', hint: `${name}: a execução foi cancelada.` }
+    case 'running': case 'cancellation_pending': return { text: t('IA trabalhando'), tone: 'working', hint: t('{name}: a IA está executando esta etapa.', { name }) }
+    case 'awaiting_approval': return { text: t('Aguardando autorização'), tone: 'ready', hint: t('{name}: a IA está esperando a sua autorização.', { name }) }
+    case 'completed': return short[stage] ? { text: t('Executado · {next}', { next: t(short[stage]!) }), tone: 'ready', hint: t('{name}: a execução terminou. Para seguir, {next} na página Pipelines.', { name, next: t(afterRun[stage]!) }) } : undefined
+    case 'failed': return { text: t('Execução falhou'), tone: 'failed', hint: t('{name}: a execução parou por um erro. Veja a atividade da etapa.', { name }) }
+    case 'cancelled': return { text: t('Execução cancelada'), tone: 'failed', hint: t('{name}: a execução foi cancelada.', { name }) }
   }
   return undefined
 }
 
 export function PipelineBar({ pipeline: currentPipeline, onViewStage, viewStage, activity }: { pipeline?: Pipeline; onViewStage?: (stage:PipelineStage) => void; viewStage?:PipelineStage; /** What the current stage's own session is doing. */ activity?: PipelineStageActivity }) {
+  const t = useT()
   const pipeline = useRef<HTMLElement>(null)
   const stages = useRef<HTMLOListElement>(null)
   const currentStage = useRef<HTMLLIElement>(null)
@@ -59,7 +61,7 @@ export function PipelineBar({ pipeline: currentPipeline, onViewStage, viewStage,
     }
   }, [currentPipeline?.currentStage,viewStage])
   return <nav ref={pipeline} className="pipeline" aria-label="SDD Pipeline" tabIndex={0}>
-    <div className="pipeline-heading">SDD Pipeline<span title={currentPipeline?.title}>{currentPipeline?.title ?? 'Nenhum pipeline ativo'}</span></div>
+    <div className="pipeline-heading">SDD Pipeline<span title={currentPipeline?.title}>{currentPipeline?.title ?? t('Nenhum pipeline ativo')}</span></div>
     <ol ref={stages}>
       {stageDefinitions.map(([stage, name]) => {
         const status = currentPipeline?.stageStatus[stage] ?? 'pending'
@@ -68,7 +70,7 @@ export function PipelineBar({ pipeline: currentPipeline, onViewStage, viewStage,
         const Icon = status === 'completed' ? Check : progress?.tone === 'failed' ? CircleAlert : current ? CircleDot : Circle
         const tone = progress ? ` stage-${progress.tone}` : ''
         return <li key={name} ref={viewStage ? viewStage === stage ? currentStage : undefined : current ? currentStage : undefined} aria-current={current ? 'step' : undefined} className={`${status === 'completed' ? 'stage-completed' : status === 'failed' || progress?.tone === 'failed' ? 'stage-failed' : current ? 'stage-current' : 'stage-pending'}${tone}${viewStage===stage ? ' stage-viewed' : ''}`}>
-          <button type="button" className="touch-target pipeline-stage-button" aria-label={`Ver ${name} e sua atividade`} aria-pressed={viewStage===stage} disabled={!currentPipeline || !onViewStage} title={progress?.hint} onClick={() => onViewStage?.(stage)}><Icon aria-hidden="true" /><span><strong>{name}</strong><span role={current && progress ? 'status' : undefined}>{progress?.text ?? labels[status] ?? 'Pendente'}</span></span></button>
+          <button type="button" className="touch-target pipeline-stage-button" aria-label={t('Ver {name} e sua atividade', { name })} aria-pressed={viewStage===stage} disabled={!currentPipeline || !onViewStage} title={progress?.hint} onClick={() => onViewStage?.(stage)}><Icon aria-hidden="true" /><span><strong>{name}</strong><span role={current && progress ? 'status' : undefined}>{progress?.text ?? t(labels[status] ?? 'Pendente')}</span></span></button>
         </li>
       })}
     </ol>

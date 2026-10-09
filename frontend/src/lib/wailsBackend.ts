@@ -1,6 +1,7 @@
 import { Dialogs, Events } from '@wailsio/runtime'
 import { Service } from '../../bindings/github.com/persioflexa/harflex/internal/application'
 import { invalidEventDiagnostic, parse, type Backend, type TerminalOutput } from './backend'
+import { t } from '../i18n'
 
 // The only module that touches generated bindings; every DTO is validated here.
 export const wailsBackend: Backend = {
@@ -10,12 +11,12 @@ export const wailsBackend: Backend = {
   setWorkspaceProfile: async (workspaceId, profile, options) => parse.workspace(await Service.SetWorkspaceProfile({ workspaceId, profile, confirmFullAccess: options?.confirmFullAccess === true })),
   listProviderProfiles: async () => parse.providerProfiles(await Service.ListProviderProfiles()),
   queryHTTPModelCatalog: async (query, signal) => {
-    if (signal?.aborted) throw new DOMException('Consulta cancelada.', 'AbortError')
+    if (signal?.aborted) throw new DOMException(t('Consulta cancelada.'), 'AbortError')
     const call = Service.QueryHTTPModelCatalog(query)
     return parse.modelCatalog(await (signal ? call.cancelOn(signal) : call))
   },
   queryCLIModelCatalog: async (query, signal) => {
-    if (signal?.aborted) throw new DOMException('Consulta cancelada.', 'AbortError')
+    if (signal?.aborted) throw new DOMException(t('Consulta cancelada.'), 'AbortError')
     const call = Service.QueryCLIModelCatalog(query)
     return parse.modelCatalog(await (signal ? call.cancelOn(signal) : call))
   },
@@ -208,15 +209,15 @@ export const wailsBackend: Backend = {
   connectMCPServer: async id => parse.mcpServer(await Service.ConnectMCPServer(id)),
   disableMCPServer: async id => parse.mcpServer(await Service.DisableMCPServer(id)),
   pickDirectory: async () => {
-    const selected = await Dialogs.OpenFile({ CanChooseDirectories: true, CanChooseFiles: false, CanCreateDirectories: true, Title: 'Abrir projeto' })
+    const selected = await Dialogs.OpenFile({ CanChooseDirectories: true, CanChooseFiles: false, CanCreateDirectories: true, Title: t('Abrir projeto') })
     return typeof selected === 'string' ? selected : ''
   },
   pickSkillFile: async () => {
-    const selected = await Dialogs.OpenFile({ CanChooseDirectories: false, CanChooseFiles: true, Title: 'Importar SKILL.md' })
+    const selected = await Dialogs.OpenFile({ CanChooseDirectories: false, CanChooseFiles: true, Title: t('Importar SKILL.md') })
     return typeof selected === 'string' ? selected : ''
   },
   pickKnowledgeFile: async () => {
-    const selected = await Dialogs.OpenFile({ CanChooseDirectories: false, CanChooseFiles: true, Title: 'Indexar arquivo do projeto' })
+    const selected = await Dialogs.OpenFile({ CanChooseDirectories: false, CanChooseFiles: true, Title: t('Indexar arquivo do projeto') })
     return typeof selected === 'string' ? selected : ''
   },
   listBackends: async () => parse.backends(await Service.ListBackends()),

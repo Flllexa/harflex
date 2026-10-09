@@ -78,6 +78,8 @@ h2 { font-size: 14px; font-weight: 650; }
 .theme-toggle svg { width: 17px; height: 17px; }
 .side-panel-toggle[aria-expanded=true] { color: var(--cyan); }
 .side-panel-toggle svg { width: 18px; height: 18px; }
+/* Compact for a mouse; a finger needs the full target. */
+@media (max-width: 767px), (pointer: coarse) { .side-panel-toggle, .theme-toggle { width: 44px; height: 44px; min-height: 44px; } }
 .pipeline { display: flex; align-items: center; gap: var(--space-6); padding: var(--space-2) var(--space-4); overflow-x: auto; }
 .pipeline-heading { display: none; flex: 0 1 28ch; min-width: 0; font-weight: 650; }
 .pipeline-heading span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; font-weight: 400; }
@@ -930,7 +932,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: var
 .casual-group-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 .casual-group-title span { font-size: 10px; }
 .casual-group-actions { display: flex; align-items: center; gap: 2px; flex: none; }
-.casual-group-actions .icon-button { width: 30px; height: 30px; min-height: 30px; color: var(--muted); }
+.casual-group-actions .icon-button { width: 32px; height: 32px; min-height: 32px; color: var(--muted); }
 .casual-group-actions .icon-button:hover:not(:disabled) { color: var(--paper); background: var(--ion-void); }
 .casual-group-actions svg { width: 15px; height: 15px; }
 .casual-project-group { display: flex; flex-direction: column; gap: 2px; }
@@ -1122,5 +1124,5 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: var
 .agent-pipeline-notice span { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agent-pipeline-notice .primary-button { min-height: 34px; padding-inline: var(--space-4); }
 .casual-others-heading { display: flex; align-items: center; justify-content: space-between; padding-right: var(--space-1); }
-.casual-others-heading .icon-button { width: 28px; height: 28px; min-height: 28px; color: var(--muted); }
+.casual-others-heading .icon-button { width: 32px; height: 32px; min-height: 32px; color: var(--muted); }
 .casual-others-heading .icon-button svg { width: 15px; height: 15px; }

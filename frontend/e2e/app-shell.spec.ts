@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './locale'
 import { undersizedTargets } from './targets'
 
 for (const width of [320, 768, 900, 1440]) {
@@ -11,7 +11,7 @@ for (const width of [320, 768, 900, 1440]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
     await expect(page.getByRole('navigation', { name: 'SDD Pipeline' }).locator('[aria-current="step"]')).toHaveCount(0)
     await page.screenshot({ path: testInfo.outputPath(`shell-${width}.png`), fullPage: true })
-    const trigger = page.getByRole('button', { name: 'Atividade', exact: true })
+    const trigger = page.getByRole('button', { name: 'Painel lateral', exact: true })
     if (width >= 1024) await trigger.click()
     await trigger.click()
     await expect(page.getByRole('complementary', { name: 'Atividade do trabalho' })).toBeVisible()
@@ -37,8 +37,8 @@ test('mobile navigation becomes a rail after resizing to tablet', async ({ page 
   await page.getByRole('button', { name: 'Abrir navegação' }).click()
   await page.setViewportSize({ width: 900, height: 768 })
   await expect(page.getByRole('dialog', { name: 'Navegação' })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Atividade', exact: true })).toBeEnabled()
-  await page.getByRole('button', { name: 'Atividade', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Painel lateral', exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: 'Painel lateral', exact: true }).click()
   await expect(page.getByRole('dialog', { name: 'Atividade', exact: true })).toBeVisible()
 })
 
@@ -61,7 +61,7 @@ for (const width of [900, 320]) {
     await close.focus()
     await expect(close).toBeFocused()
     await page.setViewportSize({ width, height: 900 })
-    const trigger = page.getByRole('button', { name: 'Atividade', exact: true })
+    const trigger = page.getByRole('button', { name: 'Painel lateral', exact: true })
     await expect(trigger).toHaveAttribute('aria-expanded', 'false')
     await expect(trigger).toBeFocused()
     await page.screenshot({ path: testInfo.outputPath(`focus-resized-${width}.png`), fullPage: true })
@@ -73,7 +73,7 @@ for (const width of [900, 320]) {
     const pipeline = page.getByRole('navigation', { name: 'SDD Pipeline' })
     await pipeline.focus()
     await page.setViewportSize({ width, height: 900 })
-    await expect(page.getByRole('button', { name: 'Atividade', exact: true })).toHaveAttribute('aria-expanded', 'false')
+    await expect(page.getByRole('button', { name: 'Painel lateral', exact: true })).toHaveAttribute('aria-expanded', 'false')
     await expect(pipeline).toBeFocused()
   })
 }

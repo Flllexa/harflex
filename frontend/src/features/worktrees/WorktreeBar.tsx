@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { CheckCircle2, GitBranch, ShieldAlert, Sparkles, X } from 'lucide-react'
 import type { Backend, BackendOption, WorktreeSavePlan } from '../../lib/backend'
-import { SaveWithAIDialog, type SaveWithAIOptions } from './WorktreeDialogs'
-import { blockerText, plural, worktreeFacts, worktreeTitle } from './worktreeText'
+import { useT } from '../../i18n'
+import { Rich, SaveWithAIDialog, type SaveWithAIOptions } from './WorktreeDialogs'
+import { blockerText, deletableText, plural, worktreeFacts, worktreeTitle } from './worktreeText'
 import type { useWorktrees } from './useWorktrees'
 import './worktrees.css'
 
@@ -20,6 +21,7 @@ type Props = {
 
 /** The task's own view of its worktree: where it stands, whether it is safe to delete, and the way to save it. */
 export function WorktreeBar({ backend, workspaceId, worktrees, backends, defaultBackendId, showManage, onOpenWorktrees, onSettings, onSaveWithAI }: Props) {
+  const t = useT()
   const { list } = worktrees
   const [saving, setSaving] = useState(false)
   const [refusal, setRefusal] = useState('')
@@ -30,25 +32,27 @@ export function WorktreeBar({ backend, workspaceId, worktrees, backends, default
   const clear = others.filter(item => item.canDelete).length
 
   return <div className="worktree-bar-wrap">
-    {current && <div className="worktree-bar" role="region" aria-label="Worktree da tarefa">
+    {current && <div className="worktree-bar" role="region" aria-label={t('Worktree da tarefa')}>
       <div className="worktree-bar-state">
         <GitBranch aria-hidden="true" />
         <strong title={worktreeTitle(current)}>{worktreeTitle(current)}</strong>
-        <span className="status-chip">{current.isMain ? 'Principal' : 'Worktree'}</span>
+        <span className="status-chip">{current.isMain ? t('Principal') : t('Worktree')}</span>
         <span className="muted worktree-bar-facts">{worktreeFacts(current, list.base).join(' · ')}</span>
       </div>
       {current.isMain
-        ? <span className="worktree-bar-verdict muted">{others.length === 0 ? 'Sem outros worktrees.' : `${plural(others.length, 'outro worktree', 'outros worktrees')} · ${clear} ${clear === 1 ? 'pode' : 'podem'} ser ${clear === 1 ? 'excluído' : 'excluídos'}`}</span>
+        ? <span className="worktree-bar-verdict muted">{others.length === 0 ? t('Sem outros worktrees.') : t('{others} · {deletable}', { others: plural(others.length, t('outro worktree'), t('outros worktrees')), deletable: deletableText(clear) })}</span>
         : held.length === 0
-          ? <span className="worktree-bar-verdict is-clear"><CheckCircle2 aria-hidden="true" />Tudo salvo e mesclado em {list.base}: pode ser excluído ao sair deste projeto.</span>
-          : <span className="worktree-bar-verdict is-held"><ShieldAlert aria-hidden="true" />Não pode ser excluído: {blockerText(held[0], list.base)}{held.length > 1 ? ` +${plural(held.length - 1, 'motivo', 'motivos')}` : ''}</span>}
+          ? <span className="worktree-bar-verdict is-clear"><CheckCircle2 aria-hidden="true" /><Rich text={t('Tudo salvo e mesclado em {base}: pode ser excluído ao sair deste projeto.')} values={{ base: list.base }} /></span>
+          : <span className="worktree-bar-verdict is-held"><ShieldAlert aria-hidden="true" />{held.length > 1
+            ? t('Não pode ser excluído: {reason} +{more}', { reason: blockerText(held[0], list.base), more: plural(held.length - 1, t('motivo'), t('motivos')) })
+            : t('Não pode ser excluído: {reason}', { reason: blockerText(held[0], list.base) })}</span>}
       <div className="worktree-bar-actions">
-        {current.canSaveWithAi && <button type="button" className="touch-target secondary-button" onClick={() => { setRefusal(''); setSaving(true) }}><Sparkles aria-hidden="true" />Salvar com a IA…</button>}
-        {showManage && <button type="button" className="touch-target secondary-button" onClick={onOpenWorktrees}>Gerenciar worktrees</button>}
+        {current.canSaveWithAi && <button type="button" className="touch-target secondary-button" onClick={() => { setRefusal(''); setSaving(true) }}><Sparkles aria-hidden="true" />{t('Salvar com a IA…')}</button>}
+        {showManage && <button type="button" className="touch-target secondary-button" onClick={onOpenWorktrees}>{t('Gerenciar worktrees')}</button>}
       </div>
     </div>}
     {refusal && <div className="worktree-cleanup is-attention" role="alert"><span>{refusal}</span>
-      <button type="button" className="touch-target icon-button" aria-label="Fechar aviso" onClick={() => setRefusal('')}><X aria-hidden="true" /></button></div>}
+      <button type="button" className="touch-target icon-button" aria-label={t('Fechar aviso')} onClick={() => setRefusal('')}><X aria-hidden="true" /></button></div>}
     {saving && current && <SaveWithAIDialog backend={backend} workspaceId={workspaceId} item={current} base={list.base} root={list.root} backends={backends} defaultBackendId={defaultBackendId}
       onClose={() => setSaving(false)} onSettings={() => { setSaving(false); onSettings() }} onStart={onSaveWithAI}
       onStale={message => { setSaving(false); setRefusal(message); void worktrees.refresh() }} />}

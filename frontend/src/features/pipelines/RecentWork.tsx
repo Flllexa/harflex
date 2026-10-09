@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
 import type { Backend, Pipeline } from '../../lib/backend'
+import { t } from '../../i18n'
 
 const stageNames: Record<string, string> = { discovery: 'Discovery', spec: 'SPEC', plan: 'Plan', code: 'Code', eval: 'QA', prs: 'PRs' }
-const statusNames: Record<string, string> = { active: 'em andamento', waiting_user: 'aguardando você', failed: 'falhou', paused: 'pausado', pending: 'pendente', completed: 'concluído', skipped: 'pulado' }
+// Read at call time: the language is chosen on screen, not at startup.
+function statusNames(): Record<string, string> { return { active: t('em andamento'), waiting_user: t('aguardando você'), failed: t('falhou'), paused: t('pausado'), pending: t('pendente'), completed: t('concluído'), skipped: t('pulado') } }
 
 /** Where a work item is: its current stage and how it stands, or that it finished. */
 export function workProgress(run: Pipeline) {
-  if (!run.currentStage) return 'Concluído'
-  const status = statusNames[run.stageStatus[run.currentStage] ?? ''] ?? run.stageStatus[run.currentStage]
+  if (!run.currentStage) return t('Concluído')
+  const status = statusNames()[run.stageStatus[run.currentStage] ?? ''] ?? run.stageStatus[run.currentStage]
   return `${stageNames[run.currentStage] ?? run.currentStage}${status ? ` · ${status}` : ''}`
 }
 

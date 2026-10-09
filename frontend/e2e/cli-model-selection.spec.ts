@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './locale'
 import { undersizedTargets } from './targets'
 
 for (const width of [320, 768, 900, 1024, 1440]) {

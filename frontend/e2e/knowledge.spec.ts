@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './locale'
 
 for (const width of [320, 768, 900, 1024, 1440]) {
   test(`local knowledge import, search and provenance work at ${width}px`, async ({ page }, info) => {

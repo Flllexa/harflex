@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { errorMessage, type Backend, type Pipeline } from '../../lib/backend'
+import { localeTag, useT } from '../../i18n'
 
 type ReviewStage = 'code' | 'eval'
 type Props = { backend: Backend; run: Pipeline; stage: ReviewStage; onPipelineChange: (run: Pipeline) => void }
@@ -10,7 +11,6 @@ type EvaluationEvidence = {
   criteriaSource?: { sourceStage?: string; sourceVersion?: number; sourceDigest?: string; synthesisVersion?: number; synthesisDigest?: string; bypasses?: { stage: string; reason: string }[] }
 }
 const stageLabel: Record<ReviewStage, string> = { code: 'Code', eval: 'QA' }
-const reviewLabel = (decision: string) => decision === 'approve' ? 'Aprovado' : 'Revisão solicitada'
 const sourceStageLabel = (stage: string) => ({ discovery: 'Discovery', spec: 'SPEC', plan: 'Plan' }[stage] ?? stage)
 
 function evaluationEvidence(content: string): EvaluationEvidence | undefined {
@@ -21,6 +21,8 @@ function evaluationEvidence(content: string): EvaluationEvidence | undefined {
 }
 
 export function PipelineExecutionReview({ backend, run, stage, onPipelineChange }: Props) {
+  const t = useT()
+  const reviewLabel = (decision: string) => decision === 'approve' ? t('Aprovado') : t('Revisão solicitada')
   const artifact = run.artifacts[stage]
   const [feedback, setFeedback] = useState('')
   const [pending, setPending] = useState(false)
@@ -62,42 +64,43 @@ export function PipelineExecutionReview({ backend, run, stage, onPipelineChange 
     } finally { setPending(false) }
   }
 
-  return <section className="pipeline-review" aria-label={`Revisão de ${stageLabel[stage]}`}>
-    <div className="pipeline-review-heading"><div><h3>Revise {stageLabel[stage]} antes de continuar</h3><p className="muted">A decisão fica registrada nesta versão e vinculada ao conteúdo exibido.</p></div><span className="status-chip">Versão {artifact?.version ?? '—'}</span></div>
-    {!currentReviewReady && <p className="project-warning" role="alert">A evidência ou o hash desta versão não está disponível. Atualize o pipeline antes de decidir.</p>}
+  return <section className="pipeline-review" aria-label={t('Revisão de {stage}', { stage: stageLabel[stage] })}>
+    <div className="pipeline-review-heading"><div><h3>{t('Revise {stage} antes de continuar', { stage: stageLabel[stage] })}</h3><p className="muted">{t('A decisão fica registrada nesta versão e vinculada ao conteúdo exibido.')}</p></div><span className="status-chip">{t('Versão {version}', { version: artifact?.version ?? '—' })}</span></div>
+    {!currentReviewReady && <p className="project-warning" role="alert">{t('A evidência ou o hash desta versão não está disponível. Atualize o pipeline antes de decidir.')}</p>}
     {artifact && <>
-      {stage === 'code' ? <pre className="mono diff-body" aria-label="Diff de Code">{artifact.content}</pre> : <EvaluationSummary evidence={evidence} />}
-      <details className="pipeline-review-provenance"><summary>Proveniência e integridade</summary>
-        <dl><dt>Versão</dt><dd>{artifact.version}</dd><dt>SHA-256 do artefato</dt><dd className="mono">{artifact.contentDigest || 'Indisponível'}</dd><dt>Sessão de origem</dt><dd className="mono">{artifact.sourceSessionId || 'Indisponível'}</dd>
-          {stage === 'eval' && evidence?.criteriaSource && <><dt>Fonte dos critérios</dt><dd>{sourceStageLabel(evidence.criteriaSource.sourceStage ?? 'Indisponível')} v{evidence.criteriaSource.sourceVersion ?? '—'}</dd><dt>SHA-256 da fonte</dt><dd className="mono">{evidence.criteriaSource.sourceDigest ?? 'Indisponível'}</dd>
-            {evidence.criteriaSource.synthesisVersion !== undefined && <><dt>Síntese aprovada</dt><dd>v{evidence.criteriaSource.synthesisVersion}</dd><dt>SHA-256 da síntese</dt><dd className="mono">{evidence.criteriaSource.synthesisDigest ?? 'Indisponível'}</dd></>}
-            {evidence.criteriaSource.bypasses?.map(item => <Fragment key={`${item.stage}:${item.reason}`}><dt>Etapa pulada · {sourceStageLabel(item.stage)}</dt><dd>{item.reason || 'Sem justificativa registrada'}</dd></Fragment>)}
+      {stage === 'code' ? <pre className="mono diff-body" aria-label={t('Diff de Code')}>{artifact.content}</pre> : <EvaluationSummary evidence={evidence} />}
+      <details className="pipeline-review-provenance"><summary>{t('Proveniência e integridade')}</summary>
+        <dl><dt>{t('Versão')}</dt><dd>{artifact.version}</dd><dt>{t('SHA-256 do artefato')}</dt><dd className="mono">{artifact.contentDigest || t('Indisponível')}</dd><dt>{t('Sessão de origem')}</dt><dd className="mono">{artifact.sourceSessionId || t('Indisponível')}</dd>
+          {stage === 'eval' && evidence?.criteriaSource && <><dt>{t('Fonte dos critérios')}</dt><dd>{sourceStageLabel(evidence.criteriaSource.sourceStage ?? t('Indisponível'))} v{evidence.criteriaSource.sourceVersion ?? '—'}</dd><dt>{t('SHA-256 da fonte')}</dt><dd className="mono">{evidence.criteriaSource.sourceDigest ?? t('Indisponível')}</dd>
+            {evidence.criteriaSource.synthesisVersion !== undefined && <><dt>{t('Síntese aprovada')}</dt><dd>v{evidence.criteriaSource.synthesisVersion}</dd><dt>{t('SHA-256 da síntese')}</dt><dd className="mono">{evidence.criteriaSource.synthesisDigest ?? t('Indisponível')}</dd></>}
+            {evidence.criteriaSource.bypasses?.map(item => <Fragment key={`${item.stage}:${item.reason}`}><dt>{t('Etapa pulada · {stage}', { stage: sourceStageLabel(item.stage) })}</dt><dd>{item.reason || t('Sem justificativa registrada')}</dd></Fragment>)}
           </>}
         </dl>
       </details>
-      {!canApprove && stage === 'eval' && currentReviewReady && <p className="project-warning" role="status">Esta avaliação não passou. Corrija o Code e envie uma nova avaliação para seguir para os PRs.</p>}
+      {!canApprove && stage === 'eval' && currentReviewReady && <p className="project-warning" role="status">{t('Esta avaliação não passou. Corrija o Code e envie uma nova avaliação para seguir para os PRs.')}</p>}
       {currentReviewReady && <>
-        <label className="field pipeline-review-feedback">Feedback para revisão<textarea value={feedback} onChange={event => { setFeedback(event.target.value); intent.current = undefined }} rows={3} maxLength={8192} placeholder={`Descreva o que deve mudar em ${stageLabel[stage]}.`} disabled={pending} /></label>
+        <label className="field pipeline-review-feedback">{t('Feedback para revisão')}<textarea value={feedback} onChange={event => { setFeedback(event.target.value); intent.current = undefined }} rows={3} maxLength={8192} placeholder={t('Descreva o que deve mudar em {stage}.', { stage: stageLabel[stage] })} disabled={pending} /></label>
         <div className="pipeline-actions">
-          {canApprove && <button type="button" className="touch-target primary-button" onClick={() => void decide('approve')} disabled={pending}>{pending ? 'Registrando decisão…' : stage === 'code' ? 'Aprovar Code e iniciar QA' : 'Aprovar QA e seguir para os PRs'}</button>}
-          <button type="button" className="touch-target secondary-button" onClick={() => void decide('request_revision')} disabled={pending || !feedback.trim()}>{pending ? 'Registrando decisão…' : `Pedir revisão do ${stageLabel[stage]}`}</button>
+          {canApprove && <button type="button" className="touch-target primary-button" onClick={() => void decide('approve')} disabled={pending}>{pending ? t('Registrando decisão…') : stage === 'code' ? t('Aprovar Code e iniciar QA') : t('Aprovar QA e seguir para os PRs')}</button>}
+          <button type="button" className="touch-target secondary-button" onClick={() => void decide('request_revision')} disabled={pending || !feedback.trim()}>{pending ? t('Registrando decisão…') : t('Pedir revisão do {stage}', { stage: stageLabel[stage] })}</button>
         </div>
       </>}
     </>}
     {error && <p className="form-error" role="alert">{error}</p>}
-    {priorReviews.length > 0 && <details className="pipeline-review-history"><summary>Decisões anteriores ({priorReviews.length})</summary><ol>{priorReviews.map((review, index) => <li key={`${review.stage}:${review.version}:${review.createdAt}:${index}`}>
-      <strong>{reviewLabel(review.decision)} · versão {review.version}</strong><p className="muted">{review.actor} · {new Date(review.createdAt).toLocaleString('pt-BR')}</p>{review.feedback && <p>{review.feedback}</p>}
-      <details><summary>Ver conteúdo revisado · SHA-256 {review.contentDigest.slice(0, 12)}…</summary><pre className="mono diff-body">{review.content}</pre><code className="mono">{review.contentDigest}</code></details>
+    {priorReviews.length > 0 && <details className="pipeline-review-history"><summary>{t('Decisões anteriores ({count})', { count: priorReviews.length })}</summary><ol>{priorReviews.map((review, index) => <li key={`${review.stage}:${review.version}:${review.createdAt}:${index}`}>
+      <strong>{t('{label} · versão {version}', { label: reviewLabel(review.decision), version: review.version })}</strong><p className="muted">{review.actor} · {new Date(review.createdAt).toLocaleString(localeTag())}</p>{review.feedback && <p>{review.feedback}</p>}
+      <details><summary>{t('Ver conteúdo revisado · SHA-256 {digest}…', { digest: review.contentDigest.slice(0, 12) })}</summary><pre className="mono diff-body">{review.content}</pre><code className="mono">{review.contentDigest}</code></details>
     </li>)}</ol></details>}
   </section>
 }
 
 function EvaluationSummary({ evidence }: { evidence?: EvaluationEvidence }) {
-  if (!evidence || typeof evidence.passed !== 'boolean') return <p className="project-warning" role="alert">O resultado do QA não pôde ser interpretado. Atualize o pipeline para reler a evidência.</p>
+  const t = useT()
+  if (!evidence || typeof evidence.passed !== 'boolean') return <p className="project-warning" role="alert">{t('O resultado do QA não pôde ser interpretado. Atualize o pipeline para reler a evidência.')}</p>
   return <div className="pipeline-evaluation-summary">
-    <p className={evidence.passed ? 'form-success' : 'form-error'} role="status">{evidence.passed ? 'Resultado: critérios atendidos' : 'Resultado: critérios não atendidos'}</p>
-    {evidence.criteriaSource && <p>Critérios com base em {sourceStageLabel(evidence.criteriaSource.sourceStage ?? 'fonte indisponível')} v{evidence.criteriaSource.sourceVersion ?? '—'}.</p>}
-    {!!evidence.findings?.length && <><h4>Pontos encontrados</h4><ul>{evidence.findings.map((item, index) => <li key={index}>{item}</li>)}</ul></>}
-    {!!evidence.criteria?.length && <><h4>Matriz de evidências</h4><dl>{evidence.criteria.map((item, index) => <div key={`${item.criterion}:${index}`}><dt>{item.criterion}</dt><dd>{item.evidence}</dd></div>)}</dl></>}
+    <p className={evidence.passed ? 'form-success' : 'form-error'} role="status">{evidence.passed ? t('Resultado: critérios atendidos') : t('Resultado: critérios não atendidos')}</p>
+    {evidence.criteriaSource && <p>{t('Critérios com base em {stage} v{version}.', { stage: sourceStageLabel(evidence.criteriaSource.sourceStage ?? t('fonte indisponível')), version: evidence.criteriaSource.sourceVersion ?? '—' })}</p>}
+    {!!evidence.findings?.length && <><h4>{t('Pontos encontrados')}</h4><ul>{evidence.findings.map((item, index) => <li key={index}>{item}</li>)}</ul></>}
+    {!!evidence.criteria?.length && <><h4>{t('Matriz de evidências')}</h4><dl>{evidence.criteria.map((item, index) => <div key={`${item.criterion}:${index}`}><dt>{item.criterion}</dt><dd>{item.evidence}</dd></div>)}</dl></>}
   </div>
 }

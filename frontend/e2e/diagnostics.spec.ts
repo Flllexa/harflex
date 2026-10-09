@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './locale'
 
 for (const width of [320, 1440]) {
   test(`diagnostics show real local checks at ${width}px`, async ({ page }, info) => {

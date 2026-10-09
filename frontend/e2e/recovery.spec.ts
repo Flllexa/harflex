@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './locale'
 
 // Synthetic restart exercises the UI facade and persisted journal, not native CLI execution.
 for (const width of [320, 1440]) for (const readOnly of [false, true]) {
@@ -22,7 +22,7 @@ for (const width of [320, 1440]) for (const readOnly of [false, true]) {
     await expect(list).toContainText(readOnly ? 'Somente leitura' : 'Retomável')
     await expect(page.getByLabel('Mensagem')).toHaveCount(0)
     await list.getByRole('button', { name: 'Abrir histórico' }).click()
-    await expect(page.getByText('Trabalho antes do reinício', { exact: true })).toBeVisible()
+    await expect(page.getByRole('list', { name: 'Conversa' }).getByText('Trabalho antes do reinício', { exact: true })).toBeVisible()
     await expect(page.getByText('Resposta CLI preservada.', { exact: true })).toBeVisible()
     await expect(page.getByText('RAW_ONLY', { exact: true })).toHaveCount(0)
     await expect(page.getByRole('status')).toContainText('Interrompido')

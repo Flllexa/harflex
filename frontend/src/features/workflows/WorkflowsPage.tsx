@@ -3,12 +3,16 @@ import { CreateToggle, useCreateForm } from '../../components/CreateForm'
 import { ArrowRight, CirclePause, FolderOpen, GitFork, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { IonPicker } from '../../components/IonPicker'
 import { errorMessage, type Backend, type BackendOption, type Workflow, type WorkflowRun, type WorkflowStep } from '../../lib/backend'
+import { t, useT } from '../../i18n'
 
 type Props = { backend: Backend; backends: BackendOption[]; workspaceId?: string; reviewedSessions: ReadonlySet<string>; onProjects: () => void; onSettings: () => void; onOpenSession: (sessionId: string) => Promise<void> }
 const blank = (): WorkflowStep => ({ name: '', prompt: '' })
-const statusLabels: Record<WorkflowRun['status'], string> = { ready: 'Pronto', running: 'Executando', waiting_user: 'Aguardando aprovação', paused: 'Pausado', completed: 'Concluído', cancelled: 'Cancelado' }
+function statusLabels(): Record<WorkflowRun['status'], string> {
+  return { ready: t('Pronto'), running: t('Executando'), waiting_user: t('Aguardando aprovação'), paused: t('Pausado'), completed: t('Concluído'), cancelled: t('Cancelado') }
+}
 
 export function WorkflowsPage({ backend, backends, workspaceId, reviewedSessions, onProjects, onSettings, onOpenSession }: Props) {
+  const t = useT()
   const [definitions, setDefinitions] = useState<Workflow[]>([])
   const [runs, setRuns] = useState<WorkflowRun[]>([])
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -47,7 +51,7 @@ export function WorkflowsPage({ backend, backends, workspaceId, reviewedSessions
     try {
       const saved = await backend.saveWorkflow({ id: editingId, workspaceId, name: name.trim(), steps: steps.map(step => ({ name: step.name.trim(), prompt: step.prompt.trim() })) })
       setDefinitions(current => [saved, ...current.filter(item => item.id !== saved.id)])
-      setNotice(`Workflow ${saved.name} salvo nesta máquina.`)
+      setNotice(t('Workflow {name} salvo nesta máquina.', { name: saved.name }))
       reset(); form.setOpen(false)
     } catch (failure) { setError(errorMessage(failure)) }
     finally { setPending(false) }
@@ -58,7 +62,7 @@ export function WorkflowsPage({ backend, backends, workspaceId, reviewedSessions
     setPending(true); setError(undefined); setNotice(undefined)
     try {
       const run = await backend.startWorkflow({ workflowId: item.id, backendId: selectedBackend })
-      setRuns(current => [run, ...current]); setNotice('Execução criada. Inicie a primeira etapa quando estiver pronto.')
+      setRuns(current => [run, ...current]); setNotice(t('Execução criada. Inicie a primeira etapa quando estiver pronto.'))
     } catch (failure) { setError(errorMessage(failure)) }
     finally { setPending(false) }
   }
@@ -69,7 +73,7 @@ export function WorkflowsPage({ backend, backends, workspaceId, reviewedSessions
     try {
       const updated = await backend.runWorkflowStep(run.id)
       setRuns(current => current.map(item => item.id === updated.id ? updated : item))
-      setNotice(updated.status === 'waiting_user' ? 'Etapa aguardando sua aprovação na conversa.' : updated.status === 'completed' ? 'Workflow concluído com execução registrada.' : updated.status === 'paused' ? 'Etapa pausada. Confira o histórico antes de tentar novamente.' : 'Etapa concluída; próxima pronta.')
+      setNotice(updated.status === 'waiting_user' ? t('Etapa aguardando sua aprovação na conversa.') : updated.status === 'completed' ? t('Workflow concluído com execução registrada.') : updated.status === 'paused' ? t('Etapa pausada. Confira o histórico antes de tentar novamente.') : t('Etapa concluída; próxima pronta.'))
     } catch (failure) { setError(errorMessage(failure)) }
     finally { setPending(false) }
   }
@@ -77,7 +81,7 @@ export function WorkflowsPage({ backend, backends, workspaceId, reviewedSessions
   async function cancel(run: WorkflowRun) {
     if (pending) return
     setPending(true); setError(undefined)
-    try { const updated = await backend.cancelWorkflowRun(run.id); setRuns(current => current.map(item => item.id === updated.id ? updated : item)); setNotice('Execução cancelada.') }
+    try { const updated = await backend.cancelWorkflowRun(run.id); setRuns(current => current.map(item => item.id === updated.id ? updated : item)); setNotice(t('Execução cancelada.')) }
     catch (failure) { setError(errorMessage(failure)) }
     finally { setPending(false) }
   }
@@ -89,7 +93,7 @@ export function WorkflowsPage({ backend, backends, workspaceId, reviewedSessions
     try {
       const updated = await backend.resumeWorkflowRun({ runId: run.id, reviewedSessionId: run.lastSessionId, choice })
       setRuns(current => current.map(item => item.id === updated.id ? updated : item))
-      setNotice(choice === 'retry' ? 'Etapa pronta para uma nova execução. Execute quando decidir continuar.' : 'Etapa pulada com sua decisão registrada.')
+      setNotice(choice === 'retry' ? t('Etapa pronta para uma nova execução. Execute quando decidir continuar.') : t('Etapa pulada com sua decisão registrada.'))
       setRecoveryChoices(current => ({ ...current, [run.id]: '' }))
       setAcknowledgedSessions(current => ({ ...current, [run.id]: '' }))
     } catch (failure) { setError(errorMessage(failure)) }
@@ -97,37 +101,37 @@ export function WorkflowsPage({ backend, backends, workspaceId, reviewedSessions
   }
 
   return <div className="workflows-page">
-    <div className="destination-heading"><div><h2>Workflows locais</h2><p className="muted">Sequências de tarefas executadas por agentes, com histórico por etapa.</p></div>{workspaceId && <div className="pipeline-actions">{form.collapsible && <CreateToggle open={form.open} onToggle={() => { if (form.open) reset(); form.setOpen(!form.open) }} label="Novo workflow" />}<button type="button" className="touch-target secondary-button" onClick={() => void refresh()} disabled={state === 'loading'}><RefreshCw aria-hidden="true" />Atualizar</button></div>}</div>
-    {!workspaceId ? <div className="catalog-empty"><FolderOpen aria-hidden="true" /><strong>Abra um projeto para criar workflows</strong><span className="muted">As definições e execuções ficam vinculadas à pasta local.</span><button type="button" className="touch-target primary-button" onClick={onProjects}>Abrir projetos</button></div> : <>
-      {form.open && <form className="workflow-editor" onSubmit={save}><div className="destination-heading"><div><h3>{editingId ? 'Editar workflow' : 'Novo workflow'}</h3><p className="muted">Cada execução guarda uma cópia dos passos usados.</p></div><GitFork aria-hidden="true" /></div><label className="field">Nome do workflow<input value={name} onChange={event => setName(event.target.value)} maxLength={200} required /></label>
-        <div className="workflow-step-editor"><div className="destination-heading"><h3>Etapas</h3><button type="button" className="touch-target secondary-button" onClick={() => setSteps(current => [...current, blank()])} disabled={steps.length >= 20}><Plus aria-hidden="true" />Adicionar etapa</button></div>
-          {steps.map((step, index) => <div className="workflow-step-form" key={index}><span className="workflow-step-number">{index + 1}</span><div><label className="field">Nome da etapa {index + 1}<input value={step.name} onChange={event => updateStep(index, 'name', event.target.value)} maxLength={128} required /></label><label className="field">Prompt da etapa {index + 1}<textarea value={step.prompt} onChange={event => updateStep(index, 'prompt', event.target.value)} rows={3} maxLength={1024 * 1024} required /></label></div>{steps.length > 1 && <button type="button" className="touch-target icon-button" aria-label={`Remover etapa ${index + 1}`} onClick={() => setSteps(current => current.filter((_, position) => position !== index))}><Trash2 aria-hidden="true" /></button>}</div>)}
-        </div><div className="pipeline-actions">{editingId && <button type="button" className="touch-target secondary-button" onClick={reset}>Cancelar edição</button>}<button type="submit" className="touch-target primary-button" disabled={pending || !name.trim() || steps.some(step => !step.name.trim() || !step.prompt.trim())}>Salvar workflow</button></div>
+    <div className="destination-heading"><div><h2>{t('Workflows locais')}</h2><p className="muted">{t('Sequências de tarefas executadas por agentes, com histórico por etapa.')}</p></div>{workspaceId && <div className="pipeline-actions">{form.collapsible && <CreateToggle open={form.open} onToggle={() => { if (form.open) reset(); form.setOpen(!form.open) }} label={t('Novo workflow')} />}<button type="button" className="touch-target secondary-button" onClick={() => void refresh()} disabled={state === 'loading'}><RefreshCw aria-hidden="true" />{t('Atualizar')}</button></div>}</div>
+    {!workspaceId ? <div className="catalog-empty"><FolderOpen aria-hidden="true" /><strong>{t('Abra um projeto para criar workflows')}</strong><span className="muted">{t('As definições e execuções ficam vinculadas à pasta local.')}</span><button type="button" className="touch-target primary-button" onClick={onProjects}>{t('Abrir projetos')}</button></div> : <>
+      {form.open && <form className="workflow-editor" onSubmit={save}><div className="destination-heading"><div><h3>{editingId ? t('Editar workflow') : t('Novo workflow')}</h3><p className="muted">{t('Cada execução guarda uma cópia dos passos usados.')}</p></div><GitFork aria-hidden="true" /></div><label className="field">{t('Nome do workflow')}<input value={name} onChange={event => setName(event.target.value)} maxLength={200} required /></label>
+        <div className="workflow-step-editor"><div className="destination-heading"><h3>{t('Etapas')}</h3><button type="button" className="touch-target secondary-button" onClick={() => setSteps(current => [...current, blank()])} disabled={steps.length >= 20}><Plus aria-hidden="true" />{t('Adicionar etapa')}</button></div>
+          {steps.map((step, index) => <div className="workflow-step-form" key={index}><span className="workflow-step-number">{index + 1}</span><div><label className="field">{t('Nome da etapa {number}', { number: index + 1 })}<input value={step.name} onChange={event => updateStep(index, 'name', event.target.value)} maxLength={128} required /></label><label className="field">{t('Prompt da etapa {number}', { number: index + 1 })}<textarea value={step.prompt} onChange={event => updateStep(index, 'prompt', event.target.value)} rows={3} maxLength={1024 * 1024} required /></label></div>{steps.length > 1 && <button type="button" className="touch-target icon-button" aria-label={t('Remover etapa {number}', { number: index + 1 })} onClick={() => setSteps(current => current.filter((_, position) => position !== index))}><Trash2 aria-hidden="true" /></button>}</div>)}
+        </div><div className="pipeline-actions">{editingId && <button type="button" className="touch-target secondary-button" onClick={reset}>{t('Cancelar edição')}</button>}<button type="submit" className="touch-target primary-button" disabled={pending || !name.trim() || steps.some(step => !step.name.trim() || !step.prompt.trim())}>{t('Salvar workflow')}</button></div>
       </form>}
-      {state === 'loading' && <p className="muted" role="status">Carregando workflows…</p>}
-      {state === 'error' && <div className="inline-error" role="alert"><p>Não foi possível carregar os workflows.</p><button type="button" className="touch-target secondary-button" onClick={() => void refresh()}>Tentar novamente</button></div>}
+      {state === 'loading' && <p className="muted" role="status">{t('Carregando workflows…')}</p>}
+      {state === 'error' && <div className="inline-error" role="alert"><p>{t('Não foi possível carregar os workflows.')}</p><button type="button" className="touch-target secondary-button" onClick={() => void refresh()}>{t('Tentar novamente')}</button></div>}
       {state === 'ready' && <>
-        <section className="workflow-catalog" aria-labelledby="workflow-catalog-title"><div className="destination-heading"><div><h3 id="workflow-catalog-title">Definições</h3><p className="muted">Selecione o backend antes de iniciar uma execução.</p></div></div><IonPicker id="workflow-backend" label="Backend das execuções" value={selectedBackend} onChange={setBackendChoice} options={[{ value: '', label: 'Escolha um backend' }, ...backends.map(item => ({ value: item.id, label: `${item.name}${item.available ? '' : ' · indisponível'}`, disabled: !item.available }))]} />{!backends.some(item => item.available) && <button type="button" className="touch-target secondary-button" onClick={onSettings}>Configurar provedor</button>}
-          {definitions.length === 0 ? <div className="catalog-empty"><GitFork aria-hidden="true" /><strong>Nenhum workflow salvo</strong><span className="muted">Monte a primeira sequência no formulário acima.</span></div> : <ul className="workflow-definitions">{definitions.map(item => <li key={item.id}><div><strong>{item.name}</strong><span className="muted">{item.steps.length} {item.steps.length === 1 ? 'etapa' : 'etapas'} · {item.steps.map(step => step.name).join(' → ')}</span></div><div><button type="button" className="touch-target secondary-button" onClick={() => edit(item)} aria-label={`Editar ${item.name}`}>Editar</button><button type="button" className="touch-target primary-button" onClick={() => void start(item)} disabled={!selectedBackend || pending} aria-label={`Iniciar ${item.name}`}>Iniciar</button></div></li>)}</ul>}
+        <section className="workflow-catalog" aria-labelledby="workflow-catalog-title"><div className="destination-heading"><div><h3 id="workflow-catalog-title">{t('Definições')}</h3><p className="muted">{t('Selecione o backend antes de iniciar uma execução.')}</p></div></div><IonPicker id="workflow-backend" label={t('Backend das execuções')} value={selectedBackend} onChange={setBackendChoice} options={[{ value: '', label: t('Escolha um backend') }, ...backends.map(item => ({ value: item.id, label: item.available ? item.name : t('{name} · indisponível', { name: item.name }), disabled: !item.available }))]} />{!backends.some(item => item.available) && <button type="button" className="touch-target secondary-button" onClick={onSettings}>{t('Configurar provedor')}</button>}
+          {definitions.length === 0 ? <div className="catalog-empty"><GitFork aria-hidden="true" /><strong>{t('Nenhum workflow salvo')}</strong><span className="muted">{t('Monte a primeira sequência no formulário acima.')}</span></div> : <ul className="workflow-definitions">{definitions.map(item => <li key={item.id}><div><strong>{item.name}</strong><span className="muted">{item.steps.length} {item.steps.length === 1 ? t('etapa') : t('etapas')} · {item.steps.map(step => step.name).join(' → ')}</span></div><div><button type="button" className="touch-target secondary-button" onClick={() => edit(item)} aria-label={t('Editar {name}', { name: item.name })}>{t('Editar')}</button><button type="button" className="touch-target primary-button" onClick={() => void start(item)} disabled={!selectedBackend || pending} aria-label={t('Iniciar {name}', { name: item.name })}>{t('Iniciar')}</button></div></li>)}</ul>}
         </section>
         <section className="workflow-runs" aria-labelledby="workflow-runs-title">
-          <h3 id="workflow-runs-title">Execuções</h3>
-          {runs.length === 0 ? <p className="muted">Nenhuma execução iniciada.</p> : <ul>{runs.map(run =>
+          <h3 id="workflow-runs-title">{t('Execuções')}</h3>
+          {runs.length === 0 ? <p className="muted">{t('Nenhuma execução iniciada.')}</p> : <ul>{runs.map(run =>
             <li key={run.id} className="workflow-run">
-              <div className="destination-heading"><div><strong>{definitions.find(item => item.id === run.workflowId)?.name ?? 'Workflow salvo'}</strong><p className="muted">{run.currentStep < run.steps.length ? `Etapa ${run.currentStep + 1} de ${run.steps.length}: ${run.steps[run.currentStep].name}` : `${run.steps.length} etapas concluídas`}</p></div><span className={`status-chip${run.status === 'completed' ? ' status-ready' : run.status === 'paused' ? ' status-unavailable' : ''}`}>{statusLabels[run.status]}</span></div>
+              <div className="destination-heading"><div><strong>{definitions.find(item => item.id === run.workflowId)?.name ?? t('Workflow salvo')}</strong><p className="muted">{run.currentStep < run.steps.length ? t('Etapa {current} de {total}: {name}', { current: run.currentStep + 1, total: run.steps.length, name: run.steps[run.currentStep].name }) : t('{count} etapas concluídas', { count: run.steps.length })}</p></div><span className={`status-chip${run.status === 'completed' ? ' status-ready' : run.status === 'paused' ? ' status-unavailable' : ''}`}>{statusLabels()[run.status]}</span></div>
               <div className="workflow-run-actions">
-                {run.lastSessionId && <button type="button" className="touch-target secondary-button" onClick={() => void onOpenSession(run.lastSessionId)}>Abrir sessão da etapa</button>}
-                {(run.status === 'ready' || run.status === 'waiting_user' || run.status === 'running') && <button type="button" className="touch-target primary-button" onClick={() => void advance(run)} disabled={pending}>{run.status === 'ready' ? <>Executar etapa<ArrowRight aria-hidden="true" /></> : 'Atualizar resultado'}</button>}
-                {run.status !== 'completed' && run.status !== 'cancelled' && <button type="button" className="touch-target secondary-button" onClick={() => void cancel(run)} disabled={pending}><CirclePause aria-hidden="true" />Cancelar</button>}
+                {run.lastSessionId && <button type="button" className="touch-target secondary-button" onClick={() => void onOpenSession(run.lastSessionId)}>{t('Abrir sessão da etapa')}</button>}
+                {(run.status === 'ready' || run.status === 'waiting_user' || run.status === 'running') && <button type="button" className="touch-target primary-button" onClick={() => void advance(run)} disabled={pending}>{run.status === 'ready' ? <>{t('Executar etapa')}<ArrowRight aria-hidden="true" /></> : t('Atualizar resultado')}</button>}
+                {run.status !== 'completed' && run.status !== 'cancelled' && <button type="button" className="touch-target secondary-button" onClick={() => void cancel(run)} disabled={pending}><CirclePause aria-hidden="true" />{t('Cancelar')}</button>}
               </div>
               {run.status === 'paused' && run.lastSessionId && <div className="workflow-recovery">
-                <p className="muted">Abra a sessão da etapa e confira o histórico antes de decidir. Reexecutar pode repetir efeitos já produzidos.</p>
+                <p className="muted">{t('Abra a sessão da etapa e confira o histórico antes de decidir. Reexecutar pode repetir efeitos já produzidos.')}</p>
                 <div className="workflow-recovery-controls">
-                  <IonPicker id={`workflow-recovery-${run.id}`} label="Decisão para a etapa pausada" value={recoveryChoices[run.id] ?? ''}
+                  <IonPicker id={`workflow-recovery-${run.id}`} label={t('Decisão para a etapa pausada')} value={recoveryChoices[run.id] ?? ''}
                     onChange={next => setRecoveryChoices(current => ({ ...current, [run.id]: next as '' | 'retry' | 'skip' }))}
-                    options={[{ value: '', label: 'Escolha uma ação' }, { value: 'retry', label: 'Preparar nova execução' }, { value: 'skip', label: 'Pular esta etapa' }]} />
-                  <label className="workflow-review-confirmation"><input type="checkbox" checked={acknowledgedSessions[run.id] === run.lastSessionId} disabled={!workspaceId || !reviewedSessions.has(`${workspaceId}:${run.lastSessionId}`)} onChange={event => setAcknowledgedSessions(current => ({ ...current, [run.id]: event.target.checked ? run.lastSessionId : '' }))} />Revisei o histórico da sessão e escolhi como continuar.</label>
-                  <button type="button" className="touch-target primary-button" onClick={() => void recover(run)} disabled={pending || !recoveryChoices[run.id] || !workspaceId || !reviewedSessions.has(`${workspaceId}:${run.lastSessionId}`) || acknowledgedSessions[run.id] !== run.lastSessionId}>Confirmar decisão</button>
+                    options={[{ value: '', label: t('Escolha uma ação') }, { value: 'retry', label: t('Preparar nova execução') }, { value: 'skip', label: t('Pular esta etapa') }]} />
+                  <label className="workflow-review-confirmation"><input type="checkbox" checked={acknowledgedSessions[run.id] === run.lastSessionId} disabled={!workspaceId || !reviewedSessions.has(`${workspaceId}:${run.lastSessionId}`)} onChange={event => setAcknowledgedSessions(current => ({ ...current, [run.id]: event.target.checked ? run.lastSessionId : '' }))} />{t('Revisei o histórico da sessão e escolhi como continuar.')}</label>
+                  <button type="button" className="touch-target primary-button" onClick={() => void recover(run)} disabled={pending || !recoveryChoices[run.id] || !workspaceId || !reviewedSessions.has(`${workspaceId}:${run.lastSessionId}`) || acknowledgedSessions[run.id] !== run.lastSessionId}>{t('Confirmar decisão')}</button>
                 </div>
               </div>}
             </li>

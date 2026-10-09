@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, type FormEvent, type ReactNode, type RefObject
 import { Compass, Layers, MessageSquarePlus, Search, Send, Settings2, Workflow } from 'lucide-react'
 import type { BackendOption, ModelCatalogResult } from '../../lib/backend'
 import { ChatModelBar } from './ChatModelBar'
+import { useT } from '../../i18n'
 import './casualStart.css'
 
 type Props = {
@@ -46,6 +47,7 @@ const suggestions = [
 
 /** A new Casual chat, drawn like the conversation it becomes: a centered welcome and the same message card. */
 export function CasualStartPanel({ firstPrompt, onFirstPrompt, onSubmit, backends, selectedBackend, onBackend, apiModelName, catalog, modelId, onModel, effort, onEffort, catalogLoading, catalogError, onQueryModels, settingsStatus, pending, canStart, onConfigure, providerTrigger, onStartSDD, projectName, permissionControl, error, projectControl }: Props) {
+  const t = useT()
   const composer = useRef<HTMLTextAreaElement>(null)
   useLayoutEffect(() => {
     const element = composer.current
@@ -57,36 +59,37 @@ export function CasualStartPanel({ firstPrompt, onFirstPrompt, onSubmit, backend
   const listed = catalog?.complete && catalog.status === 'complete' && catalog.backendId === selectedBackend ? catalog.models.filter(item => item.backendId === selectedBackend && item.source === catalog.source) : []
   const model = listed.find(item => item.id === modelId)
   function suggest(prompt: string) {
-    onFirstPrompt(prompt)
-    requestAnimationFrame(() => { const element = composer.current; if (element) { element.focus(); element.setSelectionRange(prompt.length, prompt.length) } })
+    const text = t(prompt)
+    onFirstPrompt(text)
+    requestAnimationFrame(() => { const element = composer.current; if (element) { element.focus(); element.setSelectionRange(text.length, text.length) } })
   }
 
   return <section className="conversation conversation-casual casual-start" aria-labelledby="casual-start-title">
     <div className="conversation-actions casual-start-header">
-      <h2 id="casual-start-title" className="casual-start-title"><MessageSquarePlus aria-hidden="true" />Novo chat</h2>
+      <h2 id="casual-start-title" className="casual-start-title"><MessageSquarePlus aria-hidden="true" />{t('Novo chat')}</h2>
     </div>
 
     <div className="casual-welcome">
-      <h3>O que vamos fazer{projectName ? <> em <span className="casual-welcome-project">{projectName}</span></> : ''}?</h3>
-      <p className="muted">Pergunte sobre o projeto, peça uma mudança ou comece um trabalho completo de SDD.</p>
-      <ul className="casual-suggestions" aria-label="Sugestões">
+      <h3>{projectName ? <>{t('O que vamos fazer em')} <span className="casual-welcome-project">{projectName}</span>?</> : t('O que vamos fazer?')}</h3>
+      <p className="muted">{t('Pergunte sobre o projeto, peça uma mudança ou comece um trabalho completo de SDD.')}</p>
+      <ul className="casual-suggestions" aria-label={t('Sugestões')}>
         {suggestions.map(({ Icon, title, prompt }) => <li key={title}><button type="button" className="casual-suggestion" onClick={() => suggest(prompt)} disabled={pending}>
-          <Icon aria-hidden="true" /><strong>{title}</strong><span>{prompt}</span></button></li>)}
+          <Icon aria-hidden="true" /><strong>{t(title)}</strong><span>{t(prompt)}</span></button></li>)}
         <li><button type="button" className="casual-suggestion is-sdd" onClick={onStartSDD} disabled={pending}>
-          <Workflow aria-hidden="true" /><strong>Iniciar trabalho SDD</strong><span>Discovery, SPEC, Plan, Code e QA, com revisão em cada fase.</span></button></li>
+          <Workflow aria-hidden="true" /><strong>{t('Iniciar trabalho SDD')}</strong><span>{t('Discovery, SPEC, Plan, Code e QA, com revisão em cada fase.')}</span></button></li>
       </ul>
-      {option?.id === 'opencode' && <p className="project-warning">A execução OpenCode aguarda prova de isolamento dos plugins nesta instalação. A lista pode ser consultada, mas não inicia uma sessão.</p>}
-      {settingsStatus === 'loading' && <p className="muted casual-start-status" role="status">Lendo o provedor padrão…</p>}
-      {settingsStatus === 'error' && <p className="project-warning" role="alert">Não foi possível ler o padrão salvo. Escolha o provedor abaixo; a seleção vale apenas para esta conversa.</p>}
-      {catalogError && <div className="casual-start-error" role="alert"><span className="form-error">{catalogError}</span><button type="button" className="touch-target text-button" onClick={onQueryModels} disabled={catalogLoading}>Tentar de novo</button></div>}
+      {option?.id === 'opencode' && <p className="project-warning">{t('A execução OpenCode aguarda prova de isolamento dos plugins nesta instalação. A lista pode ser consultada, mas não inicia uma sessão.')}</p>}
+      {settingsStatus === 'loading' && <p className="muted casual-start-status" role="status">{t('Lendo o provedor padrão…')}</p>}
+      {settingsStatus === 'error' && <p className="project-warning" role="alert">{t('Não foi possível ler o padrão salvo. Escolha o provedor abaixo; a seleção vale apenas para esta conversa.')}</p>}
+      {catalogError && <div className="casual-start-error" role="alert"><span className="form-error">{catalogError}</span><button type="button" className="touch-target text-button" onClick={onQueryModels} disabled={catalogLoading}>{t('Tentar de novo')}</button></div>}
       {error && <p className="form-error" role="alert">{error}</p>}
-      <button ref={providerTrigger} type="button" className="text-button casual-configure" onClick={onConfigure} disabled={pending}><Settings2 aria-hidden="true" />Configurar provedor</button>
+      <button ref={providerTrigger} type="button" className="text-button casual-configure" onClick={onConfigure} disabled={pending}><Settings2 aria-hidden="true" />{t('Configurar provedor')}</button>
     </div>
 
     <form className="composer composer-card" onSubmit={onSubmit}>
-      <label className="visually-hidden" htmlFor="casual-start-input">Mensagem inicial</label>
+      <label className="visually-hidden" htmlFor="casual-start-input">{t('Mensagem inicial')}</label>
       <textarea ref={composer} id="casual-start-input" className="composer-input" rows={1} value={firstPrompt} maxLength={20000} required disabled={pending}
-        placeholder="Descreva o trabalho · Enter envia, Shift+Enter quebra a linha" onChange={event => onFirstPrompt(event.target.value)}
+        placeholder={t('Descreva o trabalho · Enter envia, Shift+Enter quebra a linha')} onChange={event => onFirstPrompt(event.target.value)}
         onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && canStart && !pending) { event.preventDefault(); event.currentTarget.form?.requestSubmit() } }} />
       <div className="composer-card-actions">
         <ChatModelBar backends={backends} backendId={selectedBackend} onBackend={onBackend} fixedModel={apiModelName} loading={catalogLoading}
@@ -94,7 +97,7 @@ export function CasualStartPanel({ firstPrompt, onFirstPrompt, onSubmit, backend
           efforts={model?.supportedReasoningEfforts ?? []} effort={effort} onEffort={onEffort} disabled={pending} />
         {projectControl}
         {permissionControl && <div className="composer-card-permission">{permissionControl}</div>}
-        <button type="submit" className="touch-target primary-button composer-card-send" disabled={!canStart || pending}><Send aria-hidden="true" />{pending ? 'Iniciando…' : 'Enviar'}</button>
+        <button type="submit" className="touch-target primary-button composer-card-send" disabled={!canStart || pending}><Send aria-hidden="true" />{pending ? t('Iniciando…') : t('Enviar')}</button>
       </div>
     </form>
   </section>

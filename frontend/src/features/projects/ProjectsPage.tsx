@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { FolderOpen, Plus, RefreshCw, ArrowUpRight, Archive, ArchiveRestore } from 'lucide-react'
 import { errorMessage, type Backend, type WorkspaceSummary } from '../../lib/backend'
 import { ProjectMemoryLine } from './ProjectMemory'
+import { t, useT } from '../../i18n'
 
 type Props = {
   backend: Backend
@@ -11,9 +12,10 @@ type Props = {
 }
 
 const basename = (path: string) => path.split(/[\\/]/).filter(Boolean).pop() ?? path
-const profileLabel = (profile: string) => profile === 'ask' ? 'perguntar' : profile === 'trusted_workspace' ? 'confiável' : profile === 'full_access' ? 'acesso total' : profile
+const profileLabel = (profile: string) => profile === 'ask' ? t('perguntar') : profile === 'trusted_workspace' ? t('confiável') : profile === 'full_access' ? t('acesso total') : profile
 
 export function ProjectsPage({ backend, currentWorkspaceId, busy, onOpen }: Props) {
+  const t = useT()
   const [items, setItems] = useState<WorkspaceSummary[]>([])
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [path, setPath] = useState('')
@@ -77,49 +79,49 @@ export function ProjectsPage({ backend, currentWorkspaceId, busy, onOpen }: Prop
 
   return <div className="projects-page">
     <div className="destination-heading">
-      <div><h2>Projetos locais</h2><p className="muted">Pastas autorizadas para trabalho com agentes.</p></div>
-      <button type="button" className="touch-target secondary-button" onClick={() => void refresh()} disabled={state === 'loading'}><RefreshCw aria-hidden="true" />Atualizar</button>
+      <div><h2>{t('Projetos locais')}</h2><p className="muted">{t('Pastas autorizadas para trabalho com agentes.')}</p></div>
+      <button type="button" className="touch-target secondary-button" onClick={() => void refresh()} disabled={state === 'loading'}><RefreshCw aria-hidden="true" />{t('Atualizar')}</button>
     </div>
     <form className="project-open-form" onSubmit={submit}>
-      <div className="project-open-copy"><Plus aria-hidden="true" /><div><strong>Adicionar pasta</strong><span className="muted">Escolha um diretório existente para criar ou continuar um trabalho.</span></div></div>
-      <label className="field">Caminho da pasta<input className="mono" value={path} onChange={event => setPath(event.target.value)} autoComplete="off" spellCheck={false} /></label>
+      <div className="project-open-copy"><Plus aria-hidden="true" /><div><strong>{t('Adicionar pasta')}</strong><span className="muted">{t('Escolha um diretório existente para criar ou continuar um trabalho.')}</span></div></div>
+      <label className="field">{t('Caminho da pasta')}<input className="mono" value={path} onChange={event => setPath(event.target.value)} autoComplete="off" spellCheck={false} /></label>
       <div className="project-open-actions">
-        <button type="button" className="touch-target secondary-button" onClick={() => void chooseDirectory()} disabled={busy || opening}><FolderOpen aria-hidden="true" />Escolher pasta</button>
-        <button type="submit" className="touch-target primary-button" disabled={busy || opening || !path.trim()}>Abrir projeto</button>
+        <button type="button" className="touch-target secondary-button" onClick={() => void chooseDirectory()} disabled={busy || opening}><FolderOpen aria-hidden="true" />{t('Escolher pasta')}</button>
+        <button type="submit" className="touch-target primary-button" disabled={busy || opening || !path.trim()}>{t('Abrir projeto')}</button>
       </div>
     </form>
-    {busy && <p className="project-warning" role="status">Cancele ou conclua a execução atual antes de trocar de projeto.</p>}
+    {busy && <p className="project-warning" role="status">{t('Cancele ou conclua a execução atual antes de trocar de projeto.')}</p>}
     {error && <p className="form-error" role="alert">{error}</p>}
     <section className="project-catalog" aria-labelledby="saved-projects-heading">
-      <div className="destination-heading"><div><h3 id="saved-projects-heading">Pastas recentes</h3><p className="muted">Salvas somente nesta máquina.</p></div><span className="muted mono">{active.length} {active.length === 1 ? 'pasta' : 'pastas'}</span></div>
-      {state === 'loading' && <p className="muted" role="status">Carregando projetos…</p>}
-      {state === 'error' && <div className="inline-error" role="alert"><p>Não foi possível carregar os projetos.</p><button type="button" className="touch-target secondary-button" onClick={() => void refresh()}>Tentar novamente</button></div>}
+      <div className="destination-heading"><div><h3 id="saved-projects-heading">{t('Pastas recentes')}</h3><p className="muted">{t('Salvas somente nesta máquina.')}</p></div><span className="muted mono">{active.length} {active.length === 1 ? t('pasta') : t('pastas')}</span></div>
+      {state === 'loading' && <p className="muted" role="status">{t('Carregando projetos…')}</p>}
+      {state === 'error' && <div className="inline-error" role="alert"><p>{t('Não foi possível carregar os projetos.')}</p><button type="button" className="touch-target secondary-button" onClick={() => void refresh()}>{t('Tentar novamente')}</button></div>}
       {state === 'ready' && (active.length === 0
-        ? <div className="catalog-empty"><FolderOpen aria-hidden="true" /><strong>{archivedItems.length ? 'Nenhuma pasta ativa' : 'Nenhuma pasta adicionada'}</strong><span className="muted">{archivedItems.length ? 'Reative uma pasta arquivada abaixo ou escolha outra acima.' : 'Escolha uma pasta acima para começar.'}</span></div>
+        ? <div className="catalog-empty"><FolderOpen aria-hidden="true" /><strong>{archivedItems.length ? t('Nenhuma pasta ativa') : t('Nenhuma pasta adicionada')}</strong><span className="muted">{archivedItems.length ? t('Reative uma pasta arquivada abaixo ou escolha outra acima.') : t('Escolha uma pasta acima para começar.')}</span></div>
         : <ul className="project-grid">{active.map(item => <li key={item.id} className="project-card">
-          <div className="project-card-top"><span className="project-card-icon"><FolderOpen aria-hidden="true" /></span><span className={`status-chip${item.available ? ' status-ready' : ' status-unavailable'}`}>{item.available ? item.id === currentWorkspaceId ? 'Aberto' : 'Disponível' : 'Indisponível'}</span></div>
+          <div className="project-card-top"><span className="project-card-icon"><FolderOpen aria-hidden="true" /></span><span className={`status-chip${item.available ? ' status-ready' : ' status-unavailable'}`}>{item.available ? item.id === currentWorkspaceId ? t('Aberto') : t('Disponível') : t('Indisponível')}</span></div>
           <strong className="project-card-name">{basename(item.path)}</strong><span className="project-card-path mono">{item.path}</span>
-          <div className="project-card-bottom"><span className="muted">Permissões: {profileLabel(item.profile)}</span>
+          <div className="project-card-bottom"><span className="muted">{t('Permissões: {profile}', { profile: profileLabel(item.profile) })}</span>
             <div className="project-card-actions">
-              <button type="button" className="touch-target secondary-button" disabled={archiving !== undefined} onClick={() => void setArchived(item, true)} aria-label={`Arquivar ${basename(item.path)}`}><Archive aria-hidden="true" />Arquivar</button>
-              <button type="button" className="touch-target secondary-button" disabled={!item.available || busy || opening} onClick={() => void open(item.path)} aria-label={`Abrir ${basename(item.path)}`}><ArrowUpRight aria-hidden="true" />Abrir</button>
+              <button type="button" className="touch-target secondary-button" disabled={archiving !== undefined} onClick={() => void setArchived(item, true)} aria-label={t('Arquivar {name}', { name: basename(item.path) })}><Archive aria-hidden="true" />{t('Arquivar')}</button>
+              <button type="button" className="touch-target secondary-button" disabled={!item.available || busy || opening} onClick={() => void open(item.path)} aria-label={t('Abrir {name}', { name: basename(item.path) })}><ArrowUpRight aria-hidden="true" />{t('Abrir')}</button>
             </div>
           </div>
-          {!item.available && <p className="project-card-note">A pasta mudou de lugar. Adicione o novo caminho acima.</p>}
+          {!item.available && <p className="project-card-note">{t('A pasta mudou de lugar. Adicione o novo caminho acima.')}</p>}
           {item.available && <ProjectMemoryLine backend={backend} workspaceId={item.id} name={basename(item.path)} />}
         </li>)}</ul>)}
       {state === 'ready' && archivedItems.length > 0 && <div className="project-archived-toggle">
-        <button type="button" className="touch-target secondary-button" aria-expanded={showArchived} aria-controls="archived-projects" onClick={() => setShowArchived(current => !current)}><Archive aria-hidden="true" />{showArchived ? 'Ocultar arquivados' : 'Mostrar arquivados'} ({archivedItems.length})</button>
+        <button type="button" className="touch-target secondary-button" aria-expanded={showArchived} aria-controls="archived-projects" onClick={() => setShowArchived(current => !current)}><Archive aria-hidden="true" />{showArchived ? t('Ocultar arquivados') : t('Mostrar arquivados')} ({archivedItems.length})</button>
       </div>}
       {state === 'ready' && showArchived && archivedItems.length > 0 && <section id="archived-projects" className="project-catalog" aria-labelledby="archived-projects-heading">
-        <div><h3 id="archived-projects-heading">Arquivados</h3><p className="muted">Conversas, pipelines e configurações continuam guardados. Reative ou adicione a mesma pasta de novo para trazer de volta.</p></div>
+        <div><h3 id="archived-projects-heading">{t('Arquivados')}</h3><p className="muted">{t('Conversas, pipelines e configurações continuam guardados. Reative ou adicione a mesma pasta de novo para trazer de volta.')}</p></div>
         <ul className="project-grid">{archivedItems.map(item => <li key={item.id} className="project-card project-card-archived">
-          <div className="project-card-top"><span className="project-card-icon"><Archive aria-hidden="true" /></span><span className="status-chip">Arquivado</span></div>
+          <div className="project-card-top"><span className="project-card-icon"><Archive aria-hidden="true" /></span><span className="status-chip">{t('Arquivado')}</span></div>
           <strong className="project-card-name">{basename(item.path)}</strong><span className="project-card-path mono">{item.path}</span>
-          <div className="project-card-bottom"><span className="muted">Permissões: {profileLabel(item.profile)}</span>
-            <button type="button" className="touch-target secondary-button" disabled={archiving !== undefined} onClick={() => void setArchived(item, false)} aria-label={`Reativar ${basename(item.path)}`}><ArchiveRestore aria-hidden="true" />Reativar</button>
+          <div className="project-card-bottom"><span className="muted">{t('Permissões: {profile}', { profile: profileLabel(item.profile) })}</span>
+            <button type="button" className="touch-target secondary-button" disabled={archiving !== undefined} onClick={() => void setArchived(item, false)} aria-label={t('Reativar {name}', { name: basename(item.path) })}><ArchiveRestore aria-hidden="true" />{t('Reativar')}</button>
           </div>
-          {!item.available && <p className="project-card-note">A pasta não está mais neste caminho.</p>}
+          {!item.available && <p className="project-card-note">{t('A pasta não está mais neste caminho.')}</p>}
         </li>)}</ul>
       </section>}
     </section>

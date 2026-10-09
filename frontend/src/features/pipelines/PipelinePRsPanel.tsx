@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Check, CircleAlert, GitPullRequest, MessageSquare } from 'lucide-react'
 import { IonPicker } from '../../components/IonPicker'
+import { useT } from '../../i18n'
 import { Markdown } from '../../components/Markdown'
 import { errorMessage, type Backend, type BackendOption, type MCPServer, type Pipeline, type PipelineRoleModelSelection, type ProviderProfile, type StageExecutor } from '../../lib/backend'
 import { PipelineRoleModelPicker } from './PipelineRoleModelPicker'
@@ -41,6 +42,7 @@ type Props = {
 export const reviewFixesRequest = 'Leia os comentários de revisão dos pull requests que você abriu. Aplique as correções pedidas na mesma branch de cada PR, faça commit e push (sem push forçado) e responda ao comentário que cada correção resolve. Se algum pedido não estiver claro, pergunte antes de mudar.'
 
 export function PipelinePRsPanel({ backend, backends, run, workspaceId, defaultBackendId, pending, configured, permissionProfile, permissionControl, onStart, onFinish, onOpenSession, onApply, onOpenMCP, onSettings }: Props) {
+  const t = useT()
   // The stage is named: a pipeline saved before it existed has no current stage, but its agent still has to be followed.
   const activity = useStageActivity(backend, run, 'prs')
   const [servers, setServers] = useState<MCPServer[]>()
@@ -75,12 +77,12 @@ export function PipelinePRsPanel({ backend, backends, run, workspaceId, defaultB
   // The road from the approved patch to a merged PR; each step lights up as it happens.
   const pushed = recorded || finished
   const steps: { label: string; state: 'done' | 'now' | 'next' }[] = [
-    { label: 'Patch aprovado', state: applied ? 'done' : 'now' },
-    { label: 'Branch e commit', state: pushed ? 'done' : applied && working ? 'now' : 'next' },
+    { label: t('Patch aprovado'), state: applied ? 'done' : 'now' },
+    { label: t('Branch e commit'), state: pushed ? 'done' : applied && working ? 'now' : 'next' },
     { label: 'Push', state: pushed ? 'done' : 'next' },
-    { label: 'PR aberto', state: recorded ? 'done' : finished ? 'now' : 'next' },
-    { label: 'Em revisão', state: merged ? 'done' : watching ? 'now' : 'next' },
-    { label: 'Mergeado', state: merged ? 'done' : 'next' },
+    { label: t('PR aberto'), state: recorded ? 'done' : finished ? 'now' : 'next' },
+    { label: t('Em revisão'), state: merged ? 'done' : watching ? 'now' : 'next' },
+    { label: t('Mergeado'), state: merged ? 'done' : 'next' },
   ]
   // A later step done means the earlier ones are too.
   const lastDone = steps.map(step => step.state).lastIndexOf('done')
@@ -119,35 +121,35 @@ export function PipelinePRsPanel({ backend, backends, run, workspaceId, defaultB
     try { await onOpenSession(activity.sessionId) } catch (failure) { setOpenError(errorMessage(failure)) }
   }
 
-  return <section className="pipeline-prs-panel" aria-label="Abrir pull requests">
-    <div className="pipeline-prs-heading"><GitPullRequest aria-hidden="true" /><div><h3>Pull requests</h3><p className="muted">Último passo: a IA cria a branch, faz o commit, envia e abre o PR sozinha, pelo GitHub ou Bitbucket conectados em MCP Servers.</p></div></div>
-    <ol className="pr-track" aria-label="Caminho até o merge">{steps.map((step, index) => <li key={step.label} className={`pr-track-step is-${step.state}`}><span className="pr-track-dot" aria-hidden="true">{step.state === 'done' ? <Check /> : index + 1}</span><span>{step.label}</span></li>)}</ol>
-    <ul className="pipeline-prs-checks pr-pills" aria-label="Antes de começar">
-      <li className={applied ? 'is-done' : 'is-pending'}>{applied ? <Check aria-hidden="true" /> : <CircleAlert aria-hidden="true" />}<span>{applied ? 'Patch aprovado aplicado ao projeto.' : 'O patch aprovado pelo QA vai para a pasta do projeto quando você clicar em Aprovar e abrir os PRs, conferido antes e depois da gravação.'}</span></li>
-      <li className={connected.length > 0 ? 'is-done' : 'is-pending'}>{connected.length > 0 ? <Check aria-hidden="true" /> : <CircleAlert aria-hidden="true" />}<span>{servers === undefined && !serversFailed ? 'Conferindo os servidores MCP…' : serversFailed ? 'Não foi possível conferir os servidores MCP. Você ainda pode começar.' : connected.length > 0 ? `Servidor MCP conectado: ${connected.map(server => server.name).join(', ')}.` : 'Nenhum servidor MCP conectado. Conecte o GitHub ou o Bitbucket em MCP Servers; sem isso a IA só faz commit e push e entrega o link para você abrir o PR.'}</span>{connected.length === 0 && onOpenMCP && <button type="button" className="pr-pill-action" onClick={onOpenMCP}>Conectar GitHub ou Bitbucket</button>}</li>
-      <li className={full ? 'is-done' : 'is-pending'}>{full ? <Check aria-hidden="true" /> : <CircleAlert aria-hidden="true" />}<span>{full ? 'Acesso total: a IA não pede aprovação.' : 'Hoje a IA pede a sua aprovação para cada comando e chamada MCP. Escolha Acesso total para ela abrir o PR sem interrupções.'}</span></li>
+  return <section className="pipeline-prs-panel" aria-label={t('Abrir pull requests')}>
+    <div className="pipeline-prs-heading"><GitPullRequest aria-hidden="true" /><div><h3>{t('Pull requests')}</h3><p className="muted">{t('Último passo: a IA cria a branch, faz o commit, envia e abre o PR sozinha, pelo GitHub ou Bitbucket conectados em MCP Servers.')}</p></div></div>
+    <ol className="pr-track" aria-label={t('Caminho até o merge')}>{steps.map((step, index) => <li key={step.label} className={`pr-track-step is-${step.state}`}><span className="pr-track-dot" aria-hidden="true">{step.state === 'done' ? <Check /> : index + 1}</span><span>{step.label}</span></li>)}</ol>
+    <ul className="pipeline-prs-checks pr-pills" aria-label={t('Antes de começar')}>
+      <li className={applied ? 'is-done' : 'is-pending'}>{applied ? <Check aria-hidden="true" /> : <CircleAlert aria-hidden="true" />}<span>{applied ? t('Patch aprovado aplicado ao projeto.') : t('O patch aprovado pelo QA vai para a pasta do projeto quando você clicar em Aprovar e abrir os PRs, conferido antes e depois da gravação.')}</span></li>
+      <li className={connected.length > 0 ? 'is-done' : 'is-pending'}>{connected.length > 0 ? <Check aria-hidden="true" /> : <CircleAlert aria-hidden="true" />}<span>{servers === undefined && !serversFailed ? t('Conferindo os servidores MCP…') : serversFailed ? t('Não foi possível conferir os servidores MCP. Você ainda pode começar.') : connected.length > 0 ? t('Servidor MCP conectado: {servers}.', { servers: connected.map(server => server.name).join(', ') }) : t('Nenhum servidor MCP conectado. Conecte o GitHub ou o Bitbucket em MCP Servers; sem isso a IA só faz commit e push e entrega o link para você abrir o PR.')}</span>{connected.length === 0 && onOpenMCP && <button type="button" className="pr-pill-action" onClick={onOpenMCP}>{t('Conectar GitHub ou Bitbucket')}</button>}</li>
+      <li className={full ? 'is-done' : 'is-pending'}>{full ? <Check aria-hidden="true" /> : <CircleAlert aria-hidden="true" />}<span>{full ? t('Acesso total: a IA não pede aprovação.') : t('Hoje a IA pede a sua aprovação para cada comando e chamada MCP. Escolha Acesso total para ela abrir o PR sem interrupções.')}</span></li>
     </ul>
-    {permissionControl && <div className="pipeline-prs-permissions"><span className="muted">Permissões do projeto</span>{permissionControl}</div>}
-    {eligible.length === 0 ? <div className="authoring-provider-empty" role="alert"><strong>Os PRs precisam de um provedor API</strong><p>O terminal e as ferramentas MCP rodam no Harflex, que só as oferece a perfis de API. Configure um perfil em Configurações.</p>{onSettings && <button type="button" className="touch-target secondary-button" onClick={onSettings}>Configurar provedor</button>}</div> : <>
-      <IonPicker id="pipeline-prs-backend" label="Executor da fase" value={backendId} onChange={setChoice} options={eligible.map(item => ({ value: item.id, label: item.name }))} disabled={pending || working} />
+    {permissionControl && <div className="pipeline-prs-permissions"><span className="muted">{t('Permissões do projeto')}</span>{permissionControl}</div>}
+    {eligible.length === 0 ? <div className="authoring-provider-empty" role="alert"><strong>{t('Os PRs precisam de um provedor API')}</strong><p>{t('O terminal e as ferramentas MCP rodam no Harflex, que só as oferece a perfis de API. Configure um perfil em Configurações.')}</p>{onSettings && <button type="button" className="touch-target secondary-button" onClick={onSettings}>{t('Configurar provedor')}</button>}</div> : <>
+      <IonPicker id="pipeline-prs-backend" label={t('Executor da fase')} value={backendId} onChange={setChoice} options={eligible.map(item => ({ value: item.id, label: item.name }))} disabled={pending || working} />
       {configuredModel && backendOption ? <>
         <PipelineRoleModelPicker backend={backend} workspaceId={workspaceId} stage="prs" backendOption={backendOption} defaultModelBackendId={configured!.backendId} defaultModelId={configuredModel} phaseConfigured disabled={pending || working} onSelectionChange={setSelection} />
-        <button type="button" className="touch-target text-button" onClick={() => setProfileModelOnly(true)} disabled={pending || working}>Usar o modelo do perfil{profileModel ? ` (${profileModel})` : ''}</button>
-      </> : profileModel && <p className="muted pipeline-prs-model">Modelo: <span className="mono">{profileModel}</span>, o configurado no perfil. Para usar outro neste projeto, escolha-o em Provedor e modelo por fase.</p>}
+        <button type="button" className="touch-target text-button" onClick={() => setProfileModelOnly(true)} disabled={pending || working}>{t('Usar o modelo do perfil')}{profileModel ? ` (${profileModel})` : ''}</button>
+      </> : profileModel && <p className="muted pipeline-prs-model">{t('Modelo:')} <span className="mono">{profileModel}</span>{t(', o configurado no perfil. Para usar outro neste projeto, escolha-o em Provedor e modelo por fase.')}</p>}
     </>}
-    {hasAgentRun && <p className={`pipeline-prs-status${finished ? ' is-done' : ''}`} role="status">{finished ? 'A IA terminou. Leia o relatório na conversa e conclua a etapa.' : working ? 'A IA está trabalhando nos PRs. Acompanhe na conversa.' : activity?.status === 'failed' ? 'A última execução parou por um erro. Veja a conversa ou comece outra.' : activity?.status === 'cancelled' ? 'A última execução foi cancelada. Você pode começar outra.' : 'Há uma conversa dos PRs. Abra para continuar.'}</p>}
+    {hasAgentRun && <p className={`pipeline-prs-status${finished ? ' is-done' : ''}`} role="status">{finished ? t('A IA terminou. Leia o relatório na conversa e conclua a etapa.') : working ? t('A IA está trabalhando nos PRs. Acompanhe na conversa.') : activity?.status === 'failed' ? t('A última execução parou por um erro. Veja a conversa ou comece outra.') : activity?.status === 'cancelled' ? t('A última execução foi cancelada. Você pode começar outra.') : t('Há uma conversa dos PRs. Abra para continuar.')}</p>}
     {openError && <p className="form-error" role="alert">{openError}</p>}
-    {configured && !configuredId && eligible.length > 0 && <p className="project-warning" role="status">O executor escolhido para PRs ({configuredName}) não está disponível agora; a fase parte do padrão. Ajuste em "Provedor e modelo por fase".</p>}
+    {configured && !configuredId && eligible.length > 0 && <p className="project-warning" role="status">{t('O executor escolhido para PRs ({name}) não está disponível agora; a fase parte do padrão. Ajuste em "Provedor e modelo por fase".', { name: configuredName })}</p>}
     <div className="pipeline-actions">
-      {hasAgentRun && onOpenSession && <button type="button" className="touch-target secondary-button" onClick={() => void openConversation()} disabled={pending}><MessageSquare aria-hidden="true" />Abrir a conversa dos PRs</button>}
-      <button type="button" className="touch-target primary-button" onClick={() => void approveAndOpen()} disabled={pending || working || applying || !backendId || (!!configuredModel && !selection)}><GitPullRequest aria-hidden="true" />{applying ? 'Aplicando o patch…' : hasAgentRun ? 'Pedir outra rodada à IA' : applied ? 'Abrir PRs com a IA' : 'Aprovar e abrir os PRs'}</button>
-      {finished && <button type="button" className="touch-target primary-button" onClick={() => onFinish('completed')} disabled={pending}><Check aria-hidden="true" />Concluir PRs</button>}
+      {hasAgentRun && onOpenSession && <button type="button" className="touch-target secondary-button" onClick={() => void openConversation()} disabled={pending}><MessageSquare aria-hidden="true" />{t('Abrir a conversa dos PRs')}</button>}
+      <button type="button" className="touch-target primary-button" onClick={() => void approveAndOpen()} disabled={pending || working || applying || !backendId || (!!configuredModel && !selection)}><GitPullRequest aria-hidden="true" />{applying ? t('Aplicando o patch…') : hasAgentRun ? t('Pedir outra rodada à IA') : applied ? t('Abrir PRs com a IA') : t('Aprovar e abrir os PRs')}</button>
+      {finished && <button type="button" className="touch-target primary-button" onClick={() => onFinish('completed')} disabled={pending}><Check aria-hidden="true" />{t('Concluir PRs')}</button>}
     </div>
     <PullRequestCards backend={backend} pipelineId={run.id} permissionProfile={permissionProfile} permissionControl={permissionControl} />
-    {!skipping ? <button type="button" className="touch-target text-button pipeline-skip" onClick={() => setSkipping(true)} disabled={pending || working}>Pular os PRs</button> : <div className="pipeline-skip-confirm">
-      <p>Pular registra a etapa como pulada e encerra o pipeline, sem abrir nenhum pull request.</p>
-      <label className="field">Motivo (opcional)<input value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} /></label>
-      <div className="pipeline-actions"><button type="button" className="touch-target secondary-button" onClick={() => setSkipping(false)}>Voltar</button><button type="button" className="touch-target secondary-button" onClick={() => onFinish('skipped', reason.trim())} disabled={pending}>Confirmar pulo</button></div>
+    {!skipping ? <button type="button" className="touch-target text-button pipeline-skip" onClick={() => setSkipping(true)} disabled={pending || working}>{t('Pular os PRs')}</button> : <div className="pipeline-skip-confirm">
+      <p>{t('Pular registra a etapa como pulada e encerra o pipeline, sem abrir nenhum pull request.')}</p>
+      <label className="field">{t('Motivo (opcional)')}<input value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} /></label>
+      <div className="pipeline-actions"><button type="button" className="touch-target secondary-button" onClick={() => setSkipping(false)}>{t('Voltar')}</button><button type="button" className="touch-target secondary-button" onClick={() => onFinish('skipped', reason.trim())} disabled={pending}>{t('Confirmar pulo')}</button></div>
     </div>}
   </section>
 }
@@ -157,6 +159,7 @@ export function PipelinePRsPanel({ backend, backends, run, workspaceId, defaultB
  * not close the work: the conversation of the PRs stays open, with its context and tools, for the fixes a review asks for.
  */
 export function PipelinePRsOutcome({ backend, run, onOpenSession }: { backend?: Backend; run: Pipeline; onOpenSession?: (sessionId: string, draft?: string) => Promise<void> }) {
+  const t = useT()
   const completed = run.stageStatus.prs === 'completed'
   // Only a pipeline that ended this stage has a conversation to come back to; the others are not read.
   const activity = useStageActivity(backend, completed ? run : undefined, 'prs')
@@ -167,16 +170,16 @@ export function PipelinePRsOutcome({ backend, run, onOpenSession }: { backend?: 
     setOpenError('')
     try { await onOpenSession(activity.sessionId, draft) } catch (failure) { setOpenError(errorMessage(failure)) }
   }
-  if (run.stageStatus.prs === 'skipped') return <section className="pipeline-prs-panel" aria-label="Pull requests"><div className="pipeline-prs-heading"><GitPullRequest aria-hidden="true" /><div><h3>Pull requests</h3><p className="muted">Etapa pulada: nenhum pull request foi aberto por este pipeline.</p></div></div></section>
+  if (run.stageStatus.prs === 'skipped') return <section className="pipeline-prs-panel" aria-label={t('Pull requests')}><div className="pipeline-prs-heading"><GitPullRequest aria-hidden="true" /><div><h3>{t('Pull requests')}</h3><p className="muted">{t('Etapa pulada: nenhum pull request foi aberto por este pipeline.')}</p></div></div></section>
   if (!completed || !report) return null
-  return <section className="pipeline-prs-panel" aria-label="Pull requests abertos"><div className="pipeline-prs-heading"><GitPullRequest aria-hidden="true" /><div><h3>Pull requests abertos</h3><p className="muted">Relatório final da IA, guardado como evidência desta etapa.</p></div></div><div className="pipeline-prs-report"><Markdown text={report} /></div>
+  return <section className="pipeline-prs-panel" aria-label={t('Pull requests abertos')}><div className="pipeline-prs-heading"><GitPullRequest aria-hidden="true" /><div><h3>{t('Pull requests abertos')}</h3><p className="muted">{t('Relatório final da IA, guardado como evidência desta etapa.')}</p></div></div><div className="pipeline-prs-report"><Markdown text={report} /></div>
     {activity?.sessionId && onOpenSession && <>
-      <p className="muted pipeline-prs-followup">Se o revisor pedir ajustes, continue na conversa dos PRs: a IA mantém o contexto, o terminal e as ferramentas MCP. Nada é enviado sozinho.</p>
+      <p className="muted pipeline-prs-followup">{t('Se o revisor pedir ajustes, continue na conversa dos PRs: a IA mantém o contexto, o terminal e as ferramentas MCP. Nada é enviado sozinho.')}</p>
       {openError && <p className="form-error" role="alert">{openError}</p>}
       {backend && <PullRequestCards backend={backend} pipelineId={run.id} />}
       <div className="pipeline-actions">
-        <button type="button" className="touch-target primary-button" onClick={() => void open(reviewFixesRequest)}><GitPullRequest aria-hidden="true" />Corrigir os comentários da revisão</button>
-        <button type="button" className="touch-target secondary-button" onClick={() => void open()}><MessageSquare aria-hidden="true" />Continuar a conversa dos PRs</button>
+        <button type="button" className="touch-target primary-button" onClick={() => void open(t(reviewFixesRequest))}><GitPullRequest aria-hidden="true" />{t('Corrigir os comentários da revisão')}</button>
+        <button type="button" className="touch-target secondary-button" onClick={() => void open()}><MessageSquare aria-hidden="true" />{t('Continuar a conversa dos PRs')}</button>
       </div>
     </>}
   </section>

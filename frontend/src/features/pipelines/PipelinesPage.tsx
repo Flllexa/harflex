@@ -12,13 +12,16 @@ import { PipelinePRsOutcome, PipelinePRsPanel, pullRequestsOpen } from './Pipeli
 import { PipelinePhaseExecutors, phaseCanUse, phaseText } from './PipelinePhaseExecutors'
 import { PipelineDesignStudio } from './PipelineDesignStudio'
 import { StageActivityPane } from './StageActivityPane'
+import { localeTag, useT } from '../../i18n'
 
 type SettingsReadState = 'loading' | 'ready' | 'error'
 /** What the stage needs before it can be recorded: a run that ended well (a follow-up in its conversation that failed or was cancelled takes it away) and, for the Code, changes to show for it. */
-const unfinishedRunText: Record<PipelineRole, string> = {
-  coder: 'O Code ainda não tem uma execução concluída com mudanças nos arquivos. Na conversa do Code, envie uma mensagem e deixe a execução terminar antes de verificar.',
-  evaluator: 'O QA ainda não deu um veredito concluído. Deixe a execução do QA terminar antes de registrar.',
-  publisher: 'A IA ainda não terminou os PRs. Deixe a execução terminar antes de concluir.',
+function unfinishedRunText(translate: ReturnType<typeof useT>): Record<PipelineRole, string> {
+  return {
+    coder: translate('O Code ainda não tem uma execução concluída com mudanças nos arquivos. Na conversa do Code, envie uma mensagem e deixe a execução terminar antes de verificar.'),
+    evaluator: translate('O QA ainda não deu um veredito concluído. Deixe a execução do QA terminar antes de registrar.'),
+    publisher: translate('A IA ainda não terminou os PRs. Deixe a execução terminar antes de concluir.'),
+  }
 }
 
 export type PipelineCreationDraft = { discovery: string; open: boolean; newWorkRequest: number; intent?: { workspaceId: string; discovery: string; requestId: string } }
@@ -48,8 +51,9 @@ function PipelineRoleControls(props: {
   onComplete: (role: PipelineRole) => void
   onSettings?: () => void
 }) {
+  const t = useT()
   if ((props.run.currentStage !== 'code' && props.run.currentStage !== 'eval') || props.run.stageStatus[props.run.currentStage] !== 'active') return null
-  if (!props.choicesReady) return <p className="muted" role="status">Lendo as escolhas por fase…</p>
+  if (!props.choicesReady) return <p className="muted" role="status">{t('Lendo as escolhas por fase…')}</p>
   return <PipelineRoleExecutionControls {...props} />
 }
 
@@ -71,6 +75,7 @@ function PipelineRoleExecutionControls({ run, backend, backends, workspaceId, se
   onComplete: (role: PipelineRole) => void
   onSettings?: () => void
 }) {
+  const t = useT()
   const [selectionState, setSelectionState] = useState<{ key: string; selection?: PipelineRoleModelSelection }>()
   const [copyConfirmed, setCopyConfirmed] = useState(false)
   const [copyPreviewState, setCopyPreviewState] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -111,32 +116,33 @@ function PipelineRoleExecutionControls({ run, backend, backends, workspaceId, se
   const copyReady = !isCode || copyPreviewState === 'ready' && !unsafeCopy && (!!copyPreview?.isGit || copyConfirmed)
   return <div className="pipeline-run-controls">
     {phaseNote && <p className="project-warning" role="status">{phaseNote}</p>}
-    {settingsStatus === 'error' && <p className="project-warning" role="alert">Não foi possível ler o padrão das Configurações. Escolha executor e modelo para esta fase; essa escolha não altera o padrão salvo.</p>}
-    {settingsStatus === 'loading' && <p className="muted" role="status">Lendo o padrão das Configurações. Você pode escolher um executor manualmente.</p>}
-    <p className="muted">{isCode ? 'O Coder trabalha numa cópia privada desta pasta. O original só recebe o patch depois da aprovação do QA.' : 'O QA compara os critérios aprovados com as mudanças em uma sessão separada, sem escrita.'}</p>
-    {noAPIBackend ? <div className="authoring-provider-empty" role="alert"><strong>Code e QA precisam de um provedor API</strong><p>O Codex CLI pode ler arquivos fora do projeto e não está disponível nesta fase Professional. Configure um perfil API para continuar ou mude para Casual no seletor do topo para conversar com Codex.</p>{onSettings && <button type="button" className="touch-target secondary-button" disabled={pending} onClick={onSettings}>Configurar provedor API</button>}</div> : <>
-      {codexUnavailable && <p className="project-warning" role="status">O Codex CLI pode ler arquivos fora do projeto mesmo em sandbox somente leitura; o Professional SDD aceita apenas perfis API.</p>}
-      <IonPicker id="pipeline-backend" label="Executor da fase" value={selectedBackendId} onChange={onBackendChange} options={[{ value: '', label: 'Escolha um executor' }, ...backends.map(item => ({ value: item.id, label: `${item.name}${!item.available ? ' · indisponível' : isDocumentCLI(item.id) && !item.professionalAvailable ? ' · indisponível no SDD' : ''}`, disabled: !eligible(item) }))]} />
+    {settingsStatus === 'error' && <p className="project-warning" role="alert">{t('Não foi possível ler o padrão das Configurações. Escolha executor e modelo para esta fase; essa escolha não altera o padrão salvo.')}</p>}
+    {settingsStatus === 'loading' && <p className="muted" role="status">{t('Lendo o padrão das Configurações. Você pode escolher um executor manualmente.')}</p>}
+    <p className="muted">{isCode ? t('O Coder trabalha numa cópia privada desta pasta. O original só recebe o patch depois da aprovação do QA.') : t('O QA compara os critérios aprovados com as mudanças em uma sessão separada, sem escrita.')}</p>
+    {noAPIBackend ? <div className="authoring-provider-empty" role="alert"><strong>{t('Code e QA precisam de um provedor API')}</strong><p>{t('O Codex CLI pode ler arquivos fora do projeto e não está disponível nesta fase Professional. Configure um perfil API para continuar ou mude para Casual no seletor do topo para conversar com Codex.')}</p>{onSettings && <button type="button" className="touch-target secondary-button" disabled={pending} onClick={onSettings}>{t('Configurar provedor API')}</button>}</div> : <>
+      {codexUnavailable && <p className="project-warning" role="status">{t('O Codex CLI pode ler arquivos fora do projeto mesmo em sandbox somente leitura; o Professional SDD aceita apenas perfis API.')}</p>}
+      <IonPicker id="pipeline-backend" label={t('Executor da fase')} value={selectedBackendId} onChange={onBackendChange} options={[{ value: '', label: t('Escolha um executor') }, ...backends.map(item => ({ value: item.id, label: `${item.name}${!item.available ? ` · ${t('indisponível')}` : isDocumentCLI(item.id) && !item.professionalAvailable ? ` · ${t('indisponível no SDD')}` : ''}`, disabled: !eligible(item) }))]} />
       {selectedBackend && <PipelineRoleModelPicker key={selectionKey} backend={backend} workspaceId={workspaceId} stage={isCode ? 'code' : 'eval'} backendOption={selectedBackend}
         defaultModelBackendId={settingsStatus === 'ready' || phaseConfigured ? defaultModelBackendId : ''} defaultModelId={settingsStatus === 'ready' || phaseConfigured ? defaultModelId : ''} phaseConfigured={phaseConfigured} disabled={pending}
         onSelectionChange={selection => setSelectionState({ key: selectionKey, selection })} />}
     </>}
-    {isCode && copyPreviewState === 'loading' && <p className="muted" role="status">Lendo a prévia da raiz que será copiada para Code…</p>}
-    {isCode && copyPreviewState === 'error' && <div className="inline-error" role="alert"><p>{copyPreviewError || errorMessage({ cause: { code: 'pipeline_execution_snapshot_too_large' } })}</p><button type="button" className="touch-target secondary-button" onClick={() => { setCopyPreviewState('loading'); setCopyPreviewError(''); void backend.previewPipelineCodeWorkspace(workspaceId ?? '').then(result => { setCopyPreview(result); setCopyPreviewState('ready') }).catch(failure => { setCopyPreviewError(errorMessage(failure)); setCopyPreviewState('error') }) }}>Atualizar prévia</button></div>}
-    {isCode && copyPreviewState === 'ready' && copyPreview && <section className="authoring-copy-preview" aria-label="Prévia da cópia isolada"><strong>{copyPreview.isGit ? 'Snapshot Git limpo' : 'Cópia local confirmada'}</strong><p className="muted">{copyPreview.fileCount.toLocaleString('pt-BR')} arquivos · {(copyPreview.totalBytes / (1024 * 1024)).toFixed(1)} MB. A cópia fica privada e a raiz original não é alterada durante Code ou QA.</p>{copyPreview.excludedPaths.length > 0 && <details><summary>Itens excluídos ({copyPreview.excludedPaths.length})</summary><ul>{copyPreview.excludedPaths.map(path => <li key={path} className="mono">{path}</li>)}</ul></details>}{unsafeCopy && <div className="project-warning" role="alert"><p>Estes caminhos não podem entrar na cópia porque escapam da pasta ou são arquivos especiais:</p><ul>{copyPreview.unsafePaths.map(path => <li key={path} className="mono">{path}</li>)}</ul></div>}{!copyPreview.isGit && !unsafeCopy && <label className="authoring-confirm"><input type="checkbox" checked={copyConfirmed} onChange={event => setCopyConfirmed(event.target.checked)} disabled={pending} />Confirmo copiar estes arquivos para a execução isolada do modelo selecionado.</label>}</section>}
-    {!noAPIBackend && <div className="pipeline-actions"><button type="button" className="touch-target secondary-button" onClick={() => onComplete(role)} disabled={pending}>{isCode ? 'Verificar código' : 'Registrar avaliação'}</button><button type="button" className="touch-target primary-button" onClick={() => selectedModel && onStart(role, selectedBackendId, selectedModel, copyPreview?.isGit ? false : copyConfirmed)} disabled={pending || !selectedBackend || !eligible(selectedBackend) || !selectedModel || !copyReady}>{isCode ? 'Executar Coder' : 'Executar Evaluator'}</button></div>}
+    {isCode && copyPreviewState === 'loading' && <p className="muted" role="status">{t('Lendo a prévia da raiz que será copiada para Code…')}</p>}
+    {isCode && copyPreviewState === 'error' && <div className="inline-error" role="alert"><p>{copyPreviewError || errorMessage({ cause: { code: 'pipeline_execution_snapshot_too_large' } })}</p><button type="button" className="touch-target secondary-button" onClick={() => { setCopyPreviewState('loading'); setCopyPreviewError(''); void backend.previewPipelineCodeWorkspace(workspaceId ?? '').then(result => { setCopyPreview(result); setCopyPreviewState('ready') }).catch(failure => { setCopyPreviewError(errorMessage(failure)); setCopyPreviewState('error') }) }}>{t('Atualizar prévia')}</button></div>}
+    {isCode && copyPreviewState === 'ready' && copyPreview && <section className="authoring-copy-preview" aria-label={t('Prévia da cópia isolada')}><strong>{copyPreview.isGit ? t('Snapshot Git limpo') : t('Cópia local confirmada')}</strong><p className="muted">{t('{count} arquivos · {size} MB. A cópia fica privada e a raiz original não é alterada durante Code ou QA.', { count: copyPreview.fileCount.toLocaleString(localeTag()), size: (copyPreview.totalBytes / (1024 * 1024)).toFixed(1) })}</p>{copyPreview.excludedPaths.length > 0 && <details><summary>{t('Itens excluídos ({count})', { count: copyPreview.excludedPaths.length })}</summary><ul>{copyPreview.excludedPaths.map(path => <li key={path} className="mono">{path}</li>)}</ul></details>}{unsafeCopy && <div className="project-warning" role="alert"><p>{t('Estes caminhos não podem entrar na cópia porque escapam da pasta ou são arquivos especiais:')}</p><ul>{copyPreview.unsafePaths.map(path => <li key={path} className="mono">{path}</li>)}</ul></div>}{!copyPreview.isGit && !unsafeCopy && <label className="authoring-confirm"><input type="checkbox" checked={copyConfirmed} onChange={event => setCopyConfirmed(event.target.checked)} disabled={pending} />{t('Confirmo copiar estes arquivos para a execução isolada do modelo selecionado.')}</label>}</section>}
+    {!noAPIBackend && <div className="pipeline-actions"><button type="button" className="touch-target secondary-button" onClick={() => onComplete(role)} disabled={pending}>{isCode ? t('Verificar código') : t('Registrar avaliação')}</button><button type="button" className="touch-target primary-button" onClick={() => selectedModel && onStart(role, selectedBackendId, selectedModel, copyPreview?.isGit ? false : copyConfirmed)} disabled={pending || !selectedBackend || !eligible(selectedBackend) || !selectedModel || !copyReady}>{isCode ? t('Executar Coder') : t('Executar Evaluator')}</button></div>}
     {run.artifacts[run.currentStage] && <pre className="mono diff-body">{run.artifacts[run.currentStage].content}</pre>}
   </div>
 }
 
 function PipelineArtifactArchive({ run, stages, inspectedStage, onInspect }: { run: Pipeline; stages: PipelineStage[]; inspectedStage: PipelineStage; onInspect: (stage: PipelineStage) => void }) {
+  const t = useT()
   const savedStages = stages.filter(stage => !!run.artifacts[stage])
   const archivedVersions = run.archivedArtifacts ?? []
   if (savedStages.length === 0 && archivedVersions.length === 0) return null
   const selected = savedStages.includes(inspectedStage) ? inspectedStage : savedStages[savedStages.length - 1]
   const artifact = run.artifacts[selected]
-  return <section className="pipeline-archive" aria-labelledby={`pipeline-archive-${run.id}`}><h3 id={`pipeline-archive-${run.id}`}>Artefatos salvos</h3>{savedStages.length > 0 && <><div className="pipeline-archive-tabs">{savedStages.map(stage => <button type="button" key={stage} className="touch-target secondary-button" aria-pressed={selected === stage} onClick={() => onInspect(stage)}>Ver {labels[stage]}</button>)}</div>{artifact?.reviewStatus === 'stale' && <p className="project-warning" role="status">Este QA pertence a uma versão anterior de Code e não libera aplicação.</p>}<pre className="mono diff-body">{artifact?.content ?? ''}</pre></>}
-    {archivedVersions.length > 0 && <section className="pipeline-archived-versions" aria-label="Versões anteriores de Code e QA"><h4>Versões anteriores</h4><ol>{archivedVersions.map(item => <li key={`${item.stage}:${item.version}`}><details><summary>{labels[item.stage]} v{item.version} · {item.reason === 'superseded' ? 'substituída' : item.reason}</summary><p className="muted">SHA-256 {item.contentDigest} · {new Date(item.createdAt).toLocaleString('pt-BR')}</p><pre className="mono diff-body">{item.content}</pre></details></li>)}</ol></section>}
+  return <section className="pipeline-archive" aria-labelledby={`pipeline-archive-${run.id}`}><h3 id={`pipeline-archive-${run.id}`}>{t('Artefatos salvos')}</h3>{savedStages.length > 0 && <><div className="pipeline-archive-tabs">{savedStages.map(stage => <button type="button" key={stage} className="touch-target secondary-button" aria-pressed={selected === stage} onClick={() => onInspect(stage)}>{t('Ver {stage}', { stage: labels[stage] })}</button>)}</div>{artifact?.reviewStatus === 'stale' && <p className="project-warning" role="status">{t('Este QA pertence a uma versão anterior de Code e não libera aplicação.')}</p>}<pre className="mono diff-body">{artifact?.content ?? ''}</pre></>}
+    {archivedVersions.length > 0 && <section className="pipeline-archived-versions" aria-label={t('Versões anteriores de Code e QA')}><h4>{t('Versões anteriores')}</h4><ol>{archivedVersions.map(item => <li key={`${item.stage}:${item.version}`}><details><summary>{labels[item.stage]} v{item.version} · {item.reason === 'superseded' ? t('substituída') : item.reason}</summary><p className="muted">SHA-256 {item.contentDigest} · {new Date(item.createdAt).toLocaleString(localeTag())}</p><pre className="mono diff-body">{item.content}</pre></details></li>)}</ol></section>}
   </section>
 }
 
@@ -147,13 +153,15 @@ function hasLegacyCodeReviewGap(run: Pipeline) {
 }
 
 function ApprovedPreparation({ archived, viewStage, viewRequestId, children }: { archived: boolean; viewStage?: PipelineStage; viewRequestId?: number; children: ReactNode }) {
+  const t = useT()
   const [open, setOpen] = useState(!archived)
   useLayoutEffect(() => { setOpen(!archived) }, [archived])
   useEffect(() => { if (archived && (viewStage === 'discovery' || viewStage === 'spec' || viewStage === 'plan')) setOpen(true) }, [archived, viewStage, viewRequestId])
-  return <details className={`pipeline-preparation-archive${archived ? ' is-archived' : ''}`} open={!archived || open} onToggle={event => { if (archived) setOpen(event.currentTarget.open) }}><summary hidden={!archived}>Discovery, SPEC e Plan aprovados</summary><div hidden={archived && !open}>{children}</div></details>
+  return <details className={`pipeline-preparation-archive${archived ? ' is-archived' : ''}`} open={!archived || open} onToggle={event => { if (archived) setOpen(event.currentTarget.open) }}><summary hidden={!archived}>{t('Discovery, SPEC e Plan aprovados')}</summary><div hidden={archived && !open}>{children}</div></details>
 }
 
 function PipelineLegacyCodeReviewRecovery({ backend, run, onPipelineChange }: { backend: Backend; run: Pipeline; onPipelineChange: (run: Pipeline) => void }) {
+  const t = useT()
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
   const artifact = run.artifacts.code!
@@ -179,17 +187,18 @@ function PipelineLegacyCodeReviewRecovery({ backend, run, onPipelineChange }: { 
     finally { setPending(false) }
   }
   const recoverable = run.codeReviewRecoveryStatus === 'available'
-  return <section className="pipeline-review-recovery" aria-label="Recuperar revisão de Code">
-    <div><h3>{recoverable ? 'Este Code ainda não tem uma decisão registrada' : 'Esta execução antiga não pode ser reaberta com segurança'}</h3><p className="muted">Versão {artifact.version} · SHA-256 {artifact.contentDigest?.slice(0, 16)}…</p></div>
-    <p>{recoverable ? 'O pipeline veio de uma execução anterior ao gate de revisão. Abra o diff abaixo, registre a aprovação de Code e gere uma nova avaliação de QA antes de aplicar qualquer alteração.' : run.codeReviewRecoveryReason || 'O snapshot desta versão não pode ser confirmado.'}</p>
-    <details><summary>Revisar diff salvo de Code</summary><pre className="mono diff-body">{artifact.content}</pre></details>
-    {run.artifacts.eval && <p className="project-warning" role="status">A avaliação anterior será preservada para consulta e marcada como desatualizada após reabrir Code.</p>}
-    <div className="pipeline-actions">{recoverable && <button type="button" className="touch-target primary-button" onClick={() => void reopen()} disabled={pending}>{pending ? 'Reabrindo revisão…' : 'Reabrir revisão de Code'}</button>}{!recoverable && <button type="button" className="touch-target primary-button" onClick={() => void branchFromDiscovery()} disabled={pending || !run.artifacts.discovery?.content}>{pending ? 'Criando nova execução…' : 'Criar nova execução a partir do Discovery'}</button>}</div>
+  return <section className="pipeline-review-recovery" aria-label={t('Recuperar revisão de Code')}>
+    <div><h3>{recoverable ? t('Este Code ainda não tem uma decisão registrada') : t('Esta execução antiga não pode ser reaberta com segurança')}</h3><p className="muted">{t('Versão {version} · SHA-256 {digest}…', { version: artifact.version, digest: artifact.contentDigest?.slice(0, 16) ?? '' })}</p></div>
+    <p>{recoverable ? t('O pipeline veio de uma execução anterior ao gate de revisão. Abra o diff abaixo, registre a aprovação de Code e gere uma nova avaliação de QA antes de aplicar qualquer alteração.') : run.codeReviewRecoveryReason || t('O snapshot desta versão não pode ser confirmado.')}</p>
+    <details><summary>{t('Revisar diff salvo de Code')}</summary><pre className="mono diff-body">{artifact.content}</pre></details>
+    {run.artifacts.eval && <p className="project-warning" role="status">{t('A avaliação anterior será preservada para consulta e marcada como desatualizada após reabrir Code.')}</p>}
+    <div className="pipeline-actions">{recoverable && <button type="button" className="touch-target primary-button" onClick={() => void reopen()} disabled={pending}>{pending ? t('Reabrindo revisão…') : t('Reabrir revisão de Code')}</button>}{!recoverable && <button type="button" className="touch-target primary-button" onClick={() => void branchFromDiscovery()} disabled={pending || !run.artifacts.discovery?.content}>{pending ? t('Criando nova execução…') : t('Criar nova execução a partir do Discovery')}</button>}</div>
     {error && <p className="form-error" role="alert">{error}</p>}
   </section>
 }
 
 export function PipelinesPage({ backend, backends, settingsStatus = 'ready', preferredBackendId = '', preferredModelBackendId = '', preferredModelId = '', workspaceId, selectedPipeline, creationDraft, onCreationDraftChange, newWorkRequest = 0, initialDiscovery, initialDiscoveryRequestId, onInitialDiscoveryConsumed, viewStage, viewRequestId, onSelectPipeline, onProjects, onSettings, onStartRole, onOpenSession, onFollowSession, permissionProfile, permissionControl, onMCPServers, onShownStage }: Props) {
+  const t = useT()
   const [items, setItems] = useState<Pipeline[]>([])
   const [discovery, setDiscovery] = useState(creationDraft?.discovery ?? '')
   const [creationScope, setCreationScope] = useState({ backend, workspaceId })
@@ -238,7 +247,7 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
   const phaseBackend = phaseChoice && backends.find(item => item.id === phaseChoice.backendId && backendAllowed(item) && phaseCanUse(phaseChoice.stage, item, profiles?.find(profile => profile.id === item.id)))
   const choicesReady = executorsState !== 'loading' && (profiles !== undefined || profilesFailed)
   const choicesFailed = executorsState === 'error' || (profilesFailed && profiles === undefined)
-  const phaseNote = phaseChoice && !phaseBackend && profiles !== undefined ? `O executor escolhido para ${phaseText[phaseChoice.stage].label} (${backends.find(item => item.id === phaseChoice.backendId)?.name ?? phaseChoice.backendId}) não está disponível agora; esta fase parte do padrão. Ajuste em "Provedor e modelo por fase".` : undefined
+  const phaseNote = phaseChoice && !phaseBackend && profiles !== undefined ? t('O executor escolhido para {phase} ({backend}) não está disponível agora; esta fase parte do padrão. Ajuste em "Provedor e modelo por fase".', { phase: phaseText(t)[phaseChoice.stage].label, backend: backends.find(item => item.id === phaseChoice.backendId)?.name ?? phaseChoice.backendId }) : undefined
   const selectedBackendId = backendChoice || (phaseBackend ? phaseBackend.id : settingsStatus === 'ready' ? globalDefaultIsUnsupported ? '' : backends.find(item => item.id === preferredBackendId && backendAllowed(item))?.id || automaticBackend?.id || '' : '')
   const phaseModelApplies = !!phaseBackend && selectedBackendId === phaseBackend.id
   // An empty model means the profile's own: the default model of Settings must not stand in for it.
@@ -280,12 +289,12 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
                 onBackendChange={value => { setBackendChoice(value); setError(undefined) }} onStart={startRole} onComplete={completeRole} /> : undefined} />
   const qaBenchView = !run ? null : run.currentStage === 'eval' || fixing || run.artifacts.eval
     ? <PipelineQALab key={run.id} resumable={resumable} backend={backend} backends={backends} run={run} workspaceId={workspaceId} roleDefaults={roleDefaults} onPipelineChange={onSelectPipeline} onOpenSession={sessionId => onOpenSession?.(sessionId)} onLoopChange={setQALoop} onSettings={onSettings} onRoleChosen={saveRoleChoice} />
-    : <p className="bench-empty">A QA começa quando o Code for aprovado.</p>
+    : <p className="bench-empty">{t('A QA começa quando o Code for aprovado.')}</p>
   const prsBenchView = !run ? null : pullRequestsOpen(run)
-    ? !choicesReady ? <p className="muted" role="status">Lendo as escolhas por fase…</p> : <PipelinePRsPanel backend={backend} backends={backends} run={run} workspaceId={workspaceId} defaultBackendId={preferredBackendId} pending={pending}
+    ? !choicesReady ? <p className="muted" role="status">{t('Lendo as escolhas por fase…')}</p> : <PipelinePRsPanel backend={backend} backends={backends} run={run} workspaceId={workspaceId} defaultBackendId={preferredBackendId} pending={pending}
       permissionProfile={permissionProfile} permissionControl={permissionControl} configured={stageExecutors.find(item => item.stage === 'prs')} onStart={(backendId, selection) => void startRole('publisher', backendId, selection, false)} onFinish={(outcome, reason) => void finishPullRequests(outcome, reason)} onOpenSession={onOpenSession} onApply={applyForPullRequests} onOpenMCP={onMCPServers} onSettings={onSettings} />
     : run.stageStatus.prs === 'completed' || run.stageStatus.prs === 'skipped' ? <PipelinePRsOutcome backend={backend} run={run} onOpenSession={onOpenSession} />
-      : <p className="bench-empty">Os PRs abrem quando a QA for aprovada.</p>
+      : <p className="bench-empty">{t('Os PRs abrem quando a QA for aprovada.')}</p>
 
   useLayoutEffect(() => {
     createWorkspace.current = workspaceId
@@ -378,7 +387,7 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
       onCreationDraftChange?.(workspaceId, { discovery, open: createOpen, newWorkRequest: lastNewWorkRequest.current, intent })
       const created = await backend.createAuthoringPipeline(intent)
       if (!stillCurrent()) return
-      if (created.workspaceId !== targetWorkspace) { setError('O pipeline retornou para outro projeto. Atualize a lista antes de continuar.'); return }
+      if (created.workspaceId !== targetWorkspace) { setError(t('O pipeline retornou para outro projeto. Atualize a lista antes de continuar.')); return }
       setItems(current => [created, ...current]); onSelectPipeline(created); setDiscovery(''); createIntent.current = undefined; setCreateOpen(false)
       if (created.preparationExperience === 'conversational') setAutoPrepare({ pipelineId: created.id, requestId: crypto.randomUUID() })
     } catch (failure) { if (stillCurrent()) setError(errorMessage(failure)) }
@@ -396,7 +405,7 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
   async function save() {
     if (!run?.currentStage || pending) return
     setPending(true); setError(undefined); setNotice(undefined)
-    try { const saved = await backend.savePipelineArtifact(run.id, run.currentStage, draft); setDraftDirty(false); onSelectPipeline(saved); setNotice('Artefato salvo e versionado.') }
+    try { const saved = await backend.savePipelineArtifact(run.id, run.currentStage, draft); setDraftDirty(false); onSelectPipeline(saved); setNotice(t('Artefato salvo e versionado.')) }
     catch (failure) { setError(errorMessage(failure)) }
     finally { setPending(false) }
   }
@@ -404,7 +413,7 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
   async function advance() {
     if (!run || pending) return
     setPending(true); setError(undefined); setNotice(undefined)
-    try { onSelectPipeline(await backend.advancePipeline(run.id)); setNotice('Fase avançada com evidência salva.') }
+    try { onSelectPipeline(await backend.advancePipeline(run.id)); setNotice(t('Fase avançada com evidência salva.')) }
     catch (failure) { setError(errorMessage(failure)) }
     finally { setPending(false) }
   }
@@ -412,7 +421,7 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
   async function skip() {
     if (!run || pending) return
     setPending(true); setError(undefined); setNotice(undefined)
-    try { onSelectPipeline(await backend.skipPipelineStage(run.id, reason)); setReason(''); setSkipConfirm(false); setNotice('Etapa pulada e registrada no histórico.') }
+    try { onSelectPipeline(await backend.skipPipelineStage(run.id, reason)); setReason(''); setSkipConfirm(false); setNotice(t('Etapa pulada e registrada no histórico.')) }
     catch (failure) { setError(errorMessage(failure)) }
     finally { setPending(false) }
   }
@@ -420,7 +429,7 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
   async function startRole(role: PipelineRole, backendId: string, selection: PipelineRoleModelSelection | undefined, confirmWorkspaceCopy: boolean) {
     if (!run || !backendId || pending) return
     // Code and QA run with a model confirmed against the catalog; the pull request chat does too when the project chose a model for it, and otherwise uses the profile's own.
-    if (!selection && role !== 'publisher') { setError('Escolha um modelo confirmado para esta fase.'); return }
+    if (!selection && role !== 'publisher') { setError(t('Escolha um modelo confirmado para esta fase.')); return }
     setPending(true); setError(undefined); setNotice(undefined)
     try { await onStartRole(run.id, backendId, role, selection, confirmWorkspaceCopy) }
     catch (failure) { setError(errorMessage(failure)); setPending(false) }
@@ -432,8 +441,8 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
     try {
       const updated = role === 'coder' ? await backend.completePipelineCode(run.id) : await backend.completePipelineEvaluation(run.id)
       onSelectPipeline(updated)
-      setNotice(role === 'coder' ? 'Code salvo para revisão. Aprove a versão para liberar o QA.' : 'Resultado do QA salvo. Revise as evidências e decida o próximo passo.')
-    } catch (failure) { setError(errorCode(failure) === 'evidence_required' ? unfinishedRunText[role] : errorMessage(failure)) }
+      setNotice(role === 'coder' ? t('Code salvo para revisão. Aprove a versão para liberar o QA.') : t('Resultado do QA salvo. Revise as evidências e decida o próximo passo.'))
+    } catch (failure) { setError(errorCode(failure) === 'evidence_required' ? unfinishedRunText(t)[role] : errorMessage(failure)) }
     finally { setPending(false) }
   }
 
@@ -442,7 +451,7 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
     setPending(true); setError(undefined); setNotice(undefined)
     try {
       onSelectPipeline(await backend.finishPipelinePRs(run.id, outcome, reason))
-      setNotice(outcome === 'completed' ? 'PRs concluídos. O relatório da IA ficou guardado no pipeline.' : 'Etapa de PRs pulada e registrada no histórico.')
+      setNotice(outcome === 'completed' ? t('PRs concluídos. O relatório da IA ficou guardado no pipeline.') : t('Etapa de PRs pulada e registrada no histórico.'))
     } catch (failure) { setError(errorMessage(failure)) }
     finally { setPending(false) }
   }
@@ -462,44 +471,44 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
       const updated = await backend.applyPipelineCode(run.id)
       onSelectPipeline(updated)
       setApplyConfirmed(false)
-      setNotice('Patch aplicado à pasta original e conferido após a gravação.')
+      setNotice(t('Patch aplicado à pasta original e conferido após a gravação.'))
     } catch (failure) { setError(errorMessage(failure)) }
     finally { setPending(false) }
   }
 
   return <div className="pipelines-page">
-    <div className="destination-heading"><div><h2>Pipelines SDD</h2>{!conversational && <p className="muted">Da descoberta à avaliação, com artefatos e bypass rastreáveis.</p>}</div><div className="pipeline-actions">{workspaceId && visibleItems.length > 0 && <button type="button" className="touch-target secondary-button" onClick={() => setCreateOpen(open => !open)}><Plus aria-hidden="true" />{createOpen ? 'Fechar criação' : 'Novo pipeline'}</button>}{workspaceId && <button type="button" className="touch-target secondary-button" onClick={() => void refresh()} disabled={state === 'loading'}><RefreshCw aria-hidden="true" />Atualizar</button>}</div></div>
-    {!workspaceId ? <div className="catalog-empty"><FolderOpen aria-hidden="true" /><strong>Abra um projeto para começar</strong><span className="muted">Cada pipeline pertence a uma pasta local autorizada.</span><button type="button" className="touch-target primary-button" onClick={onProjects}>Abrir projetos</button></div> : <>
+    <div className="destination-heading"><div><h2>Pipelines SDD</h2>{!conversational && <p className="muted">{t('Da descoberta à avaliação, com artefatos e bypass rastreáveis.')}</p>}</div><div className="pipeline-actions">{workspaceId && visibleItems.length > 0 && <button type="button" className="touch-target secondary-button" onClick={() => setCreateOpen(open => !open)}><Plus aria-hidden="true" />{createOpen ? t('Fechar criação') : t('Novo pipeline')}</button>}{workspaceId && <button type="button" className="touch-target secondary-button" onClick={() => void refresh()} disabled={state === 'loading'}><RefreshCw aria-hidden="true" />{t('Atualizar')}</button>}</div></div>
+    {!workspaceId ? <div className="catalog-empty"><FolderOpen aria-hidden="true" /><strong>{t('Abra um projeto para começar')}</strong><span className="muted">{t('Cada pipeline pertence a uma pasta local autorizada.')}</span><button type="button" className="touch-target primary-button" onClick={onProjects}>{t('Abrir projetos')}</button></div> : <>
       <PipelinePhaseExecutors key={workspaceId} backend={backend} backends={backends} workspaceId={workspaceId} executors={stageExecutors} onExecutorsChange={setStageExecutors} profiles={profiles} loading={!choicesReady} loadFailed={choicesFailed} onRetry={() => setExecutorsRead(count => count + 1)}
         defaults={{ backendId: preferredBackendId, modelBackendId: preferredModelBackendId, modelId: preferredModelId }} open={phasesOpen ?? (state === 'ready' && visibleItems.length === 0)} onToggle={setPhasesOpen} currentStage={run?.currentStage || undefined} disabled={pending} />
-      {state === 'ready' && (visibleItems.length === 0 || createOpen) && <form className="pipeline-create" onSubmit={create}><div className="destination-heading"><div><h3>Novo pipeline</h3><p className="muted">Descreva o problema, contexto e resultado esperado.</p></div><ListTree aria-hidden="true" /></div><div className="pipeline-create-fields"><label className="field">Discovery<textarea aria-label="Discovery" value={discovery} onChange={event => setDiscovery(event.target.value)} maxLength={20000} required rows={7} placeholder="O que você quer descobrir ou construir?" /></label></div><button type="submit" className="touch-target primary-button" disabled={pending || !discovery.trim()}><Plus aria-hidden="true" />Criar pipeline</button></form>}
-      {state === 'loading' && <p className="muted" role="status">Carregando pipelines…</p>}
-      {state === 'error' && <div className="inline-error" role="alert"><p>Não foi possível carregar os pipelines.</p><button type="button" className="touch-target secondary-button" onClick={() => void refresh()}>Tentar novamente</button></div>}
-      {visibleItems.length > 0 && <div className={`pipeline-layout${conversational ? ' pipeline-layout-conversational' : ''}`}>{conversational ? <div className="pipeline-work-selector"><IonPicker id="pipeline-work" label="Trabalho deste projeto" value={run.id} onChange={id => void select(id)} disabled={pending} searchable options={visibleItems.map(item => ({ value: item.id, label: item.title }))} /></div> : <section className="pipeline-list" aria-labelledby="pipeline-list-title"><h3 id="pipeline-list-title">Trabalhos deste projeto</h3><ul>{visibleItems.map(item => <li key={item.id}><button type="button" className={`touch-target pipeline-list-item${run?.id === item.id ? ' is-selected' : ''}`} onClick={() => void select(item.id)} disabled={pending}><strong>{item.title}</strong><span className="muted">{item.currentStage ? labels[item.currentStage] : 'Encerrado'} · {new Date(item.updatedAt).toLocaleDateString('pt-BR')}</span></button></li>)}</ul></section>}
-        {run && <section className={`pipeline-detail${benchMode ? ' is-bench' : ''}`} aria-labelledby="pipeline-detail-title">{benchMode ? <h3 id="pipeline-detail-title" className="visually-hidden">{run.title}</h3> : <div className="destination-heading"><div><h3 id="pipeline-detail-title">{run.title}</h3>{!conversational && run.objective !== run.title && <p className="muted">{run.objective}</p>}</div><span className="status-chip status-ready">{run.currentStage ? labels[run.currentStage] : 'Encerrado'}</span></div>}
-          {!conversational && <div className="pipeline-phase-list" aria-label="Fases do pipeline">{(['discovery', 'spec', 'plan', 'code', 'eval', 'prs'] as PipelineStage[]).map(stage => <span key={stage} className={`pipeline-phase phase-${run.stageStatus[stage]}`}>{labels[stage]}<small>{run.stageStatus[stage] === 'skipped' ? 'Pulada' : run.stageStatus[stage] === 'completed' ? 'Concluída' : run.stageStatus[stage] === 'active' ? 'Atual' : run.stageStatus[stage] === 'failed' ? 'Reprovada' : run.stageStatus[stage] === 'waiting_user' ? 'Aguardando decisão' : run.stageStatus[stage] === 'paused' ? 'Pausada' : 'Pendente'}</small></span>)}</div>}
+      {state === 'ready' && (visibleItems.length === 0 || createOpen) && <form className="pipeline-create" onSubmit={create}><div className="destination-heading"><div><h3>{t('Novo pipeline')}</h3><p className="muted">{t('Descreva o problema, contexto e resultado esperado.')}</p></div><ListTree aria-hidden="true" /></div><div className="pipeline-create-fields"><label className="field">Discovery<textarea aria-label="Discovery" value={discovery} onChange={event => setDiscovery(event.target.value)} maxLength={20000} required rows={7} placeholder={t('O que você quer descobrir ou construir?')} /></label></div><button type="submit" className="touch-target primary-button" disabled={pending || !discovery.trim()}><Plus aria-hidden="true" />{t('Criar pipeline')}</button></form>}
+      {state === 'loading' && <p className="muted" role="status">{t('Carregando pipelines…')}</p>}
+      {state === 'error' && <div className="inline-error" role="alert"><p>{t('Não foi possível carregar os pipelines.')}</p><button type="button" className="touch-target secondary-button" onClick={() => void refresh()}>{t('Tentar novamente')}</button></div>}
+      {visibleItems.length > 0 && <div className={`pipeline-layout${conversational ? ' pipeline-layout-conversational' : ''}`}>{conversational ? <div className="pipeline-work-selector"><IonPicker id="pipeline-work" label={t('Trabalho deste projeto')} value={run.id} onChange={id => void select(id)} disabled={pending} searchable options={visibleItems.map(item => ({ value: item.id, label: item.title }))} /></div> : <section className="pipeline-list" aria-labelledby="pipeline-list-title"><h3 id="pipeline-list-title">{t('Trabalhos deste projeto')}</h3><ul>{visibleItems.map(item => <li key={item.id}><button type="button" className={`touch-target pipeline-list-item${run?.id === item.id ? ' is-selected' : ''}`} onClick={() => void select(item.id)} disabled={pending}><strong>{item.title}</strong><span className="muted">{item.currentStage ? labels[item.currentStage] : t('Encerrado')} · {new Date(item.updatedAt).toLocaleDateString(localeTag())}</span></button></li>)}</ul></section>}
+        {run && <section className={`pipeline-detail${benchMode ? ' is-bench' : ''}`} aria-labelledby="pipeline-detail-title">{benchMode ? <h3 id="pipeline-detail-title" className="visually-hidden">{run.title}</h3> : <div className="destination-heading"><div><h3 id="pipeline-detail-title">{run.title}</h3>{!conversational && run.objective !== run.title && <p className="muted">{run.objective}</p>}</div><span className="status-chip status-ready">{run.currentStage ? labels[run.currentStage] : t('Encerrado')}</span></div>}
+          {!conversational && <div className="pipeline-phase-list" aria-label={t('Fases do pipeline')}>{(['discovery', 'spec', 'plan', 'code', 'eval', 'prs'] as PipelineStage[]).map(stage => <span key={stage} className={`pipeline-phase phase-${run.stageStatus[stage]}`}>{labels[stage]}<small>{run.stageStatus[stage] === 'skipped' ? t('Pulada') : run.stageStatus[stage] === 'completed' ? t('Concluída') : run.stageStatus[stage] === 'active' ? t('Atual') : run.stageStatus[stage] === 'failed' ? t('Reprovada') : run.stageStatus[stage] === 'waiting_user' ? t('Aguardando decisão') : run.stageStatus[stage] === 'paused' ? t('Pausada') : t('Pendente')}</small></span>)}</div>}
           {viewStage && !(benchMode && (viewStage === 'code' || viewStage === 'eval' || viewStage === 'prs')) && <StageActivityPane key={`${run.id}:${viewStage}:${viewRequestId ?? 0}`} backend={backend} pipeline={run} stage={viewStage} />}
           {recoverLegacyCodeReview && <PipelineLegacyCodeReviewRecovery backend={backend} run={run} onPipelineChange={onSelectPipeline} />}
           {run.kind === 'ai_authoring' ? <>{benchMode ? null : conversational ? <ApprovedPreparation archived={run.currentStage === 'code' || run.currentStage === 'eval' || run.currentStage === 'prs' || run.currentStage === ''} viewStage={viewStage} viewRequestId={viewRequestId}><PipelineDesignStudio key={`${run.workspaceId}:${run.id}`} backend={backend} pipeline={run} stageExecutors={stageExecutors} onPipelineChange={onSelectPipeline} onSettings={onSettings} autoPrepareRequest={autoPrepare?.pipelineId === run.id ? autoPrepare.requestId : undefined} onAutoPrepareConsumed={requestId => setAutoPrepare(current => current?.requestId === requestId ? undefined : current)} requestedStage={viewStage === 'discovery' || viewStage === 'spec' || viewStage === 'plan' ? viewStage : undefined} viewRequestId={viewRequestId} /></ApprovedPreparation> : <AuthoringWorkbench key={`${run.workspaceId}:${run.id}:${run.currentStage}`} backend={backend} pipeline={run} onPipelineChange={onSelectPipeline} onSettings={onSettings} />}
             {benchMode ? <PipelineBench run={run} viewStage={viewStage} viewRequestId={viewRequestId} focus={fixing || resumable ? 'eval' : undefined} onShownStage={onShownStage} code={codeBenchView} qa={qaBenchView} prs={prsBenchView} /> : <>{executionView}
             <PipelineArtifactArchive run={run} stages={['code', 'eval']} inspectedStage={inspectedStage} onInspect={setInspectedStage} /></>}
-          </> : run.currentStage && run.currentStage !== 'prs' && <div className="pipeline-editor"><div className="pipeline-editor-heading"><FileText aria-hidden="true" /><div><strong>Artefato de {labels[run.currentStage]}</strong><span className="muted">{run.artifacts[run.currentStage] ? `Versão ${run.artifacts[run.currentStage].version}` : 'Ainda não salvo'}</span></div></div>
-            {editable.has(run.currentStage) ? <><label className="field">Artefato da fase<textarea value={draft} onChange={event => { setDraft(event.target.value); setDraftDirty(true) }} rows={10} placeholder="Registre decisões, critérios e evidências desta fase." /></label>{draftConflict && <div className="project-warning pipeline-draft-conflict" role="alert">A fase mudou enquanto você editava. Copie o rascunho se precisar preservá-lo antes de carregar a versão atual.<button type="button" className="touch-target secondary-button" onClick={() => { setDraft(run.artifacts[run.currentStage!]?.content ?? ''); setDraftDirty(false); setDraftConflict(false) }}>Descartar rascunho e carregar atualização</button></div>}<div className="pipeline-actions"><button type="button" className="touch-target secondary-button" onClick={() => void save()} disabled={pending || draftConflict || !draft.trim()}>Salvar artefato</button><button type="button" className="touch-target primary-button" onClick={() => void advance()} disabled={pending || draftConflict || !run.artifacts[run.currentStage]}><ArrowRight aria-hidden="true" />Avançar fase</button></div>
-              {!skipConfirm ? <button type="button" className="touch-target text-button pipeline-skip" onClick={() => setSkipConfirm(true)}><SkipForward aria-hidden="true" />Pular esta etapa</button> : <div className="pipeline-skip-confirm"><p>Pular registra a etapa como pulada, sem tratá-la como aprovada.</p><label className="field">Motivo (opcional)<input value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} /></label><div className="pipeline-actions"><button type="button" className="touch-target secondary-button" onClick={() => setSkipConfirm(false)}>Voltar</button><button type="button" className="touch-target secondary-button" onClick={() => void skip()} disabled={pending}>Confirmar pulo</button></div></div>}
+          </> : run.currentStage && run.currentStage !== 'prs' && <div className="pipeline-editor"><div className="pipeline-editor-heading"><FileText aria-hidden="true" /><div><strong>{t('Artefato de {stage}', { stage: labels[run.currentStage] })}</strong><span className="muted">{run.artifacts[run.currentStage] ? t('Versão {version}', { version: run.artifacts[run.currentStage].version }) : t('Ainda não salvo')}</span></div></div>
+            {editable.has(run.currentStage) ? <><label className="field">{t('Artefato da fase')}<textarea value={draft} onChange={event => { setDraft(event.target.value); setDraftDirty(true) }} rows={10} placeholder={t('Registre decisões, critérios e evidências desta fase.')} /></label>{draftConflict && <div className="project-warning pipeline-draft-conflict" role="alert">{t('A fase mudou enquanto você editava. Copie o rascunho se precisar preservá-lo antes de carregar a versão atual.')}<button type="button" className="touch-target secondary-button" onClick={() => { setDraft(run.artifacts[run.currentStage!]?.content ?? ''); setDraftDirty(false); setDraftConflict(false) }}>{t('Descartar rascunho e carregar atualização')}</button></div>}<div className="pipeline-actions"><button type="button" className="touch-target secondary-button" onClick={() => void save()} disabled={pending || draftConflict || !draft.trim()}>{t('Salvar artefato')}</button><button type="button" className="touch-target primary-button" onClick={() => void advance()} disabled={pending || draftConflict || !run.artifacts[run.currentStage]}><ArrowRight aria-hidden="true" />{t('Avançar fase')}</button></div>
+              {!skipConfirm ? <button type="button" className="touch-target text-button pipeline-skip" onClick={() => setSkipConfirm(true)}><SkipForward aria-hidden="true" />{t('Pular esta etapa')}</button> : <div className="pipeline-skip-confirm"><p>{t('Pular registra a etapa como pulada, sem tratá-la como aprovada.')}</p><label className="field">{t('Motivo (opcional)')}<input value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} /></label><div className="pipeline-actions"><button type="button" className="touch-target secondary-button" onClick={() => setSkipConfirm(false)}>{t('Voltar')}</button><button type="button" className="touch-target secondary-button" onClick={() => void skip()} disabled={pending}>{t('Confirmar pulo')}</button></div></div>}
             </> : executionView}
           </div>}
-          {!recoverLegacyCodeReview && run.currentStage === '' && run.stageStatus.code === 'completed' && run.stageStatus.eval === 'completed' && run.artifacts.code?.author === 'ai' && run.artifacts.code.sourceSessionId && <section className="pipeline-apply-panel" aria-label="Aplicar patch aprovado">
-            <div><h3>Patch avaliado</h3><p className="muted">O QA foi concluído. Aplicar este patch é uma ação separada; o conteúdo será conferido com a versão aprovada antes e depois da gravação.</p></div>
-            {run.codeAppliedAt ? <p className="form-success" role="status">Aplicado e conferido em {new Date(run.codeAppliedAt).toLocaleString('pt-BR')}.</p> : <><label className="authoring-confirm"><input type="checkbox" checked={applyConfirmed} onChange={event => setApplyConfirmed(event.target.checked)} disabled={pending} />Confirmo aplicar ao projeto original o patch exibido em Code.</label><div className="pipeline-actions"><button type="button" className="touch-target primary-button" onClick={() => void applyCode()} disabled={pending || !applyConfirmed}>Aplicar patch aprovado</button></div></>}
+          {!recoverLegacyCodeReview && run.currentStage === '' && run.stageStatus.code === 'completed' && run.stageStatus.eval === 'completed' && run.artifacts.code?.author === 'ai' && run.artifacts.code.sourceSessionId && <section className="pipeline-apply-panel" aria-label={t('Aplicar patch aprovado')}>
+            <div><h3>{t('Patch avaliado')}</h3><p className="muted">{t('O QA foi concluído. Aplicar este patch é uma ação separada; o conteúdo será conferido com a versão aprovada antes e depois da gravação.')}</p></div>
+            {run.codeAppliedAt ? <p className="form-success" role="status">{t('Aplicado e conferido em {date}.', { date: new Date(run.codeAppliedAt).toLocaleString(localeTag()) })}</p> : <><label className="authoring-confirm"><input type="checkbox" checked={applyConfirmed} onChange={event => setApplyConfirmed(event.target.checked)} disabled={pending} />{t('Confirmo aplicar ao projeto original o patch exibido em Code.')}</label><div className="pipeline-actions"><button type="button" className="touch-target primary-button" onClick={() => void applyCode()} disabled={pending || !applyConfirmed}>{t('Aplicar patch aprovado')}</button></div></>}
           </section>}
           {!recoverLegacyCodeReview && !benchMode && (pullRequestsOpen(run)
-            ? !choicesReady ? <p className="muted" role="status">Lendo as escolhas por fase…</p> : <PipelinePRsPanel backend={backend} backends={backends} run={run} workspaceId={workspaceId} defaultBackendId={preferredBackendId} pending={pending}
+            ? !choicesReady ? <p className="muted" role="status">{t('Lendo as escolhas por fase…')}</p> : <PipelinePRsPanel backend={backend} backends={backends} run={run} workspaceId={workspaceId} defaultBackendId={preferredBackendId} pending={pending}
               permissionProfile={permissionProfile} permissionControl={permissionControl} configured={stageExecutors.find(item => item.stage === 'prs')} onStart={(backendId, selection) => void startRole('publisher', backendId, selection, false)} onFinish={(outcome, reason) => void finishPullRequests(outcome, reason)} onOpenSession={onOpenSession} onApply={applyForPullRequests} />
             : <PipelinePRsOutcome backend={backend} run={run} onOpenSession={onOpenSession} />)}
-          {run.kind !== 'ai_authoring' && Object.keys(run.artifacts).length > 0 && <section className="pipeline-archive" aria-labelledby="pipeline-archive-title"><h3 id="pipeline-archive-title">Artefatos salvos</h3><div className="pipeline-archive-tabs">{(['discovery', 'spec', 'plan', 'code', 'eval', 'prs'] as PipelineStage[]).filter(stage => !!run.artifacts[stage]).map(stage => <button type="button" key={stage} className="touch-target secondary-button" aria-pressed={inspectedStage === stage} onClick={() => setInspectedStage(stage)}>Ver {labels[stage]}</button>)}</div>{run.artifacts[inspectedStage]?.reviewStatus === 'stale' && <p className="project-warning" role="status">Este QA pertence a uma versão anterior de Code e não libera aplicação.</p>}<pre className="mono diff-body">{run.artifacts[inspectedStage]?.content ?? ''}</pre></section>}
+          {run.kind !== 'ai_authoring' && Object.keys(run.artifacts).length > 0 && <section className="pipeline-archive" aria-labelledby="pipeline-archive-title"><h3 id="pipeline-archive-title">{t('Artefatos salvos')}</h3><div className="pipeline-archive-tabs">{(['discovery', 'spec', 'plan', 'code', 'eval', 'prs'] as PipelineStage[]).filter(stage => !!run.artifacts[stage]).map(stage => <button type="button" key={stage} className="touch-target secondary-button" aria-pressed={inspectedStage === stage} onClick={() => setInspectedStage(stage)}>{t('Ver {stage}', { stage: labels[stage] })}</button>)}</div>{run.artifacts[inspectedStage]?.reviewStatus === 'stale' && <p className="project-warning" role="status">{t('Este QA pertence a uma versão anterior de Code e não libera aplicação.')}</p>}<pre className="mono diff-body">{run.artifacts[inspectedStage]?.content ?? ''}</pre></section>}
         </section>}
       </div>}
-      {state === 'ready' && visibleItems.length === 0 && <div className="catalog-empty"><ListTree aria-hidden="true" /><strong>Nenhum pipeline neste projeto</strong><span className="muted">Crie um acima para começar pela Discovery.</span></div>}
+      {state === 'ready' && visibleItems.length === 0 && <div className="catalog-empty"><ListTree aria-hidden="true" /><strong>{t('Nenhum pipeline neste projeto')}</strong><span className="muted">{t('Crie um acima para começar pela Discovery.')}</span></div>}
     </>}
     {error && <p className="form-error" role="alert">{error}</p>}
     {notice && <p className="form-success" role="status">{notice}</p>}

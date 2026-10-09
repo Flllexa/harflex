@@ -13,18 +13,18 @@ new file mode 100644
 +++ b/index.html
 @@ -0,0 +1,18 @@
 +<!doctype html>
-+<html lang="pt-BR">
++<html lang="en">
 +<head>
 +  <meta charset="utf-8" />
-+  <title>Tarefas</title>
++  <title>Tasks</title>
 +  <link rel="stylesheet" href="styles.css" />
 +</head>
 +<body>
 +  <main class="todo">
-+    <h1>Minhas tarefas</h1>
++    <h1>My tasks</h1>
 +    <form id="todo-form" class="todo-form">
-+      <input id="task-input" aria-label="Nova tarefa" placeholder="O que precisa ser feito?" required />
-+      <button type="submit">Adicionar</button>
++      <input id="task-input" aria-label="New task" placeholder="What needs to be done?" required />
++      <button type="submit">Add</button>
 +    </form>
 +    <ul id="task-list" class="todo-list" aria-live="polite"></ul>
 +  </main>
@@ -90,47 +90,47 @@ new file mode 100644
 +import assert from 'node:assert/strict'
 +import { loadTasks } from '../app.js'
 +
-+test('a lista começa vazia sem dados salvos', () => {
++test('the list starts empty without saved data', () => {
 +  localStorage.clear()
 +  assert.deepEqual(loadTasks(), [])
 +})
 +
-+test('dados inválidos não quebram a página', () => {
++test('invalid data does not break the page', () => {
 +  localStorage.setItem('todo.tasks', '{quebrado')
 +  assert.deepEqual(loadTasks(), [])
 +})`
 
 // The SPEC and Plan the preparation studio shows for the demonstration project.
 export const showcaseDocuments = {
-  spec: '# SPEC\n\n## Escopo\n\nUma lista de tarefas em uma página HTML, sem servidor, que guarda tudo no localStorage do navegador.\n\n## Critérios de aceite\n\n1. Ao adicionar uma descrição válida, a tarefa aparece como pendente e continua lá ao recarregar a página.\n2. Uma descrição vazia ou só com espaços não cria tarefa.\n3. Marcar uma tarefa como concluída risca o texto e sobrevive à recarga.\n4. Excluir a última tarefa mostra de novo a mensagem de lista vazia.\n5. Dados inválidos no localStorage não quebram a página.',
-  plan: '# Plan\n\n## Tarefas\n\n1. **T1 · Página e formulário:** index.html com campo, botão e lista acessíveis.\n2. **T2 · Persistência:** app.js lê e grava em `todo.tasks`, tolerando dados inválidos.\n3. **T3 · Estilo:** styles.css com estados de pendente e concluída.\n4. **T4 · Testes:** unitários com node:test e E2E no Chromium com Playwright.',
+  spec: '# SPEC\n\n## Scope\n\nA to-do list on one HTML page, with no server, that keeps everything in the browser\'s localStorage.\n\n## Acceptance criteria\n\n1. Adding a valid description creates a pending task that is still there after reloading the page.\n2. An empty description or one with only spaces creates no task.\n3. Marking a task as done strikes through its text and survives a reload.\n4. Deleting the last task shows the empty-list message again.\n5. Invalid data in localStorage does not break the page.',
+  plan: '# Plan\n\n## Tasks\n\n1. **T1 · Page and form:** index.html with an accessible field, button and list.\n2. **T2 · Persistence:** app.js reads and writes `todo.tasks`, tolerating invalid data.\n3. **T3 · Style:** styles.css with pending and done states.\n4. **T4 · Tests:** unit tests with node:test and E2E in Chromium with Playwright.',
 }
 
 const report = {
   passed: false,
   checks: [
-    { name: 'Instalação de dependências', kind: 'other', command: 'npm ci', status: 'passed', summary: 'Dependências instaladas em 2,1 s.' },
-    { name: 'Build', kind: 'build', command: 'npm run build', status: 'passed', summary: 'HTML, CSS e JavaScript empacotados sem avisos.' },
-    { name: 'Testes unitários', kind: 'unit', command: 'npm test', status: 'passed', summary: '12 testes passaram; nenhum falhou.' },
-    { name: 'E2E no Chromium', kind: 'e2e', command: 'npx playwright test', status: 'failed', summary: 'Excluir a última tarefa não mostra de novo a mensagem de lista vazia (tests/e2e/lista.spec.js:42).' },
-    { name: 'App no ar', kind: 'run', command: 'npx serve . -l 4173 && curl -s localhost:4173', status: 'passed', summary: 'Página servida e acessível; formulário e lista presentes no DOM.' },
-    { name: 'Lint', kind: 'lint', command: 'npm run lint', status: 'passed', summary: 'Nenhum problema encontrado.' },
+    { name: 'Install dependencies', kind: 'other', command: 'npm ci', status: 'passed', summary: 'Dependencies installed in 2.1 s.' },
+    { name: 'Build', kind: 'build', command: 'npm run build', status: 'passed', summary: 'HTML, CSS and JavaScript bundled with no warnings.' },
+    { name: 'Unit tests', kind: 'unit', command: 'npm test', status: 'passed', summary: '12 tests passed; none failed.' },
+    { name: 'E2E in Chromium', kind: 'e2e', command: 'npx playwright test', status: 'failed', summary: 'Deleting the last task does not show the empty-list message again (tests/e2e/list.spec.js:42).' },
+    { name: 'App running', kind: 'run', command: 'npx serve . -l 4173 && curl -s localhost:4173', status: 'passed', summary: 'Page served and reachable; form and list present in the DOM.' },
+    { name: 'Lint', kind: 'lint', command: 'npm run lint', status: 'passed', summary: 'No problems found.' },
   ],
-  findings: ['Ao excluir a última tarefa, a mensagem "Nenhuma tarefa ainda" não volta a aparecer.'],
-  improvements: ['Permitir editar o texto de uma tarefa com duplo clique.', 'Mostrar um contador de tarefas pendentes no rodapé.', 'Animar a entrada e a saída das tarefas da lista.'],
-  criteria: [{ criterion: 'Ao adicionar uma descrição válida, a tarefa aparece como pendente', evidence: 'tasks.push({ id: crypto.randomUUID(), text, done: false })' }],
+  findings: ['When the last task is deleted, the "No tasks yet" message does not come back.'],
+  improvements: ['Allow editing a task\'s text with a double click.', 'Show a count of pending tasks in the footer.', 'Animate tasks entering and leaving the list.'],
+  criteria: [{ criterion: 'Adding a valid description creates a pending task', evidence: 'tasks.push({ id: crypto.randomUUID(), text, done: false })' }],
 }
 
 const artifact = (stage: 'discovery' | 'spec' | 'plan' | 'code' | 'eval', content: string, version = 1) => ({ stage, version, content, author: 'ai' as const, sourceSessionId: `${stage}-session`, contentDigest: stage.padEnd(64, '0'), updatedAt: at(10) })
 
 function pipelineFor(view: ShowcaseView): Pipeline {
   const base: Pipeline = {
-    id: 'todo-pipeline', workspaceId, kind: 'ai_authoring', preparationExperience: 'conversational', title: 'Lista de tarefas com localStorage', objective: 'Uma lista de tarefas em HTML que guarda tudo no navegador',
+    id: 'todo-pipeline', workspaceId, kind: 'ai_authoring', preparationExperience: 'conversational', title: 'To-do list with localStorage', objective: 'A to-do list in HTML that keeps everything in the browser',
     currentStage: 'code', stageStatus: { discovery: 'completed', spec: 'completed', plan: 'completed', code: 'waiting_user', eval: 'pending', prs: 'pending' }, revision: 12,
     artifacts: {
-      discovery: artifact('discovery', '# Lista de tarefas\n\nQuero uma lista de tarefas simples, em HTML, que guarde tudo no navegador.'),
-      spec: artifact('spec', '## Critérios\n1. Ao adicionar uma descrição válida, a tarefa aparece como pendente\n2. Excluir a última tarefa mostra a mensagem de lista vazia'),
-      plan: artifact('plan', '## Tarefas\nT1 · Página e formulário\nT2 · Persistência no localStorage\nT3 · Testes unitários e E2E'),
+      discovery: artifact('discovery', '# To-do list\n\nA simple to-do list in HTML that keeps everything in the browser.'),
+      spec: artifact('spec', '## Criteria\n1. Adding a valid description creates a pending task\n2. Deleting the last task shows the empty-list message'),
+      plan: artifact('plan', '## Tasks\nT1 · Page and form\nT2 · Persistence in localStorage\nT3 · Unit and E2E tests'),
       code: artifact('code', diff, 2),
     },
     createdAt: at(0), updatedAt: at(40),
@@ -142,7 +142,7 @@ function pipelineFor(view: ShowcaseView): Pipeline {
   if (view === 'qa-running') return { ...base, currentStage: 'eval', stageStatus: { ...base.stageStatus, code: 'completed', eval: 'active' } }
   if (view === 'qa-report') return { ...base, currentStage: 'eval', stageStatus: { ...base.stageStatus, code: 'completed', eval: 'waiting_user' }, artifacts: { ...base.artifacts, eval: artifact('eval', JSON.stringify(report), 3) } }
   if (view === 'prs') return { ...base, currentStage: 'prs', stageStatus: { ...base.stageStatus, code: 'completed', eval: 'completed', prs: 'active' },
-    artifacts: { ...base.artifacts, eval: artifact('eval', JSON.stringify({ ...report, passed: true, findings: [], checks: report.checks.map(check => ({ ...check, status: 'passed', summary: check.kind === 'e2e' ? '9 cenários passaram no Chromium.' : check.summary })) }), 4) } }
+    artifacts: { ...base.artifacts, eval: artifact('eval', JSON.stringify({ ...report, passed: true, findings: [], checks: report.checks.map(check => ({ ...check, status: 'passed', summary: check.kind === 'e2e' ? '9 scenarios passed in Chromium.' : check.summary })) }), 4) } }
   return base
 }
 
@@ -151,7 +151,7 @@ function qaJournal(): AgentEvent[] {
   const events: AgentEvent[] = []
   const push = (type: string, data: unknown) => events.push({ id: `qa-${events.length + 1}`, streamId: 'qa-session', sequence: events.length + 1, type, data, createdAt: at(41 + events.length) })
   push('run.started', {})
-  push('message.user', { role: 'user', content: 'Você é o QA desta entrega.' })
+  push('message.user', { role: 'user', content: 'You are the QA for this delivery.' })
   const commands: [string, string, 'done' | 'running'][] = [
     ['t1', 'ls -la && cat package.json', 'done'],
     ['t2', 'npm ci --no-audit --no-fund', 'done'],
@@ -167,30 +167,30 @@ function qaJournal(): AgentEvent[] {
   return events
 }
 
-const chatSession: Session = { id: 'chat-session', workspaceId, backendId: 'claude', status: 'completed', resumable: true, title: 'Criar uma lista de tarefas', createdAt: at(0), updatedAt: at(5) }
+const chatSession: Session = { id: 'chat-session', workspaceId, backendId: 'claude', status: 'completed', resumable: true, title: 'Create a to-do list', createdAt: at(0), updatedAt: at(5) }
 function chatJournal(): AgentEvent[] {
   const events: AgentEvent[] = []
   const push = (type: string, data: unknown) => events.push({ id: `chat-${events.length + 1}`, streamId: chatSession.id, sequence: events.length + 1, type, data, createdAt: at(events.length) })
   push('run.started', {})
-  push('message.user', { role: 'user', content: 'Quero uma lista de tarefas em HTML que guarde tudo no navegador. Cria um trabalho SDD para isso?' })
-  push('message.assistant', { role: 'assistant', content: 'Claro. Vou olhar o projeto e abrir um trabalho SDD com a Discovery que você descreveu.', toolCalls: [{ id: 'c1', name: 'ls', arguments: { path: '.' } }, { id: 'c2', name: 'harflex_create_pipeline', arguments: { discovery: '# Lista de tarefas com localStorage\n\nQuero uma lista de tarefas simples, em HTML, que guarde tudo no navegador.' } }] })
+  push('message.user', { role: 'user', content: 'I want a to-do list in HTML that keeps everything in the browser. Create an SDD work item for it?' })
+  push('message.assistant', { role: 'assistant', content: 'Sure. I\'ll look at the project and open an SDD work item with the Discovery you described.', toolCalls: [{ id: 'c1', name: 'ls', arguments: { path: '.' } }, { id: 'c2', name: 'harflex_create_pipeline', arguments: { discovery: '# To-do list with localStorage\n\nA simple to-do list in HTML that keeps everything in the browser.' } }] })
   push('tool.called', { toolCallId: 'c1', name: 'ls' })
   push('tool.completed', { toolCallId: 'c1', name: 'ls', content: { text: 'index.html\nstyles.css\npackage.json' } })
   push('tool.called', { toolCallId: 'c2', name: 'harflex_create_pipeline' })
-  push('tool.completed', { toolCallId: 'c2', name: 'harflex_create_pipeline', content: { text: 'Pipeline criado: Lista de tarefas com localStorage' } })
-  push('message.assistant', { role: 'assistant', content: 'Pronto! Criei o trabalho **Lista de tarefas com localStorage**. Ele já passou por Discovery, SPEC e Plan, e agora está no Code.\n\nVocê acompanha cada etapa em **Pipelines**, e eu sigo por aqui se quiser mudar alguma coisa.' })
+  push('tool.completed', { toolCallId: 'c2', name: 'harflex_create_pipeline', content: { text: 'Pipeline created: To-do list with localStorage' } })
+  push('message.assistant', { role: 'assistant', content: 'Done! I created the work item **To-do list with localStorage**. It has already been through Discovery, SPEC and Plan, and it is now in Code.\n\nYou can follow each stage in **Pipelines**, and I can keep going here if you want to change anything.' })
   push('run.completed', {})
   return events
 }
 
 const pullRequest: PullRequest = {
-  id: 'pr-1', pipelineId: 'todo-pipeline', sessionId: 'prs-session', url: 'https://github.com/demo/todo-app/pull/7', title: 'Lista de tarefas com localStorage', branch: 'harflex/lista-de-tarefas',
+  id: 'pr-1', pipelineId: 'todo-pipeline', sessionId: 'prs-session', url: 'https://github.com/demo/todo-app/pull/7', title: 'To-do list with localStorage', branch: 'harflex/todo-list',
   state: 'open', watch: true, checking: false, lastCheckedAt: at(52), nextCheckAt: at(58),
   timeline: [
-    { at: at(46), kind: 'opened', summary: 'PR aberto a partir da cópia aprovada pela QA.' },
-    { at: at(47), kind: 'watch_on', summary: 'Vigia ligada: confere os comentários a cada 10 minutos.' },
-    { at: at(51), kind: 'fixed', summary: 'Corrigi 2 comentários da revisão (nome da chave e contraste do botão) e enviei.' },
-    { at: at(52), kind: 'quiet', summary: 'Nenhum comentário novo. Próxima conferência em 10 minutos.' },
+    { at: at(46), kind: 'opened', summary: 'PR opened from the copy QA approved.' },
+    { at: at(47), kind: 'watch_on', summary: 'Watch on: checks the review comments every 10 minutes.' },
+    { at: at(51), kind: 'fixed', summary: 'Fixed 2 review comments (key name and button contrast) and pushed.' },
+    { at: at(52), kind: 'quiet', summary: 'No new comments. Next check in 10 minutes.' },
   ],
 }
 
@@ -222,7 +222,7 @@ export function installShowcase(backend: Backend, view: ShowcaseView) {
   backend.getPipeline = async () => pipeline
   backend.getPipelineForSession = async () => pipeline
   backend.getPipelineQALoop = async pipelineId => view === 'qa-running'
-    ? { pipelineId, phase: 'qa', round: 1, sessionId: 'qa-session', message: 'O QA está rodando build, testes e o app no laboratório', updatedAt: at(46), running: true }
+    ? { pipelineId, phase: 'qa', round: 1, sessionId: 'qa-session', message: 'QA is running the build, tests and the app in the lab', updatedAt: at(46), running: true }
     : { pipelineId, phase: '', round: 0, message: '', updatedAt: at(46), running: false }
   backend.listPipelinePullRequests = async () => view === 'prs' ? [pullRequest] : []
   backend.listMCPServers = async () => [{ id: 'mcp-github', workspaceId, name: 'GitHub', transport: 'http', command: '', args: [], url: 'https://api.githubcopilot.com/mcp/', tokenEnvVar: '', authScheme: 'bearer', enabled: true, tools: [], hasCredential: true, createdAt: checkedAt, updatedAt: checkedAt }] as never

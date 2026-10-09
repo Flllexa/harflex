@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './locale'
 
 for (const width of [320, 1440]) {
   test(`skill editor and activation are usable at ${width}px`, async ({ page }, info) => {

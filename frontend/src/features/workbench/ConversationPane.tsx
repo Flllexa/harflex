@@ -8,6 +8,7 @@ import type { Delegation } from '../../lib/backend'
 import { delegationBudgetText } from '../../lib/delegationBudget'
 import type { AppMode } from '../../state/appMode'
 import { requestOf, splitContinuation } from './continuation'
+import { t, useT } from '../../i18n'
 
 const failureCopy: Record<string, string> = {
   approval_denied: 'aprovação negada',
@@ -26,41 +27,43 @@ const failureCopy: Record<string, string> = {
 
 function statusText(state: Pick<SessionState, 'calling' | 'activeRun' | 'outcome' | 'error'>): string {
   if (state.error) return state.error
-  if (state.activeRun === 'awaiting_approval') return 'Aguardando aprovação'
-  if (state.calling || state.activeRun === 'running') return 'Executando'
+  if (state.activeRun === 'awaiting_approval') return t('Aguardando aprovação')
+  if (state.calling || state.activeRun === 'running') return t('Executando')
   switch (state.outcome?.status) {
-    case 'completed': return 'Concluído'
-    case 'cancelled': return 'Cancelado'
-    case 'interrupted': return 'Interrompido'
-    case 'failed': return `Falhou: ${failureCopy[state.outcome.code ?? ''] ?? failureCopy[state.outcome.reason ?? ''] ?? 'erro durante a execução'}`
+    case 'completed': return t('Concluído')
+    case 'cancelled': return t('Cancelado')
+    case 'interrupted': return t('Interrompido')
+    case 'failed': return t('Falhou: {reason}', { reason: t(failureCopy[state.outcome.code ?? ''] ?? failureCopy[state.outcome.reason ?? ''] ?? 'erro durante a execução') })
   }
-  return 'Pronto'
+  return t('Pronto')
 }
 
 function activeActionText(messages: SessionState['messages']): string {
   for (let index = messages.length - 1; index >= 0; index--) {
     const item = messages[index]
     if (item.kind !== 'tool' || item.call.status !== 'running') continue
-    const action = ({
+    const known = ({
       read: 'Lendo arquivo', write: 'Escrevendo arquivo', edit: 'Editando arquivo',
       grep: 'Buscando no código', find: 'Localizando arquivos', ls: 'Listando arquivos',
       bash: 'Executando comando', powershell: 'Executando comando',
-    } as Record<string, string>)[item.call.name] ?? `Executando ${item.call.name}`
+    } as Record<string, string>)[item.call.name]
+    const action = known ? t(known) : t('Executando {name}', { name: item.call.name })
     // Shell arguments may contain values that do not belong in another live label.
     const target = ['bash', 'powershell'].includes(item.call.name) ? '' : toolTarget(item.call.arguments)
-    return target ? `${action} · ${target}` : action
+    return target ? t('{action} · {target}', { action, target }) : action
   }
-  if (messages.some(item => item.kind === 'assistant' && item.streaming)) return 'Gerando resposta do agente'
-  return 'Agente trabalhando'
+  if (messages.some(item => item.kind === 'assistant' && item.streaming)) return t('Gerando resposta do agente')
+  return t('Agente trabalhando')
 }
 
 /** What the person wrote. A message that opened a continued conversation has the old one's context after it, shown folded. */
 function UserText({ text }: { text: string }) {
+  const t = useT()
   const split = splitContinuation(text)
   if (!split) return <p className="turn-text">{text}</p>
   return <>
     <p className="turn-text">{split.request}</p>
-    <details className="turn-context"><summary>Contexto levado da conversa anterior</summary><p className="turn-text">{split.context}</p></details>
+    <details className="turn-context"><summary>{t('Contexto levado da conversa anterior')}</summary><p className="turn-text">{split.context}</p></details>
   </>
 }
 
@@ -97,11 +100,12 @@ type Props = {
 const composerMaxHeight = 200
 
 export function ConversationPane({ state, loadingHistory, permissionControl, viewMode, cancelPending = false, delegationParentId, delegation, queuedTask, onPrepareDelegatedTask, onOpenParent, onDraft, onPrompt, onResolve, onCancel, onRetry, onNewWork, onContinue, backendLabel, modelBar, switchModel, projectControl }: Props) {
+  const t = useT()
   const draft = state.draft
   const running = state.activeRun === 'running'
   const liveWork = !loadingHistory && !state.readOnly && !state.error && (running || state.calling || cancelPending)
-  const liveStatus = state.activeRun === 'awaiting_approval' ? 'Aguardando aprovação' : activeActionText(state.messages)
-  const displayedStatus = loadingHistory ? 'Carregando histórico' : cancelPending ? 'Confirmando cancelamento…' : state.error ?? (liveWork ? liveStatus : statusText(state))
+  const liveStatus = state.activeRun === 'awaiting_approval' ? t('Aguardando aprovação') : activeActionText(state.messages)
+  const displayedStatus = loadingHistory ? t('Carregando histórico') : cancelPending ? t('Confirmando cancelamento…') : state.error ?? (liveWork ? liveStatus : statusText(state))
   const exhausted = !!delegation && delegation.promptCount >= delegation.promptLimit
   const lastUserRequest = requestOf([...state.messages].reverse().find(message => message.kind === 'user')?.text ?? '')
   const carriedRequest = draft.trim() || (state.readOnly ? lastUserRequest : '')
@@ -144,15 +148,15 @@ export function ConversationPane({ state, loadingHistory, permissionControl, vie
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) submit(event)
   }
   return <div className={`conversation${viewMode === 'casual' ? ' conversation-casual' : ''}`}>
-    {(!emptyCasual || !!draft.trim() || !!modelBar) && <div className="conversation-actions"><button type="button" className="touch-target secondary-button" onClick={() => onNewWork(carriedRequest || undefined)} disabled={state.readOnly && loadingHistory || executionBusy}>{newWorkLabel === 'Sessões do projeto' && <ChevronLeft aria-hidden="true" />}{newWorkLabel}</button>{delegationParentId && <button type="button" className="touch-target secondary-button" onClick={onOpenParent} disabled={loadingHistory || state.calling || runIsLive(state)}>Voltar à sessão pai</button>}{!modelBar && backendLabel && <span className="conversation-backend muted">{backendLabel}</span>}</div>}
-    {queuedTask && <div className="continuity-note muted delegated-task-recovery"><p>A tarefa delegada está salva no histórico. Prepare-a no rascunho e revise antes de enviar; nada é executado automaticamente.</p><button type="button" className="touch-target secondary-button" onClick={onPrepareDelegatedTask} disabled={loadingHistory || state.calling || state.readOnly || !!draft || state.activeRun !== 'idle'}>Preparar tarefa delegada</button></div>}
-    {delegation && <p className="continuity-note muted">Subagente: {delegationBudgetText(delegation)}. A espera por aprovação não conta; tentativas interrompidas contam. Não é limite de custo ou tokens.{exhausted ? ' Limite atingido: revise o histórico antes de delegar novamente.' : ''}</p>}
+    {(!emptyCasual || !!draft.trim() || !!modelBar) && <div className="conversation-actions"><button type="button" className="touch-target secondary-button" onClick={() => onNewWork(carriedRequest || undefined)} disabled={state.readOnly && loadingHistory || executionBusy}>{newWorkLabel === 'Sessões do projeto' && <ChevronLeft aria-hidden="true" />}{t(newWorkLabel)}</button>{delegationParentId && <button type="button" className="touch-target secondary-button" onClick={onOpenParent} disabled={loadingHistory || state.calling || runIsLive(state)}>{t('Voltar à sessão pai')}</button>}{!modelBar && backendLabel && <span className="conversation-backend muted">{backendLabel}</span>}</div>}
+    {queuedTask && <div className="continuity-note muted delegated-task-recovery"><p>{t('A tarefa delegada está salva no histórico. Prepare-a no rascunho e revise antes de enviar; nada é executado automaticamente.')}</p><button type="button" className="touch-target secondary-button" onClick={onPrepareDelegatedTask} disabled={loadingHistory || state.calling || state.readOnly || !!draft || state.activeRun !== 'idle'}>{t('Preparar tarefa delegada')}</button></div>}
+    {delegation && <p className="continuity-note muted">{t('Subagente: {budget}. A espera por aprovação não conta; tentativas interrompidas contam. Não é limite de custo ou tokens.', { budget: delegationBudgetText(delegation) })}{exhausted ? t(' Limite atingido: revise o histórico antes de delegar novamente.') : ''}</p>}
     {state.messages.length === 0
-      ? <div className="empty-state"><p>{viewMode === 'casual' ? 'Nova conversa' : 'Nenhuma conversa iniciada'}</p>{viewMode !== 'casual' && <span className="muted">O trabalho começa com uma conversa.</span>}</div>
-      : <ol ref={log} className="conversation-log" aria-label="Conversa" onScroll={trackScroll}>
+      ? <div className="empty-state"><p>{viewMode === 'casual' ? t('Nova conversa') : t('Nenhuma conversa iniciada')}</p>{viewMode !== 'casual' && <span className="muted">{t('O trabalho começa com uma conversa.')}</span>}</div>
+      : <ol ref={log} className="conversation-log" aria-label={t('Conversa')} onScroll={trackScroll}>
         {state.messages.map(item => <li key={item.id} className={`turn turn-${item.kind}`}>
           {item.kind === 'tool' ? <ToolCallCard call={item.call} /> : <>
-            <span className="turn-author">{item.kind === 'user' ? 'Você' : 'Agente'}</span>
+            <span className="turn-author">{item.kind === 'user' ? t('Você') : t('Agente')}</span>
             {item.kind === 'assistant'
               ? <div className="turn-text turn-markdown"><Markdown text={item.text} />{item.streaming && <span className="assistant-streaming-dots" aria-hidden="true"><i /><i /><i /></span>}</div>
               : <UserText text={item.text} />}
@@ -168,25 +172,25 @@ export function ConversationPane({ state, loadingHistory, permissionControl, vie
       </div>}
       {permissionControl && !modelBar && <div className="composer-toolbar">{permissionControl}</div>}
     </div>
-    {state.connectionState === 'degraded' && <button type="button" className="touch-target secondary-button" disabled={state.calling} onClick={onRetry}>Atualizar eventos</button>}
+    {state.connectionState === 'degraded' && <button type="button" className="touch-target secondary-button" disabled={state.calling} onClick={onRetry}>{t('Atualizar eventos')}</button>}
     {state.readOnly ? <p className="continuity-note muted">{continuing
-      ? <>Somente leitura: esta execução foi encerrada. Escreva abaixo e o Harflex continua em um novo chat, levando o contexto desta conversa.{carriedRequest ? ' Continuar em novo chat só prepara o último pedido para você revisar antes de enviar.' : ''}</>
-      : <>Somente leitura: esta execução foi encerrada. Inicie um novo chat para continuar. {carriedRequest ? 'O último pedido será preparado para revisão, sem reenvio automático.' : 'Você pode descrever um novo pedido.'}</>}</p> : state.activeRun === 'paused' && <p className="continuity-note muted">Envie uma mensagem para retomar o trabalho. Revise os resultados das ferramentas interrompidas.</p>}
-    {!state.readOnly && draft.trim() && viewMode !== 'casual' && <p className="continuity-note muted">Se iniciar outro trabalho, este rascunho será levado para revisão e permanecerá sem envio automático.</p>}
-    {switchModel && <p className="chat-model-note" role="status">{switchModel.usable ? 'A próxima mensagem abre um novo chat com esta escolha, levando o contexto desta conversa.' : 'Escolha um modelo disponível para continuar com este provedor.'} <button type="button" className="text-button" onClick={switchModel.onReset}>Manter o atual</button></p>}
+      ? <>{t('Somente leitura: esta execução foi encerrada. Escreva abaixo e o Harflex continua em um novo chat, levando o contexto desta conversa.')}{carriedRequest ? t(' Continuar em novo chat só prepara o último pedido para você revisar antes de enviar.') : ''}</>
+      : <>{t('Somente leitura: esta execução foi encerrada. Inicie um novo chat para continuar.')} {carriedRequest ? t('O último pedido será preparado para revisão, sem reenvio automático.') : t('Você pode descrever um novo pedido.')}</>}</p> : state.activeRun === 'paused' && <p className="continuity-note muted">{t('Envie uma mensagem para retomar o trabalho. Revise os resultados das ferramentas interrompidas.')}</p>}
+    {!state.readOnly && draft.trim() && viewMode !== 'casual' && <p className="continuity-note muted">{t('Se iniciar outro trabalho, este rascunho será levado para revisão e permanecerá sem envio automático.')}</p>}
+    {switchModel && <p className="chat-model-note" role="status">{switchModel.usable ? t('A próxima mensagem abre um novo chat com esta escolha, levando o contexto desta conversa.') : t('Escolha um modelo disponível para continuar com este provedor.')} <button type="button" className="text-button" onClick={switchModel.onReset}>{t('Manter o atual')}</button></p>}
     <form className={`composer${modelBar ? ' composer-card' : ''}`} onSubmit={submit}>
-      <label className="visually-hidden" htmlFor="composer-input">Mensagem</label>
-      <textarea ref={composer} id="composer-input" className="composer-input" rows={1} value={draft} disabled={state.readOnly && !continuing || continuing && state.calling || loadingHistory} placeholder={switching ? 'Enter envia e abre um novo chat com o modelo escolhido, levando o contexto' : continuing ? 'Continue de onde parou · Enter envia e abre um novo chat com o contexto' : 'Descreva o trabalho · Enter envia, Shift+Enter quebra a linha'} onChange={event => onDraft(event.target.value)} onKeyDown={composerKey} />
+      <label className="visually-hidden" htmlFor="composer-input">{t('Mensagem')}</label>
+      <textarea ref={composer} id="composer-input" className="composer-input" rows={1} value={draft} disabled={state.readOnly && !continuing || continuing && state.calling || loadingHistory} placeholder={switching ? t('Enter envia e abre um novo chat com o modelo escolhido, levando o contexto') : continuing ? t('Continue de onde parou · Enter envia e abre um novo chat com o contexto') : t('Descreva o trabalho · Enter envia, Shift+Enter quebra a linha')} onChange={event => onDraft(event.target.value)} onKeyDown={composerKey} />
       {modelBar ? <div className="composer-card-actions">
         {modelBar}
         {projectControl}
         {permissionControl && <div className="composer-card-permission">{permissionControl}</div>}
         {running || cancelPending
-          ? <button type="button" className="touch-target secondary-button composer-card-send" disabled={cancelPending} onClick={event => { event.preventDefault(); event.stopPropagation(); onCancel() }}><Square aria-hidden="true" />{cancelPending ? 'Cancelando…' : 'Cancelar execução'}</button>
-          : <button type="submit" className="touch-target primary-button composer-card-send" disabled={!canSend}><Send aria-hidden="true" />Enviar</button>}
+          ? <button type="button" className="touch-target secondary-button composer-card-send" disabled={cancelPending} onClick={event => { event.preventDefault(); event.stopPropagation(); onCancel() }}><Square aria-hidden="true" />{cancelPending ? t('Cancelando…') : t('Cancelar execução')}</button>
+          : <button type="submit" className="touch-target primary-button composer-card-send" disabled={!canSend}><Send aria-hidden="true" />{t('Enviar')}</button>}
       </div> : running || cancelPending
-        ? <button type="button" className="touch-target secondary-button" disabled={cancelPending} onClick={event => { event.preventDefault(); event.stopPropagation(); onCancel() }}><Square aria-hidden="true" />{cancelPending ? 'Cancelando…' : 'Cancelar execução'}</button>
-        : <button type="submit" className="touch-target primary-button" disabled={!canSend}><Send aria-hidden="true" />Enviar</button>}
+        ? <button type="button" className="touch-target secondary-button" disabled={cancelPending} onClick={event => { event.preventDefault(); event.stopPropagation(); onCancel() }}><Square aria-hidden="true" />{cancelPending ? t('Cancelando…') : t('Cancelar execução')}</button>
+        : <button type="submit" className="touch-target primary-button" disabled={!canSend}><Send aria-hidden="true" />{t('Enviar')}</button>}
     </form>
   </div>
 }

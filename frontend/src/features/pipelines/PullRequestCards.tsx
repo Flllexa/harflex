@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { CircleAlert, CircleCheck, CircleDot, Eye, EyeOff, GitMerge, GitPullRequest, GitPullRequestClosed, LoaderCircle, MessageSquareReply, RefreshCw, ShieldAlert, Wrench } from 'lucide-react'
 import { errorMessage, type Backend, type PullRequest } from '../../lib/backend'
+import { localeTag, useT } from '../../i18n'
 import { openExternal } from '../../lib/desktop'
 import './pullRequests.css'
 
@@ -12,10 +13,9 @@ type Props = {
   permissionControl?: ReactNode
 }
 
-const stateLabels = { open: 'Aberto', merged: 'Mergeado', closed: 'Fechado' }
 const stateIcons = { open: GitPullRequest, merged: GitMerge, closed: GitPullRequestClosed }
 const eventIcons: Record<string, typeof CircleDot> = { opened: GitPullRequest, watch_on: Eye, watch_off: EyeOff, checking: RefreshCw, fixed: Wrench, quiet: CircleCheck, merged: GitMerge, closed: GitPullRequestClosed, needs_access: ShieldAlert, error: CircleAlert }
-const time = (value?: string) => value ? new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''
+const time = (value?: string) => value ? new Date(value).toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' }) : ''
 
 /** The pull requests of a pipeline, kept fresh by the backend's change event and a slow poll. */
 export function usePullRequests(backend: Backend, pipelineId: string) {
@@ -35,6 +35,8 @@ export function usePullRequests(backend: Backend, pipelineId: string) {
 
 /** The pull requests the PRs conversation opened, each with its review watch and what it has done. */
 export function PullRequestCards({ backend, pipelineId, permissionProfile, permissionControl }: Props) {
+  const t = useT()
+  const stateLabels = { open: t('Aberto'), merged: t('Mergeado'), closed: t('Fechado') }
   const { items, setItems, error, setError } = usePullRequests(backend, pipelineId)
   const [busy, setBusy] = useState<string>()
 
@@ -46,7 +48,7 @@ export function PullRequestCards({ backend, pipelineId, permissionProfile, permi
 
   if (!items || items.length === 0) return null
   const full = permissionProfile === 'full_access'
-  return <section className="pr-cards" aria-label="Pull requests deste trabalho">
+  return <section className="pr-cards" aria-label={t('Pull requests deste trabalho')}>
     {items.map(pr => {
       const StateIcon = stateIcons[pr.state]
       const open = pr.state === 'open'
@@ -59,15 +61,15 @@ export function PullRequestCards({ backend, pipelineId, permissionProfile, permi
             <span className="muted">{pr.branch && <code className="mono">{pr.branch}</code>}<span className={`pr-chip is-${pr.state}`}>{stateLabels[pr.state]}</span></span>
           </div>
           {open && <button type="button" role="switch" aria-checked={pr.watch} className={`pr-watch${pr.watch ? ' is-on' : ''}`} disabled={busy === pr.id} onClick={() => void act(pr.id, () => backend.setPullRequestWatch(pr.id, !pr.watch))}>
-            <span className="pr-watch-track" aria-hidden="true"><span /></span>Vigiar revisão</button>}
+            <span className="pr-watch-track" aria-hidden="true"><span /></span>{t('Vigiar revisão')}</button>}
         </header>
         {open && pr.watch && <div className={`pr-watch-status${pr.checking ? ' is-checking' : ''}`}>
-          {pr.checking ? <><LoaderCircle className="pr-spin" aria-hidden="true" /><span>A IA está lendo os comentários e corrigindo o que for pedido…</span></>
-            : <><Eye aria-hidden="true" /><span>A cada 10 minutos a IA confere comentários novos, corrige no mesmo branch, roda os testes, faz push e responde. Nunca faz merge.{pr.nextCheckAt ? ` Próxima conferência às ${time(pr.nextCheckAt)}.` : ' Conferindo em instantes.'}</span></>}
-          <button type="button" className="touch-target text-button" disabled={busy === pr.id || pr.checking || !full} onClick={() => void act(pr.id, () => backend.checkPullRequestNow(pr.id))}><MessageSquareReply aria-hidden="true" />Conferir agora</button>
+          {pr.checking ? <><LoaderCircle className="pr-spin" aria-hidden="true" /><span>{t('A IA está lendo os comentários e corrigindo o que for pedido…')}</span></>
+            : <><Eye aria-hidden="true" /><span>{pr.nextCheckAt ? t('A cada 10 minutos a IA confere comentários novos, corrige no mesmo branch, roda os testes, faz push e responde. Nunca faz merge. Próxima conferência às {time}.', { time: time(pr.nextCheckAt) }) : t('A cada 10 minutos a IA confere comentários novos, corrige no mesmo branch, roda os testes, faz push e responde. Nunca faz merge. Conferindo em instantes.')}</span></>}
+          <button type="button" className="touch-target text-button" disabled={busy === pr.id || pr.checking || !full} onClick={() => void act(pr.id, () => backend.checkPullRequestNow(pr.id))}><MessageSquareReply aria-hidden="true" />{t('Conferir agora')}</button>
         </div>}
-        {open && pr.watch && !full && <div className="pr-watch-access" role="alert"><ShieldAlert aria-hidden="true" /><p>Para a IA corrigir e fazer push sozinha, o projeto precisa de Acesso total. Ative aqui:</p>{permissionControl}</div>}
-        {recent.length > 0 && <ol className="pr-notes" aria-label="O que aconteceu neste PR">{recent.map((event, index) => { const Icon = eventIcons[event.kind] ?? CircleDot; return <li key={index} className={`pr-note is-${event.kind}`}><header><Icon aria-hidden="true" /><time dateTime={event.at}>{time(event.at)}</time></header><span>{event.summary}</span></li> })}</ol>}
+        {open && pr.watch && !full && <div className="pr-watch-access" role="alert"><ShieldAlert aria-hidden="true" /><p>{t('Para a IA corrigir e fazer push sozinha, o projeto precisa de Acesso total. Ative aqui:')}</p>{permissionControl}</div>}
+        {recent.length > 0 && <ol className="pr-notes" aria-label={t('O que aconteceu neste PR')}>{recent.map((event, index) => { const Icon = eventIcons[event.kind] ?? CircleDot; return <li key={index} className={`pr-note is-${event.kind}`}><header><Icon aria-hidden="true" /><time dateTime={event.at}>{time(event.at)}</time></header><span>{event.summary}</span></li> })}</ol>}
       </article>
     })}
     {error && <p className="form-error" role="alert">{error}</p>}

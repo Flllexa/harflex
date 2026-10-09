@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { cliCatalogProblem, errorMessage, type Backend, type BackendOption, type ModelCatalogResult, type PipelineRoleModelSelection, type ProviderProfile } from '../../lib/backend'
 import { IonPicker } from '../../components/IonPicker'
+import { useT } from '../../i18n'
 
 type Props = {
   backend: Backend
@@ -41,6 +42,7 @@ function selectedRoleModel(catalog: ModelCatalogResult, backend: BackendOption, 
 }
 
 export function PipelineRoleModelPicker({ backend, workspaceId, stage, backendOption, defaultModelBackendId, defaultModelId, phaseConfigured = false, disabled, onSelectionChange }: Props) {
+  const t = useT()
   const [catalog, setCatalog] = useState<ModelCatalogResult>()
   const [profiles, setProfiles] = useState<ProviderProfile[]>([])
   const [catalogState, setCatalogState] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -81,7 +83,7 @@ export function PipelineRoleModelPicker({ backend, workspaceId, stage, backendOp
     selectionCallback.current(undefined)
     if (!workspaceId || !backendOption.available) {
       setCatalogState('error')
-      setCatalogError('Escolha um projeto e um executor disponível antes de consultar modelos.')
+      setCatalogError(t('Escolha um projeto e um executor disponível antes de consultar modelos.'))
       return () => { request.current++ }
     }
     void (async () => {
@@ -91,7 +93,7 @@ export function PipelineRoleModelPicker({ backend, workspaceId, stage, backendOp
         if (request.current !== current) return
         setProfiles(found)
         selectedProfile = found.find(item => item.id === backendOption.id)
-        if (!selectedProfile || !usableProfile(selectedProfile)) throw new Error('Este perfil API não está disponível para executar esta fase.')
+        if (!selectedProfile || !usableProfile(selectedProfile)) throw new Error(t('Este perfil API não está disponível para executar esta fase.'))
       } else {
         setProfiles([])
       }
@@ -104,8 +106,8 @@ export function PipelineRoleModelPicker({ backend, workspaceId, stage, backendOp
       if (result.status !== 'complete' || !result.complete || !result.profileRevision || age < -60_000 || age > catalogMaxAge) {
         setCatalogState('error')
         setCatalogError(result.status === 'empty'
-          ? `Nenhum modelo disponível em ${backendOption.name}.`
-          : result.status === 'partial' ? 'O catálogo veio incompleto; atualize antes de iniciar a fase.' : backendOption.kind === 'cli' ? cliCatalogProblem(result, backendOption.name) : 'Não foi possível confirmar o catálogo deste executor.')
+          ? t('Nenhum modelo disponível em {name}.', { name: backendOption.name })
+          : result.status === 'partial' ? t('O catálogo veio incompleto; atualize antes de iniciar a fase.') : backendOption.kind === 'cli' ? cliCatalogProblem(result, backendOption.name) : t('Não foi possível confirmar o catálogo deste executor.'))
         return
       }
       setCatalogState('ready')
@@ -123,7 +125,7 @@ export function PipelineRoleModelPicker({ backend, workspaceId, stage, backendOp
       setCatalogError(errorMessage(failure))
     })
     return () => { request.current++; controller.abort() }
-  }, [backend, workspaceId, backendOption.id, backendOption.kind, backendOption.available, backendOption.name, defaultModelBackendId, defaultModelId, refreshRevision])
+  }, [backend, workspaceId, backendOption.id, backendOption.kind, backendOption.available, backendOption.name, defaultModelBackendId, defaultModelId, refreshRevision, t])
 
   // An answer that grew old is no longer a pick the backend would take: it is read again by itself, keeping the model.
   useEffect(() => {
@@ -151,21 +153,21 @@ export function PipelineRoleModelPicker({ backend, workspaceId, stage, backendOp
   const profileModelSelected = backendOption.kind === 'api' && defaultModelBackendId !== backendOption.id && !!profile?.model && profile.model === modelId
   const hasConfiguredModel = globalModelSelected || profileModelSelected || (defaultModelBackendId === backendOption.id && !!defaultModelId)
   const catalogStatus = catalog?.status === 'failed' && backendOption.kind === 'cli'
-    ? `${backendOption.name} indisponível. Verifique o CLI local e atualize o catálogo.`
-    : catalog?.errorCode === 'catalog_context_unverified' ? 'Não foi possível confirmar o contexto local. Atualize o catálogo.'
-      : catalog?.errorCode === 'catalog_workspace_unavailable' ? 'A pasta deste projeto não está disponível. Reabra o projeto e atualize o catálogo.' : ''
+    ? t('{name} indisponível. Verifique o CLI local e atualize o catálogo.', { name: backendOption.name })
+    : catalog?.errorCode === 'catalog_context_unverified' ? t('Não foi possível confirmar o contexto local. Atualize o catálogo.')
+      : catalog?.errorCode === 'catalog_workspace_unavailable' ? t('A pasta deste projeto não está disponível. Reabra o projeto e atualize o catálogo.') : ''
 
   return <div className="pipeline-role-model-selection" data-testid={`pipeline-role-model-selection-${stage}`}>
-    <IonPicker id={`pipeline-role-model-${stage}`} label={`Modelo da fase ${labels[stage]}`} value={modelId}
+    <IonPicker id={`pipeline-role-model-${stage}`} label={t('Modelo da fase {stage}', { stage: labels[stage] })} value={modelId}
       onChange={changeModel} searchable required disabled={disabled || catalogState !== 'ready' || !catalogUsable}
-      options={[{ value: '', label: 'Escolha um modelo' }, ...(catalog?.models ?? []).filter(item => item.backendId === backendOption.id && item.source === catalog?.source).map(item => ({ value: item.id, label: item.displayName || item.id, disabled: item.availability === 'unavailable' }))]} />
-    {catalogState === 'loading' && <p className="muted" role="status">Consultando modelos de {backendOption.name} para {labels[stage]}…</p>}
+      options={[{ value: '', label: t('Escolha um modelo') }, ...(catalog?.models ?? []).filter(item => item.backendId === backendOption.id && item.source === catalog?.source).map(item => ({ value: item.id, label: item.displayName || item.id, disabled: item.availability === 'unavailable' }))]} />
+    {catalogState === 'loading' && <p className="muted" role="status">{t('Consultando modelos de {name} para {stage}…', { name: backendOption.name, stage: labels[stage] })}</p>}
     {catalogState === 'error' && <div className="inline-error" role="alert"><p>{catalogStatus || catalogError}</p></div>}
-    {catalogUsable && <p className="muted pipeline-role-model-provenance">{phaseConfigured && (globalModelSelected || profileModelSelected) ? `Escolhido para ${labels[stage]} em Provedor e modelo por fase · ${backendOption.name}` : globalModelSelected ? `Padrão das Configurações · ${backendOption.name}` : profileModelSelected ? `Modelo configurado no perfil · ${backendOption.name}` : hasConfiguredModel ? `Override local de ${labels[stage]} · ${backendOption.name}` : `Modelo escolhido para ${labels[stage]} · ${backendOption.name}`}</p>}
-    {needsUnfiltered && <label className="authoring-confirm"><input type="checkbox" checked={confirmUnfiltered} onChange={event => updateConfirmation('unfiltered', event.target.checked)} disabled={disabled} /> Confirmo usar a lista geral não filtrada da OpenRouter.</label>}
-    {needsJitLoad && <label className="authoring-confirm"><input type="checkbox" checked={confirmJitLoad} onChange={event => updateConfirmation('jit', event.target.checked)} disabled={disabled} /> Confirmo carregar este modelo do LM Studio antes da geração.</label>}
-    {catalogState === 'ready' && !!catalog && !catalogFresh && <p className="muted" role="status">O catálogo de modelos ficou antigo; atualizando…</p>}
-    {catalogUsable && !selectionReady && <p className="muted" role="status">Escolha um modelo disponível para habilitar {labels[stage]}.</p>}
-    <button type="button" className="touch-target text-button" disabled={disabled} onClick={() => setRefreshRevision(value => value + 1)}>Atualizar catálogo</button>
+    {catalogUsable && <p className="muted pipeline-role-model-provenance">{phaseConfigured && (globalModelSelected || profileModelSelected) ? t('Escolhido para {stage} em Provedor e modelo por fase · {name}', { stage: labels[stage], name: backendOption.name }) : globalModelSelected ? t('Padrão das Configurações · {name}', { name: backendOption.name }) : profileModelSelected ? t('Modelo configurado no perfil · {name}', { name: backendOption.name }) : hasConfiguredModel ? t('Override local de {stage} · {name}', { stage: labels[stage], name: backendOption.name }) : t('Modelo escolhido para {stage} · {name}', { stage: labels[stage], name: backendOption.name })}</p>}
+    {needsUnfiltered && <label className="authoring-confirm"><input type="checkbox" checked={confirmUnfiltered} onChange={event => updateConfirmation('unfiltered', event.target.checked)} disabled={disabled} /> {t('Confirmo usar a lista geral não filtrada da OpenRouter.')}</label>}
+    {needsJitLoad && <label className="authoring-confirm"><input type="checkbox" checked={confirmJitLoad} onChange={event => updateConfirmation('jit', event.target.checked)} disabled={disabled} /> {t('Confirmo carregar este modelo do LM Studio antes da geração.')}</label>}
+    {catalogState === 'ready' && !!catalog && !catalogFresh && <p className="muted" role="status">{t('O catálogo de modelos ficou antigo; atualizando…')}</p>}
+    {catalogUsable && !selectionReady && <p className="muted" role="status">{t('Escolha um modelo disponível para habilitar {stage}.', { stage: labels[stage] })}</p>}
+    <button type="button" className="touch-target text-button" disabled={disabled} onClick={() => setRefreshRevision(value => value + 1)}>{t('Atualizar catálogo')}</button>
   </div>
 }

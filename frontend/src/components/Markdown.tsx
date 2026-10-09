@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'reac
 import { Check, Copy } from 'lucide-react'
 import { parseMarkdown, type Block, type Inline } from '../lib/markdown'
 import { copyText, openExternal } from '../lib/desktop'
+import { useT } from '../i18n'
 
 function Inlines({ nodes }: { nodes: Inline[] }): ReactNode {
   return <>{nodes.map((node, index) => {
@@ -18,6 +19,7 @@ function Inlines({ nodes }: { nodes: Inline[] }): ReactNode {
 }
 
 export function CopyButton({ text, label, className = 'md-copy' }: { text: string; label: string; className?: string }) {
+  const t = useT()
   const [copied, setCopied] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout>>()
   useEffect(() => () => clearTimeout(timer.current), [])
@@ -27,19 +29,21 @@ export function CopyButton({ text, label, className = 'md-copy' }: { text: strin
     clearTimeout(timer.current)
     timer.current = setTimeout(() => setCopied(false), 1600)
   }
-  return <button type="button" className={className} aria-label={copied ? 'Copiado' : label} onClick={() => void copy()}>
-    {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}<span aria-hidden="true">{copied ? 'Copiado' : 'Copiar'}</span>
+  return <button type="button" className={className} aria-label={copied ? t('Copiado') : label} onClick={() => void copy()}>
+    {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}<span aria-hidden="true">{copied ? t('Copiado') : t('Copiar')}</span>
   </button>
 }
 
 function CodeBlock({ lang, value }: { lang: string; value: string }) {
+  const t = useT()
   return <figure className="md-code">
-    <figcaption><span className="mono">{lang || 'texto'}</span><CopyButton text={value} label={`Copiar código${lang ? ` ${lang}` : ''}`} /></figcaption>
-    <pre tabIndex={0} aria-label={`Código${lang ? ` ${lang}` : ''}`}><code>{value}</code></pre>
+    <figcaption><span className="mono">{lang || t('texto')}</span><CopyButton text={value} label={lang ? t('Copiar código {lang}', { lang }) : t('Copiar código')} /></figcaption>
+    <pre tabIndex={0} aria-label={lang ? t('Código {lang}', { lang }) : t('Código')}><code>{value}</code></pre>
   </figure>
 }
 
 function BlockView({ block }: { block: Block }): ReactNode {
+  const t = useT()
   switch (block.t) {
     case 'p': return <p><Inlines nodes={block.c} /></p>
     case 'h': {
@@ -54,7 +58,7 @@ function BlockView({ block }: { block: Block }): ReactNode {
       const Tag = block.ordered ? 'ol' : 'ul'
       return <Tag start={block.ordered && block.start !== 1 ? block.start : undefined}>{block.items.map((item, index) => <li key={index}><Blocks blocks={item} /></li>)}</Tag>
     }
-    case 'table': return <div className="md-table" role="region" aria-label="Tabela" tabIndex={0}><table>
+    case 'table': return <div className="md-table" role="region" aria-label={t('Tabela')} tabIndex={0}><table>
       <thead><tr>{block.head.map((cell, index) => <th key={index} scope="col" style={block.align[index] ? { textAlign: block.align[index]! } : undefined}><Inlines nodes={cell} /></th>)}</tr></thead>
       <tbody>{block.rows.map((row, index) => <tr key={index}>{row.map((cell, column) => <td key={column} style={block.align[column] ? { textAlign: block.align[column]! } : undefined}><Inlines nodes={cell} /></td>)}</tr>)}</tbody>
     </table></div>

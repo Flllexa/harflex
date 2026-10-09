@@ -2,10 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Bug, Check, ChevronDown, CircleAlert, CircleDashed, FlaskConical, Hammer, LoaderCircle, MessageSquare, MonitorPlay, Play, RefreshCw, ScanSearch, Sparkles, TestTube2, Wrench } from 'lucide-react'
 import { errorMessage, isDocumentCLI, type Backend, type BackendOption, type Pipeline, type PipelineRoleModelSelection, type QALoop } from '../../lib/backend'
 import { IonPicker } from '../../components/IonPicker'
+import { useT } from '../../i18n'
 import { PipelineRoleModelPicker } from './PipelineRoleModelPicker'
 import { StageActivityPane } from './StageActivityPane'
 import { QALiveRun } from './QALiveRun'
+import { qaLoopText } from './qaLoopText'
 import './qaLab.css'
+
+type Translate = ReturnType<typeof useT>
 
 type Check = { name: string; kind: string; command?: string; status: 'passed' | 'failed' | 'skipped'; summary?: string }
 type Report = { passed?: boolean; checks?: Check[]; findings?: string[]; improvements?: string[]; criteria?: { criterion: string; evidence: string }[] }
@@ -28,8 +32,6 @@ type Props = {
 }
 
 const kindIcons: Record<string, typeof TestTube2> = { build: Hammer, unit: TestTube2, e2e: MonitorPlay, run: Play, lint: ScanSearch, other: Wrench }
-const kindLabels: Record<string, string> = { build: 'Build', unit: 'Testes unitários', e2e: 'E2E', run: 'Execução do app', lint: 'Lint', other: 'Verificação' }
-const statusLabels = { passed: 'Passou', failed: 'Falhou', skipped: 'Não rodou' }
 
 function readReport(content?: string): Report | undefined {
   if (!content) return undefined
@@ -37,7 +39,7 @@ function readReport(content?: string): Report | undefined {
 }
 
 const eligible = (item: BackendOption) => item.available && (item.kind === 'api' || isDocumentCLI(item.id) && item.professionalAvailable === true)
-const optionLabel = (item: BackendOption) => `${item.name}${!item.available ? ' · indisponível' : isDocumentCLI(item.id) && !item.professionalAvailable ? ' · indisponível no SDD' : ''}`
+const optionLabel = (item: BackendOption, translate: Translate) => `${item.name}${!item.available ? ` · ${translate('indisponível')}` : isDocumentCLI(item.id) && !item.professionalAvailable ? ` · ${translate('indisponível no SDD')}` : ''}`
 
 function RoleChoice({ backend, backends, workspaceId, stage, label, value, onChange, onSelection, onTouch, defaults, disabled }: {
   backend: Backend; backends: BackendOption[]; workspaceId?: string; stage: 'code' | 'eval'; label: string; disabled: boolean
@@ -46,11 +48,12 @@ function RoleChoice({ backend, backends, workspaceId, stage, label, value, onCha
   /** The person used this card (pointer or keyboard). */
   onTouch?: () => void
 }) {
+  const t = useT()
   const option = backends.find(item => item.id === value.backendId)
   const applies = defaults.phaseConfigured && value.backendId === defaults.backendId
   return <div className="qa-role" onPointerDownCapture={onTouch} onKeyDownCapture={onTouch}>
     <IonPicker id={`qa-role-${stage}`} label={label} value={value.backendId} disabled={disabled} onChange={backendId => onChange({ backendId })}
-      options={[{ value: '', label: 'Escolha um executor' }, ...backends.map(item => ({ value: item.id, label: optionLabel(item), disabled: !eligible(item) }))]} />
+      options={[{ value: '', label: t('Escolha um executor') }, ...backends.map(item => ({ value: item.id, label: optionLabel(item, t), disabled: !eligible(item) }))]} />
     {option && <PipelineRoleModelPicker key={`${stage}:${value.backendId}`} backend={backend} workspaceId={workspaceId} stage={stage} backendOption={option}
       defaultModelBackendId={applies || !defaults.phaseConfigured ? defaults.defaultModelBackendId : ''} defaultModelId={applies || !defaults.phaseConfigured ? defaults.defaultModelId : ''} phaseConfigured={applies} disabled={disabled}
       onSelectionChange={selection => onSelection(value.backendId, selection)} />}
@@ -58,8 +61,9 @@ function RoleChoice({ backend, backends, workspaceId, stage, label, value, onCha
 }
 
 function QARing({ passed, total }: { passed: number; total: number }) {
+  const t = useT()
   const radius = 26, circumference = 2 * Math.PI * radius, share = total ? passed / total : 0
-  return <div className="qa-ring" role="img" aria-label={`${passed} de ${total} verificações passaram`}>
+  return <div className="qa-ring" role="img" aria-label={t('{passed} de {total} verificações passaram', { passed, total })}>
     <svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r={radius} className="qa-ring-track" /><circle cx="32" cy="32" r={radius} className="qa-ring-value" strokeDasharray={`${circumference * share} ${circumference}`} /></svg>
     <span><strong>{passed}</strong>/{total}</span>
   </div>
@@ -67,6 +71,9 @@ function QARing({ passed, total }: { passed: number; total: number }) {
 
 /** QA as a lab: it runs the project's checks, lists failures and improvements, fixes the chosen ones and runs again. */
 export function PipelineQALab({ backend, backends, run, workspaceId, roleDefaults, onPipelineChange, onOpenSession, onLoopChange, onSettings, onRoleChosen, resumable = false }: Props) {
+  const t = useT()
+  const kindLabels: Record<string, string> = { build: 'Build', unit: t('Testes unitários'), e2e: 'E2E', run: t('Execução do app'), lint: 'Lint', other: t('Verificação') }
+  const statusLabels = { passed: t('Passou'), failed: t('Falhou'), skipped: t('Não rodou') }
   const [loop, setLoop] = useState<QALoop>()
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
@@ -144,14 +151,14 @@ export function PipelineQALab({ backend, backends, run, workspaceId, roleDefault
   const canApprove = waiting && report?.passed === true && !running && !!evalArtifact?.contentDigest
 
   async function start() {
-    if (!qaRole.selection) { setError('Escolha um modelo confirmado para o QA.'); return }
+    if (!qaRole.selection) { setError(t('Escolha um modelo confirmado para o QA.')); return }
     setPending(true); setError('')
     try { const state = await backend.startPipelineQA(run.id, { backendId: qaRole.backendId, selection: qaRole.selection }); setLoop(state); onLoopChange?.(state) }
     catch (failure) { setError(errorMessage(failure)) } finally { setPending(false) }
   }
 
   async function fix() {
-    if (!codeRole.selection || !qaRole.selection) { setError('Escolha os modelos do Code e do QA para as correções.'); return }
+    if (!codeRole.selection || !qaRole.selection) { setError(t('Escolha os modelos do Code e do QA para as correções.')); return }
     setPending(true); setError('')
     try {
       const state = await backend.fixPipelineFindings({ pipelineId: run.id, findings: findings.filter((_, index) => chosenFindings.has(index)), improvements: improvements.filter((_, index) => chosenImprovements.has(index)), note: note.trim(),
@@ -161,7 +168,7 @@ export function PipelineQALab({ backend, backends, run, workspaceId, roleDefault
   }
 
   async function resume() {
-    if (!codeRole.selection || !qaRole.selection) { setError('Escolha os modelos do Code e do QA para as correções.'); return }
+    if (!codeRole.selection || !qaRole.selection) { setError(t('Escolha os modelos do Code e do QA para as correções.')); return }
     setPending(true); setError('')
     try { const state = await backend.resumePipelineFixes({ pipelineId: run.id, coder: { backendId: codeRole.backendId, selection: codeRole.selection }, evaluator: { backendId: qaRole.backendId, selection: qaRole.selection } }); setLoop(state); onLoopChange?.(state) }
     catch (failure) { setError(errorMessage(failure)) } finally { setPending(false) }
@@ -184,62 +191,62 @@ export function PipelineQALab({ backend, backends, run, workspaceId, roleDefault
 
   const toggle = (set: Set<number>, index: number, update: (next: Set<number>) => void) => { const next = new Set(set); if (next.has(index)) next.delete(index); else next.add(index); update(next) }
   const verdict = running ? 'running' : !report ? 'idle' : report.passed ? 'passed' : 'failed'
-  const verdictText = { running: loop?.phase === 'fixing' ? `Corrigindo · rodada ${loop.round}` : `QA rodando · rodada ${loop?.round ?? 1}`, idle: 'Pronto para rodar', passed: 'Passou', failed: 'Encontrou problemas' }[verdict]
+  const verdictText = { running: loop?.phase === 'fixing' ? t('Corrigindo · rodada {round}', { round: loop.round }) : t('QA rodando · rodada {round}', { round: loop?.round ?? 1 }), idle: t('Pronto para rodar'), passed: t('Passou'), failed: t('Encontrou problemas') }[verdict]
 
   return <section className="qa-lab" aria-labelledby="qa-lab-title">
     <header className="qa-lab-header">
       <span className={`qa-lab-badge is-${verdict}`} aria-hidden="true">{verdict === 'running' ? <LoaderCircle /> : verdict === 'passed' ? <Check /> : verdict === 'failed' ? <CircleAlert /> : <FlaskConical />}</span>
-      <div><h3 id="qa-lab-title" className="visually-hidden">Laboratório de QA</h3><strong className="qa-lab-verdict">{report && !testing ? 'Relatório do laboratório' : running ? 'O laboratório está trabalhando' : 'Laboratório pronto'}</strong><p className="muted">{report && !testing ? `${stale ? 'Rodada anterior · ' : ''}${checks.filter(item => item.status === 'passed').length} de ${checks.length} verificações passaram · ${findings.length} ${findings.length === 1 ? 'falha' : 'falhas'} · ${improvements.length} ${improvements.length === 1 ? 'melhoria sugerida' : 'melhorias sugeridas'}` : 'Nada do que o QA instala ou gera vai para o seu projeto.'}</p></div>
+      <div><h3 id="qa-lab-title" className="visually-hidden">{t('Laboratório de QA')}</h3><strong className="qa-lab-verdict">{report && !testing ? t('Relatório do laboratório') : running ? t('O laboratório está trabalhando') : t('Laboratório pronto')}</strong><p className="muted">{report && !testing ? `${stale ? `${t('Rodada anterior')} · ` : ''}${t('{passed} de {total} verificações passaram', { passed: checks.filter(item => item.status === 'passed').length, total: checks.length })} · ${findings.length === 1 ? t('{count} falha', { count: findings.length }) : t('{count} falhas', { count: findings.length })} · ${improvements.length === 1 ? t('{count} melhoria sugerida', { count: improvements.length }) : t('{count} melhorias sugeridas', { count: improvements.length })}` : t('Nada do que o QA instala ou gera vai para o seu projeto.')}</p></div>
       <span className={`qa-lab-status is-${verdict}`} role="status">{verdictText}</span>
     </header>
 
-    {!backends.some(eligible) ? <div className="authoring-provider-empty" role="alert"><strong>Code e QA precisam de um provedor API</strong><p>Configure um perfil API, ou habilite o Codex ou o Claude Code para o SDD, para o QA rodar as verificações.</p>{onSettings && <button type="button" className="touch-target secondary-button" onClick={onSettings}>Configurar provedor API</button>}</div>
-    : (run.currentStage === 'eval' || running || resumable) && <>{backends.some(item => item.available && isDocumentCLI(item.id) && !item.professionalAvailable) && <p className="project-warning" role="status">O Codex CLI pode ler arquivos fora do projeto mesmo em sandbox somente leitura; aqui ele fica disponível só quando o Harflex controla as ferramentas dele.</p>}
+    {!backends.some(eligible) ? <div className="authoring-provider-empty" role="alert"><strong>{t('Code e QA precisam de um provedor API')}</strong><p>{t('Configure um perfil API, ou habilite o Codex ou o Claude Code para o SDD, para o QA rodar as verificações.')}</p>{onSettings && <button type="button" className="touch-target secondary-button" onClick={onSettings}>{t('Configurar provedor API')}</button>}</div>
+    : (run.currentStage === 'eval' || running || resumable) && <>{backends.some(item => item.available && isDocumentCLI(item.id) && !item.professionalAvailable) && <p className="project-warning" role="status">{t('O Codex CLI pode ler arquivos fora do projeto mesmo em sandbox somente leitura; aqui ele fica disponível só quando o Harflex controla as ferramentas dele.')}</p>}
     <div className="qa-lab-roles">
-      <RoleChoice backend={backend} backends={backends} workspaceId={workspaceId} stage="eval" label="Quem testa (QA)" value={qaRole} onChange={pickQA} onSelection={modelFor('eval', setQARole)} onTouch={() => { picked.current.eval = true }} defaults={qaDefaults} disabled={running || pending} />
-      <RoleChoice backend={backend} backends={backends} workspaceId={workspaceId} stage="code" label="Quem corrige (Code)" value={codeRole} onChange={pickCode} onSelection={modelFor('code', setCodeRole)} onTouch={() => { picked.current.code = true }} defaults={codeDefaults} disabled={running || pending} />
+      <RoleChoice backend={backend} backends={backends} workspaceId={workspaceId} stage="eval" label={t('Quem testa (QA)')} value={qaRole} onChange={pickQA} onSelection={modelFor('eval', setQARole)} onTouch={() => { picked.current.eval = true }} defaults={qaDefaults} disabled={running || pending} />
+      <RoleChoice backend={backend} backends={backends} workspaceId={workspaceId} stage="code" label={t('Quem corrige (Code)')} value={codeRole} onChange={pickCode} onSelection={modelFor('code', setCodeRole)} onTouch={() => { picked.current.code = true }} defaults={codeDefaults} disabled={running || pending} />
     </div></>}
 
     {running && loop && <div className="qa-lab-live" aria-live="polite">
-      <div className="qa-lab-live-row"><LoaderCircle className="qa-spin" aria-hidden="true" /><strong>{loop.message}</strong>
-        {loop.sessionId && onOpenSession && <button type="button" className="touch-target text-button" onClick={() => onOpenSession(loop.sessionId!)}><MessageSquare aria-hidden="true" />Ver a conversa</button>}</div>
+      <div className="qa-lab-live-row"><LoaderCircle className="qa-spin" aria-hidden="true" /><strong>{qaLoopText(loop.message)}</strong>
+        {loop.sessionId && onOpenSession && <button type="button" className="touch-target text-button" onClick={() => onOpenSession(loop.sessionId!)}><MessageSquare aria-hidden="true" />{t('Ver a conversa')}</button>}</div>
       {loop.phase === 'fixing' && <StageActivityPane key={`${run.id}:${loop.round}:${loop.sessionId ?? ''}`} backend={backend} pipeline={run} stage="code" />}
     </div>}
     {testing && <QALiveRun key={loop?.sessionId ?? 'starting'} backend={backend} sessionId={loop?.sessionId} />}
-    {!running && loop?.phase === 'failed' && run.stageStatus[run.currentStage] !== 'waiting_user' && <div className="qa-lab-alert" role="alert"><CircleAlert aria-hidden="true" /><p>{loop.message}</p>
-      {loop.sessionId && run.currentStage === 'eval' && run.stageStatus.eval === 'active' && <button type="button" className="touch-target secondary-button" onClick={() => void readAgain()} disabled={pending}>{pending ? 'Lendo…' : 'Ler o relatório de novo'}</button>}
-      {loop.sessionId && onOpenSession && <button type="button" className="touch-target secondary-button" onClick={() => onOpenSession(loop.sessionId!)}>Ver a conversa</button>}</div>}
+    {!running && loop?.phase === 'failed' && run.stageStatus[run.currentStage] !== 'waiting_user' && <div className="qa-lab-alert" role="alert"><CircleAlert aria-hidden="true" /><p>{qaLoopText(loop.message)}</p>
+      {loop.sessionId && run.currentStage === 'eval' && run.stageStatus.eval === 'active' && <button type="button" className="touch-target secondary-button" onClick={() => void readAgain()} disabled={pending}>{pending ? t('Lendo…') : t('Ler o relatório de novo')}</button>}
+      {loop.sessionId && onOpenSession && <button type="button" className="touch-target secondary-button" onClick={() => onOpenSession(loop.sessionId!)}>{t('Ver a conversa')}</button>}</div>}
 
     {!report && !running && backends.some(eligible) && <div className="qa-lab-empty">
       <FlaskConical aria-hidden="true" />
-      <p>Quando você rodar, o QA descobre os comandos do projeto, executa as verificações e traz um relatório com falhas e melhorias.</p>
-      <button type="button" className="touch-target primary-button" onClick={() => void start()} disabled={pending || !canRun}><Play aria-hidden="true" />{pending ? 'Iniciando…' : 'Rodar QA'}</button>
+      <p>{t('Quando você rodar, o QA descobre os comandos do projeto, executa as verificações e traz um relatório com falhas e melhorias.')}</p>
+      <button type="button" className="touch-target primary-button" onClick={() => void start()} disabled={pending || !canRun}><Play aria-hidden="true" />{pending ? t('Iniciando…') : t('Rodar QA')}</button>
     </div>}
 
     {resumable && !running && backends.some(eligible) && <div className="qa-lab-rerun" role="status">
       <RefreshCw aria-hidden="true" />
-      <p><strong>As correções pararam no meio.</strong> As falhas do QA já voltaram para o Code, mas a rodada do Coder não começou. Continue de onde parou.</p>
-      <button type="button" className="touch-target primary-button" onClick={() => void resume()} disabled={pending || !canResume}><Wrench aria-hidden="true" />{pending ? 'Retomando…' : 'Continuar as correções'}</button>
+      <p><strong>{t('As correções pararam no meio.')}</strong> {t('As falhas do QA já voltaram para o Code, mas a rodada do Coder não começou. Continue de onde parou.')}</p>
+      <button type="button" className="touch-target primary-button" onClick={() => void resume()} disabled={pending || !canResume}><Wrench aria-hidden="true" />{pending ? t('Retomando…') : t('Continuar as correções')}</button>
     </div>}
 
     {stale && !running && backends.some(eligible) && <div className="qa-lab-rerun" role="status">
       <RefreshCw aria-hidden="true" />
-      <p><strong>O Code mudou depois deste relatório.</strong> Rode o QA de novo para testar a versão nova; o relatório abaixo é da rodada anterior.</p>
-      <button type="button" className="touch-target primary-button" onClick={() => void start()} disabled={pending || !canRun}><Play aria-hidden="true" />{pending ? 'Iniciando…' : 'Rodar QA de novo'}</button>
+      <p><strong>{t('O Code mudou depois deste relatório.')}</strong> {t('Rode o QA de novo para testar a versão nova; o relatório abaixo é da rodada anterior.')}</p>
+      <button type="button" className="touch-target primary-button" onClick={() => void start()} disabled={pending || !canRun}><Play aria-hidden="true" />{pending ? t('Iniciando…') : t('Rodar QA de novo')}</button>
     </div>}
 
     {report && !testing && <>
-      {checks.length === 0 ? <p className="muted">Este relatório não traz verificações executadas.</p> : <>
+      {checks.length === 0 ? <p className="muted">{t('Este relatório não traz verificações executadas.')}</p> : <>
         <div className="qa-summary">
           <QARing passed={counts.passed} total={checks.length} />
           <div className="qa-summary-body">
-            <div className="qa-summary-bar" role="img" aria-label={`${counts.passed} passaram, ${counts.failed} falharam, ${counts.skipped} não rodaram`}>
+            <div className="qa-summary-bar" role="img" aria-label={t('{passed} passaram, {failed} falharam, {skipped} não rodaram', { passed: counts.passed, failed: counts.failed, skipped: counts.skipped })}>
               {counts.passed > 0 && <i className="is-passed" style={{ flexGrow: counts.passed }} />}{counts.failed > 0 && <i className="is-failed" style={{ flexGrow: counts.failed }} />}{counts.skipped > 0 && <i className="is-skipped" style={{ flexGrow: counts.skipped }} />}
             </div>
-            <div className="qa-summary-legend"><span className="is-passed">{counts.passed} passaram</span><span className="is-failed">{counts.failed} falharam</span><span className="is-skipped">{counts.skipped} não rodaram</span></div>
+            <div className="qa-summary-legend"><span className="is-passed">{t('{count} passaram', { count: counts.passed })}</span><span className="is-failed">{t('{count} falharam', { count: counts.failed })}</span><span className="is-skipped">{t('{count} não rodaram', { count: counts.skipped })}</span></div>
           </div>
         </div>
-        <ol className="qa-run" aria-label="Verificações">{checks.map((check, index) => { const Icon = kindIcons[check.kind] ?? Wrench; const open = expanded.has(index); return <li key={index} className={`qa-run-row is-${check.status}${open ? ' is-open' : ''}`}>
+        <ol className="qa-run" aria-label={t('Verificações')}>{checks.map((check, index) => { const Icon = kindIcons[check.kind] ?? Wrench; const open = expanded.has(index); return <li key={index} className={`qa-run-row is-${check.status}${open ? ' is-open' : ''}`}>
           <button type="button" className="qa-run-head" aria-expanded={open} onClick={() => setExpanded(current => { const next = new Set(current); if (next.has(index)) next.delete(index); else next.add(index); return next })}>
             <span className="qa-run-status" aria-hidden="true">{check.status === 'passed' ? <Check /> : check.status === 'failed' ? <CircleAlert /> : <CircleDashed />}</span>
             <strong>{check.name}</strong>
@@ -256,26 +263,26 @@ export function PipelineQALab({ backend, backends, run, workspaceId, roleDefault
 
       <div className="qa-lab-lists">
         <section className="qa-list is-findings" aria-labelledby="qa-findings-title">
-          <h4 id="qa-findings-title"><Bug aria-hidden="true" />Falhas <span>{findings.length}</span></h4>
-          {findings.length === 0 ? <p className="muted">Nenhuma falha encontrada.</p> : <ul>{findings.map((item, index) => <li key={index}>{waiting ? <label><input type="checkbox" checked={chosenFindings.has(index)} disabled={running} onChange={() => toggle(chosenFindings, index, setChosenFindings)} /><span>{item}</span></label> : <p className="qa-list-item">{item}</p>}</li>)}</ul>}
+          <h4 id="qa-findings-title"><Bug aria-hidden="true" />{t('Falhas')} <span>{findings.length}</span></h4>
+          {findings.length === 0 ? <p className="muted">{t('Nenhuma falha encontrada.')}</p> : <ul>{findings.map((item, index) => <li key={index}>{waiting ? <label><input type="checkbox" checked={chosenFindings.has(index)} disabled={running} onChange={() => toggle(chosenFindings, index, setChosenFindings)} /><span>{item}</span></label> : <p className="qa-list-item">{item}</p>}</li>)}</ul>}
         </section>
         <section className="qa-list is-improvements" aria-labelledby="qa-improvements-title">
-          <h4 id="qa-improvements-title"><Sparkles aria-hidden="true" />Melhorias sugeridas <span>{improvements.length}</span></h4>
-          {improvements.length === 0 ? <p className="muted">Nenhuma melhoria sugerida.</p> : <ul>{improvements.map((item, index) => <li key={index}>{waiting ? <label><input type="checkbox" checked={chosenImprovements.has(index)} disabled={running} onChange={() => toggle(chosenImprovements, index, setChosenImprovements)} /><span>{item}</span></label> : <p className="qa-list-item">{item}</p>}</li>)}</ul>}
+          <h4 id="qa-improvements-title"><Sparkles aria-hidden="true" />{t('Melhorias sugeridas')} <span>{improvements.length}</span></h4>
+          {improvements.length === 0 ? <p className="muted">{t('Nenhuma melhoria sugerida.')}</p> : <ul>{improvements.map((item, index) => <li key={index}>{waiting ? <label><input type="checkbox" checked={chosenImprovements.has(index)} disabled={running} onChange={() => toggle(chosenImprovements, index, setChosenImprovements)} /><span>{item}</span></label> : <p className="qa-list-item">{item}</p>}</li>)}</ul>}
         </section>
       </div>
 
-      {!!report.criteria?.length && <details className="qa-lab-criteria"><summary>Critérios de aceite e evidências ({report.criteria.length})</summary><dl>{report.criteria.map((item, index) => <div key={index}><dt>{item.criterion}</dt><dd>{item.evidence}</dd></div>)}</dl></details>}
+      {!!report.criteria?.length && <details className="qa-lab-criteria"><summary>{t('Critérios de aceite e evidências ({count})', { count: report.criteria.length })}</summary><dl>{report.criteria.map((item, index) => <div key={index}><dt>{item.criterion}</dt><dd>{item.evidence}</dd></div>)}</dl></details>}
 
       {waiting && <div className="qa-lab-decide">
-        <label className="field">Algo mais para corrigir (opcional)<textarea value={note} onChange={event => setNote(event.target.value)} rows={2} maxLength={4000} placeholder="Ex.: deixe a mensagem de erro mais clara" disabled={running || pending} /></label>
+        <label className="field">{t('Algo mais para corrigir (opcional)')}<textarea value={note} onChange={event => setNote(event.target.value)} rows={2} maxLength={4000} placeholder={t('Ex.: deixe a mensagem de erro mais clara')} disabled={running || pending} /></label>
         <div className="pipeline-actions">
-          <button type="button" className={`touch-target ${report.passed ? 'secondary-button' : 'primary-button'}`} onClick={() => void fix()} disabled={pending || !canFix}><Wrench aria-hidden="true" />{chosenCount ? `Corrigir os selecionados (${chosenCount})` : 'Corrigir os selecionados'}</button>
-          {report.passed && <button type="button" className="touch-target primary-button" onClick={() => void approve()} disabled={pending || !canApprove}><Check aria-hidden="true" />Aprovar QA e seguir para PRs</button>}
+          <button type="button" className={`touch-target ${report.passed ? 'secondary-button' : 'primary-button'}`} onClick={() => void fix()} disabled={pending || !canFix}><Wrench aria-hidden="true" />{chosenCount ? t('Corrigir os selecionados ({count})', { count: chosenCount }) : t('Corrigir os selecionados')}</button>
+          {report.passed && <button type="button" className="touch-target primary-button" onClick={() => void approve()} disabled={pending || !canApprove}><Check aria-hidden="true" />{t('Aprovar QA e seguir para PRs')}</button>}
         </div>
-        {chosenCount === 0 && <p className="muted qa-lab-hint" role="status">Marque as falhas ou melhorias que quer corrigir, ou escreva o que mudar.</p>}
-        {chosenCount > 0 && (!codeRole.selection || !qaRole.selection) && <p className="muted qa-lab-hint" role="status">Confirmando os modelos de quem corrige e de quem testa…</p>}
-        <p className="muted qa-lab-hint">As correções voltam ao Code na mesma cópia e o QA roda de novo sozinho, até passar. Só para e chama você se as mesmas falhas voltarem.</p>
+        {chosenCount === 0 && <p className="muted qa-lab-hint" role="status">{t('Marque as falhas ou melhorias que quer corrigir, ou escreva o que mudar.')}</p>}
+        {chosenCount > 0 && (!codeRole.selection || !qaRole.selection) && <p className="muted qa-lab-hint" role="status">{t('Confirmando os modelos de quem corrige e de quem testa…')}</p>}
+        <p className="muted qa-lab-hint">{t('As correções voltam ao Code na mesma cópia e o QA roda de novo sozinho, até passar. Só para e chama você se as mesmas falhas voltarem.')}</p>
       </div>}
     </>}
     {error && <p className="form-error" role="alert">{error}</p>}

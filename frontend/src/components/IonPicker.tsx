@@ -3,6 +3,7 @@ import { useContext, useLayoutEffect, useRef, useState } from 'react'
 import { Button, ComboBox, ComboBoxStateContext, Group, Input, Label, ListBox, ListBoxItem, Popover, Select, SelectValue } from 'react-aria-components'
 import { useFilter } from 'react-aria-components/Autocomplete'
 import { I18nProvider } from 'react-aria-components/I18nProvider'
+import { useT } from '../i18n'
 import './IonPicker.css'
 
 export type IonOption = { value: string; label: string; disabled?: boolean }
@@ -31,11 +32,12 @@ function OpenComboBoxAfterInput({ revision }: { revision: number }) {
 }
 
 export function IonPicker({ id, label, value, onChange, options, required = false, disabled = false, searchable = false, compact = false }: IonPickerProps) {
+  const t = useT()
   const { contains } = useFilter({ sensitivity: 'base' })
   const items = options.map(option => ({ ...option, id: keyOf(option.value) }))
   const current = options.find(option => option.value === value)
   const selected = current && (!required || value !== '') ? keyOf(value) : null
-  const placeholder = options.find(option => option.value === '')?.label ?? 'Escolha uma opção'
+  const placeholder = options.find(option => option.value === '')?.label ?? t('Escolha uma opção')
   const [inputText, setInputText] = useState(value === '' ? '' : current?.label ?? '')
   const [openRequestRevision, setOpenRequestRevision] = useState(0)
   const lastLocalValue = useRef(value)
@@ -61,7 +63,7 @@ export function IonPicker({ id, label, value, onChange, options, required = fals
     setInputText(text)
     if (text === '' && value !== '' && options.some(option => option.value === '')) { lastLocalValue.current = ''; onChange('') }
   }
-  const list = <ListBox className="ion-picker-list" items={items} renderEmptyState={() => <span className="ion-picker-empty">Nenhuma opção encontrada.</span>}>
+  const list = <ListBox className="ion-picker-list" items={items} renderEmptyState={() => <span className="ion-picker-empty">{t('Nenhuma opção encontrada.')}</span>}>
     {item => <ListBoxItem id={item.id} textValue={item.label} isDisabled={item.disabled} className="ion-picker-option"><span title={item.label}>{item.label}</span></ListBoxItem>}
   </ListBox>
   const popover = <Popover className="ion-picker-popover" data-ion-picker-popover placement="bottom start" offset={4}>{list}</Popover>
@@ -82,7 +84,7 @@ export function IonPicker({ id, label, value, onChange, options, required = fals
             onPointerUp={event => { if (current && event.currentTarget.value === current.label) event.currentTarget.select() }}
             onFocus={event => { if (current && event.currentTarget.value === current.label) event.currentTarget.select() }} onKeyDown={event => {
             if (event.key === 'ArrowDown') state?.open(null, 'manual')
-          }} /><Button type="button" className="ion-picker-chevron" aria-label={`Abrir opções de ${label}`}><ChevronDown aria-hidden="true" /></Button></Group>
+          }} /><Button type="button" className="ion-picker-chevron" aria-label={t('Abrir opções de {label}', { label })}><ChevronDown aria-hidden="true" /></Button></Group>
         </>
       }}</ComboBoxStateContext.Consumer>
       {popover}

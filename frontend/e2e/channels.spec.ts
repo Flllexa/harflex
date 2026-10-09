@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './locale'
 
 for (const width of [320, 768, 900, 1440]) {
   test(`local channel persists deliberate file exchange at ${width}px`, async ({ page }, info) => {

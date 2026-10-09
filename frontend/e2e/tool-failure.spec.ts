@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './locale'
 import { undersizedTargets } from './targets'
 
 // A tool that cannot do what the model asked (a file that does not exist yet) tells the model and the run

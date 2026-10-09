@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { IonPicker } from '../../components/IonPicker'
 import { NO_CATALOG_TIME, errorCode, errorMessage, type APIModelSelection, type AuthoringModelConsentBinding, type AuthoringStageModelPreference, type Backend, type ModelCatalogResult, type Pipeline, type ProviderProfile, type SaveAuthoringStageModelPreferenceInput } from '../../lib/backend'
+import { useT } from '../../i18n'
 
 type Stage = 'spec' | 'plan'
 type Draft = { modelMode: 'inherit' | 'override'; effortMode: 'inherit' | 'automatic' | 'explicit'; explicitEffort: string; profileId: string; modelId: string }
@@ -8,11 +9,12 @@ type GenerationConsent = { confirmJitLoad: boolean; confirmUnfiltered: boolean; 
 type Props = { backend: Backend; pipeline: Pipeline; stage: Stage; disabled: boolean; consentResetEpoch: number; onReadinessChange: (identity: string, ready: boolean) => void; onGenerationConsentChange: (identity: string, consent: GenerationConsent) => void; onSettings?: () => void }
 const supportedSources = new Set(['openai_models', 'openrouter_account', 'openrouter_general_unfiltered', 'lm_studio_native', 'ollama_tags'])
 const emptySelection: APIModelSelection = { executor: 'api', backendId: '', profileId: '', modelId: '', catalogRevision: '', source: '', destination: '', checkedAt: NO_CATALOG_TIME, credentialToken: '', reasoningEffort: '', confirmUnverifiedManual: false, confirmUnfiltered: false, confirmJitLoad: false, maxOutputTokens: 4096 }
-const sourceName = (source: string) => source === 'brainstorm' ? 'Brainstorm' : source === 'global_default' ? 'Configurações' : source === 'phase_override' ? 'esta fase' : source || 'Configurações'
+const sourceName = (source: string, t: (source: string) => string) => source === 'brainstorm' ? 'Brainstorm' : source === 'global_default' ? t('Configurações') : source === 'phase_override' ? t('esta fase') : source || t('Configurações')
 const choiceKey = (catalog: ModelCatalogResult, modelId: string) => JSON.stringify([catalog.backendId, modelId, catalog.source, catalog.destination, catalog.profileRevision, catalog.models.find(model => model.id === modelId)?.loaded ?? null])
 const freshAt = (time: string) => { const age = Date.now() - Date.parse(time); return Number.isFinite(age) && age <= 300_000 && age >= -60_000 }
 
 export function AuthoringStageModelControls({ backend, pipeline, stage, disabled, consentResetEpoch, onReadinessChange, onGenerationConsentChange, onSettings }: Props) {
+  const t = useT()
   const identity = `${pipeline.workspaceId}:${pipeline.id}:${stage}:${pipeline.discoveryFrozenVersion}`
   const scope = useRef(identity)
   const preferenceEpoch = useRef(0)
@@ -52,7 +54,7 @@ export function AuthoringStageModelControls({ backend, pipeline, stage, disabled
     const current = () => ticket === preferenceEpoch.current && scope.current === identity
     void backend.getAuthoringStageModelPreference({ pipelineId: pipeline.id, stage }).then(value => {
       if (!current()) return
-      if (value.pipelineId !== pipeline.id || value.stage !== stage) throw new Error('Preferência fora do contexto da fase atual.')
+      if (value.pipelineId !== pipeline.id || value.stage !== stage) throw new Error(t('Preferência fora do contexto da fase atual.'))
       setPreference(value)
       setDraft({ modelMode: value.modelMode, effortMode: value.effortMode, explicitEffort: value.explicitEffort, profileId: value.modelMode === 'override' ? value.selection.backendId : '', modelId: value.modelMode === 'override' ? value.selection.modelId : '' })
       setPreferenceError(''); setSaveError('')
@@ -110,35 +112,35 @@ export function AuthoringStageModelControls({ backend, pipeline, stage, disabled
     if (!preference || !draft || disabled || profilesLoading) return
     const profileId = draft.modelMode === 'override' ? draft.profileId : preference.selection.backendId
     if (!profileId || !profiles.some(profile => profile.id === profileId)) {
-      setCatalog(undefined); setCatalogState('error'); setCatalogMessage('Selecione um provedor de API configurado antes de consultar modelos.')
+      setCatalog(undefined); setCatalogState('error'); setCatalogMessage(t('Selecione um provedor de API configurado antes de consultar modelos.'))
       return
     }
     const ticket = ++catalogEpoch.current
     const current = () => ticket === catalogEpoch.current && scope.current === identity
     catalogAbort.current?.abort()
     const controller = new AbortController(); catalogAbort.current = controller
-    setCatalog(undefined); setCatalogState('loading'); setCatalogMessage('Consultando o catálogo completo…'); setConfirmUnfiltered(''); setConfirmJit('')
+    setCatalog(undefined); setCatalogState('loading'); setCatalogMessage(t('Consultando o catálogo completo…')); setConfirmUnfiltered(''); setConfirmJit('')
     try {
       const result = await backend.queryHTTPModelCatalog({ profileId, searchTerm: '', refresh: true }, controller.signal)
       if (!current()) return
       let failure = ''
-      if (!result.complete || result.status !== 'complete' || result.nextCursor !== '') failure = 'O catálogo está parcial ou incompleto. Atualize-o antes de escolher modelo ou esforço.'
-      else if (!freshAt(result.checkedAt)) failure = 'O catálogo ficou desatualizado. Consulte os modelos novamente.'
-      else if (result.backendId !== profileId || !result.destination || !result.profileRevision || !supportedSources.has(result.source) || !result.credentialToken || !/^[a-f0-9]{64}$/.test(result.credentialToken)) failure = 'O perfil ou a credencial mudou; nenhum modelo foi substituído.'
+      if (!result.complete || result.status !== 'complete' || result.nextCursor !== '') failure = t('O catálogo está parcial ou incompleto. Atualize-o antes de escolher modelo ou esforço.')
+      else if (!freshAt(result.checkedAt)) failure = t('O catálogo ficou desatualizado. Consulte os modelos novamente.')
+      else if (result.backendId !== profileId || !result.destination || !result.profileRevision || !supportedSources.has(result.source) || !result.credentialToken || !/^[a-f0-9]{64}$/.test(result.credentialToken)) failure = t('O perfil ou a credencial mudou; nenhum modelo foi substituído.')
       if (failure) {
         if (draft.modelMode === 'inherit' && result.complete && result.status === 'complete' && result.nextCursor === '' && freshAt(result.checkedAt)) setInheritedCatalogBlocked(true)
         setCatalogState('error'); setCatalogMessage(failure); return
       }
       const exactModel = result.models.find(model => model.id === selectedModelId && model.backendId === result.backendId && model.source === result.source)
-      if (draft.modelMode === 'inherit' && !exactModel) { setInheritedCatalogBlocked(true); setCatalogState('error'); setCatalogMessage('O modelo herdado não está neste catálogo completo. Nenhum substituto foi escolhido.'); return }
+      if (draft.modelMode === 'inherit' && !exactModel) { setInheritedCatalogBlocked(true); setCatalogState('error'); setCatalogMessage(t('O modelo herdado não está neste catálogo completo. Nenhum substituto foi escolhido.')); return }
       if (draft.modelMode === 'inherit' && preference.selection.source !== 'global_default' && (preference.selection.catalogRevision !== result.profileRevision || preference.selection.destination !== result.destination || preference.selection.source !== result.source)) {
-        setInheritedCatalogBlocked(true); setCatalogState('error'); setCatalogMessage('O perfil do modelo herdado mudou desde a preferência salva. Revise a configuração antes de continuar.'); return
+        setInheritedCatalogBlocked(true); setCatalogState('error'); setCatalogMessage(t('O perfil do modelo herdado mudou desde a preferência salva. Revise a configuração antes de continuar.')); return
       }
       if (draft.modelMode === 'inherit') setInheritedCatalogBlocked(false)
       if (draft.modelMode === 'override' && draft.modelId && !exactModel) {
         updateDraft({ modelId: '' })
-        setCatalogMessage('O modelo salvo saiu do catálogo. Nenhum substituto foi escolhido; selecione outro modelo explicitamente.')
-      } else setCatalogMessage(`Catálogo completo consultado · ${result.models.length} ${result.models.length === 1 ? 'modelo' : 'modelos'}`)
+        setCatalogMessage(t('O modelo salvo saiu do catálogo. Nenhum substituto foi escolhido; selecione outro modelo explicitamente.'))
+      } else setCatalogMessage(result.models.length === 1 ? t('Catálogo completo consultado · 1 modelo') : t('Catálogo completo consultado · {count} modelos', { count: result.models.length }))
       setCatalog(result); setCatalogTokenValidated(true); setCatalogState('ready')
     } catch (cause) {
       if (current() && !controller.signal.aborted) { setCatalogState('error'); setCatalogMessage(errorMessage(cause)) }
@@ -186,7 +188,7 @@ export function AuthoringStageModelControls({ backend, pipeline, stage, disabled
     try {
       const saved = await backend.saveAuthoringStageModelPreference(input)
       if (ticket !== preferenceEpoch.current || scope.current !== identity) return
-      if (saved.pipelineId !== pipeline.id || saved.stage !== stage || saved.preferenceRevision < input.expectedRevision + 1) throw new Error('Readback da preferência não confirmou a revisão salva.')
+      if (saved.pipelineId !== pipeline.id || saved.stage !== stage || saved.preferenceRevision < input.expectedRevision + 1) throw new Error(t('Readback da preferência não confirmou a revisão salva.'))
       setPreference(saved)
       setDraft({ modelMode: saved.modelMode, effortMode: saved.effortMode, explicitEffort: saved.explicitEffort, profileId: saved.modelMode === 'override' ? saved.selection.backendId : '', modelId: saved.modelMode === 'override' ? saved.selection.modelId : '' })
       setCatalog(current => current ? { ...current, credentialToken: undefined } : current)
@@ -194,7 +196,7 @@ export function AuthoringStageModelControls({ backend, pipeline, stage, disabled
     } catch (cause) {
       if (ticket !== preferenceEpoch.current || scope.current !== identity) return
       const conflict = errorCode(cause) === 'pipeline_conflict'
-      setSaveError(conflict ? 'A preferência mudou em outra ação. A revisão atual foi recarregada; revise antes de salvar novamente.' : errorMessage(cause))
+      setSaveError(conflict ? t('A preferência mudou em outra ação. A revisão atual foi recarregada; revise antes de salvar novamente.') : errorMessage(cause))
       if (conflict) {
         const nextTicket = ticket
         try {
@@ -224,80 +226,80 @@ export function AuthoringStageModelControls({ backend, pipeline, stage, disabled
     try {
       const value = await backend.getAuthoringStageModelPreference({ pipelineId: pipeline.id, stage })
       if (ticket !== preferenceEpoch.current || scope.current !== identity) return
-      if (value.pipelineId !== pipeline.id || value.stage !== stage) throw new Error('Preferência fora do contexto da fase atual.')
+      if (value.pipelineId !== pipeline.id || value.stage !== stage) throw new Error(t('Preferência fora do contexto da fase atual.'))
       setPreference(value); setDraft({ modelMode: value.modelMode, effortMode: value.effortMode, explicitEffort: value.explicitEffort, profileId: value.modelMode === 'override' ? value.selection.backendId : '', modelId: value.modelMode === 'override' ? value.selection.modelId : '' })
     } catch (cause) { if (ticket === preferenceEpoch.current && scope.current === identity) setPreferenceError(errorMessage(cause)) }
     finally { if (ticket === preferenceEpoch.current && scope.current === identity) setPreferenceLoading(false) }
   }
 
   const source = currentPreference?.inheritedFrom || currentPreference?.modelSource || 'global_default'
-  const sourceLabel = sourceName(source)
+  const sourceLabel = sourceName(source, t)
   const globalDefaultProfile = currentPreference?.modelSource === 'global_default' ? profiles.find(profile => profile.id === currentPreference.selection.backendId) : undefined
-  const globalDefaultModel = globalDefaultProfile?.model || currentPreference?.selection.modelId || 'Modelo configurado'
+  const globalDefaultModel = globalDefaultProfile?.model || currentPreference?.selection.modelId || t('Modelo configurado')
   const controlsDisabled = disabled || preferenceLoading || profilesLoading || !currentPreference
   const defaultNeedsUnfilteredCatalog = selectedProfile?.providerType === 'openrouter' && currentPreference?.modelSource === 'global_default'
   const defaultNeedsLoadedState = selectedProfile?.providerType === 'lm_studio' && currentPreference?.modelSource === 'global_default'
-  const previewModel = currentDraft?.modelMode === 'override' ? activeModel?.displayName || currentDraft.modelId || 'Modelo ainda não selecionado' : currentPreference?.selection.modelId || globalDefaultModel
-  const previewEffort = currentDraft?.effortMode === 'explicit' ? currentDraft.explicitEffort : currentDraft?.effortMode === 'automatic' ? 'Automático' : currentPreference?.selection.reasoningEffort || 'Automático'
+  const previewModel = currentDraft?.modelMode === 'override' ? activeModel?.displayName || currentDraft.modelId || t('Modelo ainda não selecionado') : currentPreference?.selection.modelId || globalDefaultModel
+  const previewEffort = currentDraft?.effortMode === 'explicit' ? currentDraft.explicitEffort : currentDraft?.effortMode === 'automatic' ? t('Automático') : currentPreference?.selection.reasoningEffort || t('Automático')
   const previewDestination = catalogFresh && catalog?.backendId === selectedProfileId ? catalog.destination : currentPreference?.resolution === 'ready' && currentPreference.selection.backendId === selectedProfileId ? currentPreference.selection.destination : ''
   const outputCap = Math.min(4096, currentPreference?.selection.maxOutputTokens || 4096)
   const modelOptions = catalogState === 'ready' && catalogFresh && draft?.modelMode === 'override'
-    ? [{ value: '', label: 'Escolha um modelo' }, ...(catalog?.models.filter(model => model.backendId === catalog.backendId && model.source === catalog.source).map(model => ({ value: model.id, label: model.displayName || model.id })) ?? [])]
-    : [{ value: '', label: 'Consulte o catálogo completo' }]
+    ? [{ value: '', label: t('Escolha um modelo') }, ...(catalog?.models.filter(model => model.backendId === catalog.backendId && model.source === catalog.source).map(model => ({ value: model.id, label: model.displayName || model.id })) ?? [])]
+    : [{ value: '', label: t('Consulte o catálogo completo') }]
   const supportedEfforts = catalogFresh && activeModel ? [...new Set(activeModel.supportedReasoningEfforts ?? [])].filter(Boolean) : []
   const effortOptions = [
-    { value: 'inherit', label: 'Herdar' }, { value: 'automatic', label: 'Automático' },
+    { value: 'inherit', label: t('Herdar') }, { value: 'automatic', label: t('Automático') },
     ...(supportedEfforts.length ? supportedEfforts.map(value => ({ value: `explicit:${value}`, label: value })) : []),
-    ...(draft?.effortMode === 'explicit' && !supportedEfforts.includes(draft.explicitEffort) ? [{ value: `explicit:${draft.explicitEffort}`, label: `${draft.explicitEffort} · salvo; consulte o catálogo`, disabled: true }] : []),
+    ...(draft?.effortMode === 'explicit' && !supportedEfforts.includes(draft.explicitEffort) ? [{ value: `explicit:${draft.explicitEffort}`, label: t('{effort} · salvo; consulte o catálogo', { effort: draft.explicitEffort }), disabled: true }] : []),
   ]
   const effortValue = draft?.effortMode === 'explicit' ? `explicit:${draft.explicitEffort}` : draft?.effortMode ?? 'inherit'
   const openRouterNeedsConsent = !!catalog && catalog.source === 'openrouter_general_unfiltered' && !!activeModel
   const jitNeedsConsent = !!catalog && catalog.source === 'lm_studio_native' && activeModel?.loaded === false
 
   return <section className="authoring-stage-model-preferences" aria-labelledby={`authoring-model-heading-${stage}`} aria-busy={preferenceLoading || profilesLoading || saving || catalogState === 'loading'}>
-    <div className="authoring-model-heading"><h4 id={`authoring-model-heading-${stage}`}>Modelo e esforço desta fase</h4>{currentPreference && <span>Preferência v{currentPreference.preferenceRevision}</span>}</div>
-    {preferenceLoading && !currentPreference && <p role="status">Lendo preferência salva…</p>}
-    {preferenceError && <p role="alert">Não foi possível confirmar a preferência desta fase: {preferenceError}</p>}
-    {currentPreference?.resolution === 'stale' && <div role="alert" className="authoring-model-help"><p>A seleção salva está desatualizada: o catálogo de modelos vale por 5 minutos. Consulte o catálogo e salve uma seleção válida antes de gerar.</p>
-      {canReconfirm && <button type="button" onClick={reconfirmInherited}>Reconfirmar {currentPreference.selection.modelId} · {profiles.find(profile => profile.id === currentPreference.selection.backendId)?.name}</button>}</div>}
-    {currentPreference?.resolution === 'unconfigured' && <div role="alert" className="authoring-model-help"><p>Esta fase não tem um modelo configurado. Escolha um modelo de API ou ajuste Configurações. O SDD aceita provedores OpenAI, OpenRouter, LM Studio e Ollama; “API compatível” não é aceita nesta etapa.</p>{onSettings && <button type="button" onClick={onSettings}>Abrir Configurações</button>}</div>}
-    {currentPreference?.catalogValidationRequired && currentPreference.modelSource === 'global_default' && <p className="authoring-model-status" role="status">Modelo herdado de Configurações: {globalDefaultProfile?.name || 'Provedor padrão'} · {globalDefaultModel}. {defaultNeedsUnfilteredCatalog ? 'Consulte o catálogo completo antes de gerar; catálogos OpenRouter gerais exigem confirmação explícita.' : defaultNeedsLoadedState ? 'Consulte o catálogo atual antes de gerar para validar o estado carregado; qualquer carregamento JIT exige autorização desta tentativa.' : 'A validação do catálogo acontecerá no servidor ao gerar; níveis específicos só aparecem após consulta explícita.'}</p>}
+    <div className="authoring-model-heading"><h4 id={`authoring-model-heading-${stage}`}>{t('Modelo e esforço desta fase')}</h4>{currentPreference && <span>{t('Preferência v{version}', { version: currentPreference.preferenceRevision })}</span>}</div>
+    {preferenceLoading && !currentPreference && <p role="status">{t('Lendo preferência salva…')}</p>}
+    {preferenceError && <p role="alert">{t('Não foi possível confirmar a preferência desta fase: {error}', { error: preferenceError })}</p>}
+    {currentPreference?.resolution === 'stale' && <div role="alert" className="authoring-model-help"><p>{t('A seleção salva está desatualizada: o catálogo de modelos vale por 5 minutos. Consulte o catálogo e salve uma seleção válida antes de gerar.')}</p>
+      {canReconfirm && <button type="button" onClick={reconfirmInherited}>{t('Reconfirmar {model} · {provider}', { model: currentPreference.selection.modelId, provider: profiles.find(profile => profile.id === currentPreference.selection.backendId)?.name ?? '' })}</button>}</div>}
+    {currentPreference?.resolution === 'unconfigured' && <div role="alert" className="authoring-model-help"><p>{t('Esta fase não tem um modelo configurado. Escolha um modelo de API ou ajuste Configurações. O SDD aceita provedores OpenAI, OpenRouter, LM Studio e Ollama; “API compatível” não é aceita nesta etapa.')}</p>{onSettings && <button type="button" onClick={onSettings}>{t('Abrir Configurações')}</button>}</div>}
+    {currentPreference?.catalogValidationRequired && currentPreference.modelSource === 'global_default' && <p className="authoring-model-status" role="status">{t('Modelo herdado de Configurações: {provider} · {model}. {guidance}', { provider: globalDefaultProfile?.name || t('Provedor padrão'), model: globalDefaultModel, guidance: defaultNeedsUnfilteredCatalog ? t('Consulte o catálogo completo antes de gerar; catálogos OpenRouter gerais exigem confirmação explícita.') : defaultNeedsLoadedState ? t('Consulte o catálogo atual antes de gerar para validar o estado carregado; qualquer carregamento JIT exige autorização desta tentativa.') : t('A validação do catálogo acontecerá no servidor ao gerar; níveis específicos só aparecem após consulta explícita.') })}</p>}
     {saveError && <p role="alert">{saveError}</p>}
     <div className="authoring-model-grid">
-      <IonPicker id={`authoring-stage-model-${stage}`} label="Modelo" value={draft?.modelMode ?? 'inherit'} onChange={value => {
+      <IonPicker id={`authoring-stage-model-${stage}`} label={t('Modelo')} value={draft?.modelMode ?? 'inherit'} onChange={value => {
         if (value !== 'inherit' && value !== 'override') return
         invalidateCatalog()
         updateDraft({ modelMode: value, profileId: value === 'override' ? '' : '', modelId: '' })
-      }} options={[{ value: 'inherit', label: `Herdar · ${sourceLabel}` }, { value: 'override', label: 'Escolher para esta fase' }]} disabled={controlsDisabled} />
-      <IonPicker id={`authoring-stage-effort-${stage}`} label="Esforço" value={effortValue} onChange={value => {
+      }} options={[{ value: 'inherit', label: t('Herdar · {source}', { source: sourceLabel }) }, { value: 'override', label: t('Escolher para esta fase') }]} disabled={controlsDisabled} />
+      <IonPicker id={`authoring-stage-effort-${stage}`} label={t('Esforço')} value={effortValue} onChange={value => {
         if (value === 'inherit' || value === 'automatic') { updateDraft({ effortMode: value, explicitEffort: '' }); return }
         if (value.startsWith('explicit:')) updateDraft({ effortMode: 'explicit', explicitEffort: value.slice('explicit:'.length) })
       }} options={effortOptions} disabled={controlsDisabled} />
-      {draft?.modelMode === 'inherit' && <p className="authoring-model-origin">Modelo herdado de <span>{sourceLabel}</span>{currentPreference?.selection.status === 'unverified_default' && !currentPreference.catalogValidationRequired ? ' · modelo padrão sem snapshot de catálogo' : ''}</p>}
-      {draft?.effortMode === 'inherit' && currentPreference && <p className="authoring-model-origin">Esforço herdado: <span>{currentPreference.selection.reasoningEffort || 'Automático'} · Herdado de {sourceName(currentPreference.effortSource || source)}</span></p>}
+      {draft?.modelMode === 'inherit' && <p className="authoring-model-origin">{t('Modelo herdado de')} <span>{sourceLabel}</span>{currentPreference?.selection.status === 'unverified_default' && !currentPreference.catalogValidationRequired ? t(' · modelo padrão sem snapshot de catálogo') : ''}</p>}
+      {draft?.effortMode === 'inherit' && currentPreference && <p className="authoring-model-origin">{t('Esforço herdado:')} <span>{currentPreference.selection.reasoningEffort || t('Automático')} · {t('Herdado de {source}', { source: sourceName(currentPreference.effortSource || source, t) })}</span></p>}
       {draft?.modelMode === 'override' && <div className="authoring-provider-model-grid">
-        <IonPicker id={`authoring-stage-provider-${stage}`} label="Provedor de API" value={draft.profileId} onChange={profileId => { updateDraft({ profileId, modelId: '' }); invalidateCatalog() }} options={[{ value: '', label: profilesLoading ? 'Lendo provedores…' : 'Escolha um provedor' }, ...profiles.map(profile => ({ value: profile.id, label: profile.name, disabled: profile.endpointBlocked }))]} disabled={controlsDisabled} searchable />
-        <IonPicker id={`authoring-stage-override-model-${stage}`} label="Modelo da fase" value={draft.modelId} onChange={modelId => { updateDraft({ modelId }); setConfirmUnfiltered(''); setConfirmJit('') }} options={modelOptions} disabled={controlsDisabled || catalogState !== 'ready' || !catalogFresh} searchable />
+        <IonPicker id={`authoring-stage-provider-${stage}`} label={t('Provedor de API')} value={draft.profileId} onChange={profileId => { updateDraft({ profileId, modelId: '' }); invalidateCatalog() }} options={[{ value: '', label: profilesLoading ? t('Lendo provedores…') : t('Escolha um provedor') }, ...profiles.map(profile => ({ value: profile.id, label: profile.name, disabled: profile.endpointBlocked }))]} disabled={controlsDisabled} searchable />
+        <IonPicker id={`authoring-stage-override-model-${stage}`} label={t('Modelo da fase')} value={draft.modelId} onChange={modelId => { updateDraft({ modelId }); setConfirmUnfiltered(''); setConfirmJit('') }} options={modelOptions} disabled={controlsDisabled || catalogState !== 'ready' || !catalogFresh} searchable />
       </div>}
     </div>
-    {draft?.modelMode === 'override' && currentPreference?.modelMode === 'override' && <p className="authoring-model-origin">Modelo salvo nesta fase{currentPreference.effortMode === 'explicit' ? ` · esforço salvo: ${currentPreference.explicitEffort}` : ''}. Consulte o catálogo para confirmar a disponibilidade atual.</p>}
-    {profilesError && draft?.modelMode === 'override' && <p role="alert">Não foi possível carregar os provedores de API: {profilesError}</p>}
-    {!profilesLoading && !profilesError && profiles.length === 0 && draft?.modelMode === 'override' && <div className="authoring-model-help" role="status"><p className="authoring-model-status">Nenhum provedor elegível. Configure OpenAI, OpenRouter, LM Studio ou Ollama; “API compatível” não é aceita nesta etapa.</p>{onSettings && <button type="button" onClick={onSettings}>Abrir Configurações</button>}</div>}
+    {draft?.modelMode === 'override' && currentPreference?.modelMode === 'override' && <p className="authoring-model-origin">{t('Modelo salvo nesta fase{effort}. Consulte o catálogo para confirmar a disponibilidade atual.', { effort: currentPreference.effortMode === 'explicit' ? t(' · esforço salvo: {effort}', { effort: currentPreference.explicitEffort }) : '' })}</p>}
+    {profilesError && draft?.modelMode === 'override' && <p role="alert">{t('Não foi possível carregar os provedores de API: {error}', { error: profilesError })}</p>}
+    {!profilesLoading && !profilesError && profiles.length === 0 && draft?.modelMode === 'override' && <div className="authoring-model-help" role="status"><p className="authoring-model-status">{t('Nenhum provedor elegível. Configure OpenAI, OpenRouter, LM Studio ou Ollama; “API compatível” não é aceita nesta etapa.')}</p>{onSettings && <button type="button" onClick={onSettings}>{t('Abrir Configurações')}</button>}</div>}
     {catalogMessage && <p className={catalogState === 'error' ? 'authoring-model-error' : 'authoring-model-status'} role={catalogState === 'error' ? 'alert' : 'status'}>{catalogMessage}</p>}
-    {catalogState === 'loading' && <p role="status">Consultando modelos…</p>}
+    {catalogState === 'loading' && <p role="status">{t('Consultando modelos…')}</p>}
     <div className="authoring-model-actions">
-      <button type="button" onClick={() => void consultModels()} disabled={controlsDisabled || catalogState === 'loading' || (draft?.modelMode === 'override' && !draft.profileId)}>Consultar modelos</button>
-      {showSaveButton && <button type="button" className="primary" onClick={() => void savePreference()} disabled={!canSave}>{saving ? 'Salvando preferência…' : 'Salvar preferência'}</button>}
-      {(preferenceError || saveError) && <button type="button" onClick={() => void refreshPreference()} disabled={preferenceLoading || saving}>Atualizar preferência</button>}
+      <button type="button" onClick={() => void consultModels()} disabled={controlsDisabled || catalogState === 'loading' || (draft?.modelMode === 'override' && !draft.profileId)}>{t('Consultar modelos')}</button>
+      {showSaveButton && <button type="button" className="primary" onClick={() => void savePreference()} disabled={!canSave}>{saving ? t('Salvando preferência…') : t('Salvar preferência')}</button>}
+      {(preferenceError || saveError) && <button type="button" onClick={() => void refreshPreference()} disabled={preferenceLoading || saving}>{t('Atualizar preferência')}</button>}
     </div>
-    {unsupportedInheritedEffort && <p className="authoring-model-error" role="alert">O modelo escolhido não oferece o esforço herdado “{inheritedEffort}”. Escolha Automático ou um nível compatível; nenhum fallback foi aplicado.</p>}
-    {openRouterNeedsConsent && <label className="authoring-model-confirm"><input type="checkbox" checked={confirmUnfiltered === activeChoiceKey || (inheritedConsentMatches && !!preference?.selection.confirmUnfiltered)} onChange={event => setConfirmUnfiltered(event.target.checked ? activeChoiceKey : '')} />Confirmo que este catálogo geral não está filtrado pela minha conta e que o modelo pode gerar custos.</label>}
-    {jitNeedsConsent && <label className="authoring-model-confirm"><input type="checkbox" checked={confirmJit === activeChoiceKey} onChange={event => setConfirmJit(event.target.checked ? activeChoiceKey : '')} />Autorizo carregar este modelo no LM Studio para esta tentativa.</label>}
-    {currentPreference && <dl className="authoring-model-preview" aria-label="Prévia de destino e permissões desta fase">
-      <div><dt>{previewDestination ? 'Destino seguro da API' : 'Destino não validado'}</dt><dd>{previewDestination || 'Atualize a preferência ou consulte o catálogo antes de gerar.'}</dd></div>
-      <div><dt>Modelo e esforço</dt><dd>{previewModel} · {previewEffort}</dd></div>
-      <div><dt>Limite de saída</dt><dd>{outputCap} tokens</dd></div>
-      <div className="authoring-model-permissions"><dt>Permissões desta fase</dt><dd>A fase acessa somente a API selecionada; não acessa arquivos do workspace, shell, rede geral ou MCP.</dd></div>
+    {unsupportedInheritedEffort && <p className="authoring-model-error" role="alert">{t('O modelo escolhido não oferece o esforço herdado “{effort}”. Escolha Automático ou um nível compatível; nenhum fallback foi aplicado.', { effort: inheritedEffort })}</p>}
+    {openRouterNeedsConsent && <label className="authoring-model-confirm"><input type="checkbox" checked={confirmUnfiltered === activeChoiceKey || (inheritedConsentMatches && !!preference?.selection.confirmUnfiltered)} onChange={event => setConfirmUnfiltered(event.target.checked ? activeChoiceKey : '')} />{t('Confirmo que este catálogo geral não está filtrado pela minha conta e que o modelo pode gerar custos.')}</label>}
+    {jitNeedsConsent && <label className="authoring-model-confirm"><input type="checkbox" checked={confirmJit === activeChoiceKey} onChange={event => setConfirmJit(event.target.checked ? activeChoiceKey : '')} />{t('Autorizo carregar este modelo no LM Studio para esta tentativa.')}</label>}
+    {currentPreference && <dl className="authoring-model-preview" aria-label={t('Prévia de destino e permissões desta fase')}>
+      <div><dt>{previewDestination ? t('Destino seguro da API') : t('Destino não validado')}</dt><dd>{previewDestination || t('Atualize a preferência ou consulte o catálogo antes de gerar.')}</dd></div>
+      <div><dt>{t('Modelo e esforço')}</dt><dd>{previewModel} · {previewEffort}</dd></div>
+      <div><dt>{t('Limite de saída')}</dt><dd>{outputCap} tokens</dd></div>
+      <div className="authoring-model-permissions"><dt>{t('Permissões desta fase')}</dt><dd>{t('A fase acessa somente a API selecionada; não acessa arquivos do workspace, shell, rede geral ou MCP.')}</dd></div>
     </dl>}
   </section>
 }

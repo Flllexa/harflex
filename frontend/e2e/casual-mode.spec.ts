@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './locale'
 import { undersizedTargets } from './targets'
 
 for (const width of [320, 768, 900, 1024, 1440]) {
@@ -36,14 +36,14 @@ for (const width of [320, 768, 900, 1024, 1440]) {
     await chat.click()
     await expect(page.getByText('Vou organizar a tarefa em uma lista.')).toBeVisible()
     await expect(page.getByLabel('Mensagem')).toBeEnabled()
-    await expect(page.getByRole('button', { name: 'Atividade', exact: true })).toHaveAttribute('aria-expanded', 'false')
+    await expect(page.getByRole('button', { name: 'Painel lateral', exact: true })).toHaveAttribute('aria-expanded', 'false')
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
     await page.screenshot({ path: testInfo.outputPath(`casual-chat-${width}.png`), fullPage: true })
 
     if (width < 768) await page.getByRole('button', { name: 'Abrir histórico de chats' }).click()
     const tools = page.getByRole('navigation', { name: 'Ferramentas' })
     await page.getByText('Ferramentas', { exact: true }).click()
-    await expect(tools.getByRole('button')).toHaveCount(17)
+    await expect(tools.getByRole('button')).toHaveCount(18)
     await tools.getByRole('button', { name: 'Pipelines' }).click()
     await expect(page.getByRole('heading', { name: 'Pipelines SDD' })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
@@ -68,16 +68,15 @@ test('a non-resumable Codex chat carries its request into a new Casual chat and 
   await page.getByRole('button', { name: 'Continuar em novo chat' }).click()
   const initial = page.getByLabel('Mensagem inicial')
   await expect(initial).toHaveValue('Corrigir o bloqueio do fluxo Code')
-  await expect(page.getByRole('button', { name: 'Iniciar chat' })).toBeDisabled()
-  await page.getByRole('button', { name: 'Consultar modelos' }).click()
-  const model = page.getByRole('combobox', { name: 'Modelo da sessão' })
-  await model.fill('Modelo Codex de teste')
-  await page.getByRole('option', { name: 'Modelo Codex de teste' }).click()
-  const effort = page.getByTestId('picker-session-effort').getByRole('button')
-  await effort.click()
-  await page.getByRole('option', { name: 'medium' }).click()
-  await expect(page.getByRole('button', { name: 'Iniciar chat' })).toBeEnabled()
-  await page.getByRole('button', { name: 'Iniciar chat' }).click()
+  // Nothing goes out before a model the CLI listed is chosen, in the provider, model and effort menu.
+  await expect(page.getByRole('button', { name: 'Enviar', exact: true })).toBeDisabled()
+  await page.getByRole('button', { name: /^Provedor, modelo e esforço/ }).click()
+  const menu = page.getByRole('dialog', { name: 'Provedor, modelo e esforço' })
+  await menu.getByText('Modelo Codex de teste', { exact: true }).click()
+  await menu.getByText('medium', { exact: true }).click()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('button', { name: 'Enviar', exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: 'Enviar', exact: true }).click()
   const approval = page.getByRole('group', { name: 'Aprovação necessária' })
   await expect(approval).toBeVisible()
   await approval.getByRole('button', { name: 'Aprovar' }).click()
@@ -129,7 +128,7 @@ test('the Casual sidebar keeps a read-only Codex request when opening a new chat
   await expect(page.getByText(/Somente leitura: esta execução foi encerrada/)).toBeVisible()
   await page.getByRole('button', { name: 'Novo chat', exact: true }).click()
   await expect(page.getByLabel('Mensagem inicial')).toHaveValue('Corrigir o bloqueio do fluxo Code')
-  await expect(page.getByRole('button', { name: 'Iniciar chat' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Enviar', exact: true })).toBeDisabled()
 })
 
 test('keeps the recovery request safe while a Codex chat history is replaying', async ({ page }) => {
@@ -148,7 +147,7 @@ test('keeps the recovery request safe while a Codex chat history is replaying', 
   await expect(continueButton).toBeEnabled()
   await continueButton.click()
   await expect(page.getByLabel('Mensagem inicial')).toHaveValue('Recuperar o pedido durante a abertura do histórico')
-  await expect(page.getByRole('button', { name: 'Iniciar chat' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Enviar', exact: true })).toBeDisabled()
 })
 
 test('switching Casual and Professional keeps the same active conversation', async ({ page }) => {
@@ -192,18 +191,16 @@ for (const width of [320, 1440]) {
     await expect(runStatus).toHaveAttribute('aria-atomic', 'true')
     expect(await runStatus.locator('.run-status-motion i').first().evaluate(node => getComputedStyle(node).animationName)).toBe('activity-dots')
 
-    await page.getByRole('button', { name: 'Atividade', exact: true }).click()
+    await page.getByRole('button', { name: 'Painel lateral', exact: true }).click()
     const activity = page.getByLabel('Atividade do trabalho')
     await expect(activity.getByText('Em execução · ações atualizadas ao vivo')).toBeVisible()
-    await expect(activity.locator('.visually-hidden')).toHaveText('Nova atividade: Ferramenta iniciada · write')
-    await expect(activity.getByText('write', { exact: true })).toBeVisible()
+    await expect(activity.locator('p.visually-hidden')).toHaveText('Agora: Escrevendo todo.js')
+    await expect(activity.getByText('Escrevendo todo.js', { exact: true }).first()).toBeVisible()
     await expect(activity.getByText('external.session.bound')).toHaveCount(0)
-    expect(await activity.locator('.activity-live svg').evaluate(node => getComputedStyle(node).animationName)).toBe('activity-pulse')
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
 
     await page.emulateMedia({ reducedMotion: 'reduce' })
     expect(await runStatus.locator('.run-status-motion i').first().evaluate(node => getComputedStyle(node).animationName)).toBe('none')
-    expect(await activity.locator('.activity-live svg').evaluate(node => getComputedStyle(node).animationName)).toBe('none')
     await expect(runStatus).toContainText('Escrevendo arquivo')
     await expect(activity.getByText('Em execução · ações atualizadas ao vivo')).toBeVisible()
   })

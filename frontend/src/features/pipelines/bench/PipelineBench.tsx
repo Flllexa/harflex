@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { FlaskConical, GitPullRequest, Hammer, Lock } from 'lucide-react'
 import type { Pipeline } from '../../../lib/backend'
 import './bench.css'
+import { useT } from '../../../i18n'
 
 export type BenchStage = 'code' | 'eval' | 'prs'
 
@@ -19,15 +20,18 @@ type Props = {
   prs: ReactNode
 }
 
-const benches: { stage: BenchStage; name: string; Icon: typeof Hammer; title: string; tagline: string; place: string }[] = [
-  { stage: 'code', name: 'Code', Icon: Hammer, title: 'Bancada do Code', tagline: 'O Coder escreve a mudança. Aqui ela fica em destaque, arquivo por arquivo, antes de ir para a QA.', place: 'Cópia privada do projeto · o original não muda' },
-  { stage: 'eval', name: 'QA', Icon: FlaskConical, title: 'Laboratório de QA', tagline: 'O QA roda de verdade o build, os testes, o E2E e o app no ar, e mostra cada etapa como numa esteira de CI.', place: 'Laboratório próprio · cópia do Code, com terminal e rede' },
-  { stage: 'prs', name: 'PRs', Icon: GitPullRequest, title: 'Mesa de revisão', tagline: 'O PR sai da bancada para o repositório, e a vigia cuida dos comentários da revisão.', place: 'Pasta do projeto · branch própria do trabalho' },
-]
-
+function benchesOf(t: (source: string) => string): { stage: BenchStage; name: string; Icon: typeof Hammer; title: string; tagline: string; place: string }[] {
+  return [
+  { stage: 'code', name: 'Code', Icon: Hammer, title: t('Bancada do Code'), tagline: t('O Coder escreve a mudança. Aqui ela fica em destaque, arquivo por arquivo, antes de ir para a QA.'), place: t('Cópia privada do projeto · o original não muda') },
+  { stage: 'eval', name: 'QA', Icon: FlaskConical, title: t('Laboratório de QA'), tagline: t('O QA roda de verdade o build, os testes, o E2E e o app no ar, e mostra cada etapa como numa esteira de CI.'), place: t('Laboratório próprio · cópia do Code, com terminal e rede') },
+  { stage: 'prs', name: 'PRs', Icon: GitPullRequest, title: t('Mesa de revisão'), tagline: t('O PR sai da bancada para o repositório, e a vigia cuida dos comentários da revisão.'), place: t('Pasta do projeto · branch própria do trabalho') },
+  ]
+}
 
 /** Code, QA and PRs each get a screen of their own, opened from the stage bar at the top (the current stage by default). */
 export function PipelineBench({ run, viewStage, viewRequestId, focus, onShownStage, code, qa, prs }: Props) {
+  const t = useT()
+  const benches = benchesOf(t)
   const current: BenchStage = focus ?? (run.currentStage === 'eval' ? 'eval' : run.currentStage === 'code' ? 'code' : 'prs')
   const [stage, setStage] = useState<BenchStage>(current)
   useEffect(() => { setStage(current) }, [run.id, current])
@@ -36,7 +40,7 @@ export function PipelineBench({ run, viewStage, viewRequestId, focus, onShownSta
   const bench = benches.find(item => item.stage === stage)!
   const Icon = bench.Icon
 
-  return <section className={`bench bench-${stage}`} aria-label={`Bancada ${bench.name}`}>
+  return <section className={`bench bench-${stage}`} aria-label={t('Bancada {name}', { name: bench.name })}>
     <header className="bench-header">
       <span className="bench-plate" aria-hidden="true"><Icon /></span>
       <div><h3>{bench.title}</h3><p>{bench.tagline}</p></div>

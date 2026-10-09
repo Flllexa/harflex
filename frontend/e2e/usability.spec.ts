@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page } from './locale'
 
 async function openProjectAndSession(page: Page) {
   await page.goto('/e2e/fixture.html')
@@ -17,11 +17,11 @@ test('reopens the last project at startup without asking for a folder', async ({
   await expect(page.getByLabel('Caminho da pasta')).toHaveCount(0)
 })
 
-test('all seventeen destinations fit in a 900px window without scrolling the sidebar', async ({ page }) => {
+test('all eighteen destinations fit in a 900px window without scrolling the sidebar', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/e2e/fixture.html')
   const navigation = page.getByRole('navigation', { name: 'Navegação principal' })
-  await expect(navigation.getByRole('button')).toHaveCount(17)
+  await expect(navigation.getByRole('button')).toHaveCount(18)
   expect(await page.locator('#sidebar').evaluate(element => element.scrollHeight <= element.clientHeight)).toBe(true)
   for (const name of ['Projetos', 'Configurações']) await expect(navigation.getByRole('button', { name })).toBeInViewport({ ratio: 1 })
 })
@@ -32,7 +32,7 @@ test.describe('touch devices', () => {
     await page.setViewportSize({ width: 1024, height: 768 })
     await page.goto('/e2e/fixture.html')
     const heights = await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('button').evaluateAll(buttons => buttons.map(button => Math.round(button.getBoundingClientRect().height)))
-    expect(heights.length).toBe(17)
+    expect(heights.length).toBe(18)
     expect(Math.min(...heights)).toBeGreaterThanOrEqual(44)
   })
 })

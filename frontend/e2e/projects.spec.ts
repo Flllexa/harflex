@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './locale'
 
 for (const width of [320, 768, 900, 1440]) {
   test(`saved project catalog remains usable at ${width}px`, async ({ page }, info) => {

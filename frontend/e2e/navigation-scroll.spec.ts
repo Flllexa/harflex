@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './locale'
 
 for (const width of [768, 1440]) {
   test(`all desktop navigation remains reachable in a short window at ${width}px`, async ({ page }) => {

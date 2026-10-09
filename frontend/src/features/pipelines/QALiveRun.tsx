@@ -2,22 +2,30 @@ import { useEffect, useMemo, useState } from 'react'
 import { Check, CircleAlert, CircleDashed, FolderSearch, Hammer, LoaderCircle, MonitorPlay, Package, Play, ScanSearch, SquareTerminal, TestTube2 } from 'lucide-react'
 import type { AgentEvent, Backend } from '../../lib/backend'
 import { buildActivityFlow, type ActionStatus } from '../../components/activity/activityFlow'
+import { useT } from '../../i18n'
+
+type Translate = ReturnType<typeof useT>
 
 type Kind = 'install' | 'inspect' | 'build' | 'unit' | 'e2e' | 'run' | 'lint' | 'other'
 
-const kinds: Record<Kind, { label: string; Icon: typeof Hammer }> = {
-  install: { label: 'Instalação de dependências', Icon: Package },
-  inspect: { label: 'Inspecionando o projeto', Icon: FolderSearch },
-  build: { label: 'Build', Icon: Hammer },
-  unit: { label: 'Testes unitários', Icon: TestTube2 },
-  e2e: { label: 'E2E', Icon: MonitorPlay },
-  run: { label: 'App no ar', Icon: Play },
-  lint: { label: 'Lint', Icon: ScanSearch },
-  other: { label: 'Comando', Icon: SquareTerminal },
+/** The labels of each kind of check, read when shown so the language on screen is the one used. */
+function kindsFor(translate: Translate): Record<Kind, { label: string; Icon: typeof Hammer }> {
+  return {
+    install: { label: translate('Instalação de dependências'), Icon: Package },
+    inspect: { label: translate('Inspecionando o projeto'), Icon: FolderSearch },
+    build: { label: 'Build', Icon: Hammer },
+    unit: { label: translate('Testes unitários'), Icon: TestTube2 },
+    e2e: { label: 'E2E', Icon: MonitorPlay },
+    run: { label: translate('App no ar'), Icon: Play },
+    lint: { label: 'Lint', Icon: ScanSearch },
+    other: { label: translate('Comando'), Icon: SquareTerminal },
+  }
 }
 // The checks a QA run is expected to reach; the ones not seen yet wait at the end of the list.
 const expected: Kind[] = ['build', 'unit', 'e2e', 'run', 'lint']
-const statusText: Record<ActionStatus, string> = { waiting: 'Na fila', running: 'Rodando', approval: 'Aguardando', done: 'Concluiu', failed: 'Falhou' }
+function statusTextFor(translate: Translate): Record<ActionStatus, string> {
+  return { waiting: translate('Na fila'), running: translate('Rodando'), approval: translate('Aguardando'), done: translate('Concluiu'), failed: translate('Falhou') }
+}
 
 const inspection = /^(cd|pwd|ls|cat|nl|head|tail|find|grep|rg|sed -n|wc|tree|command -v|which|type|echo|printf|true|stat|file|ps|node (-v|--version)|npm (-v|--version)|git (status|log|diff|show)|mkdir)\b/
 
@@ -95,6 +103,9 @@ function useRunJournal(backend: Backend, sessionId?: string) {
 
 /** The QA run as it happens: each command the QA runs in the lab, one after another, and the checks still to come. */
 export function QALiveRun({ backend, sessionId }: { backend: Backend; sessionId?: string }) {
+  const t = useT()
+  const kinds = kindsFor(t)
+  const statusText = statusTextFor(t)
   const journal = useRunJournal(backend, sessionId)
   const commands = useMemo(() => buildActivityFlow(journal).actions.filter(action => action.kind === 'shell').map(action => ({ ...action, kinds: commandKinds(action.detail ?? '') })), [journal])
   const seen = new Set(commands.flatMap(item => item.kinds))
@@ -103,9 +114,9 @@ export function QALiveRun({ backend, sessionId }: { backend: Backend; sessionId?
   // Between commands the model is choosing the next one: the next check on the list shows the lab is still at work.
   const next = current ? undefined : upcoming[0]
 
-  return <section className="qa-live" aria-label="QA em andamento" aria-busy="true">
-    <p className="qa-live-summary" aria-live="polite">{current ? <>Agora: <strong>{current.kinds.map(kind => kinds[kind].label).join(' · ')}</strong></> : next ? <>Preparando: <strong>{kinds[next].label}</strong></> : commands.length ? 'Pensando no próximo passo…' : 'Preparando o laboratório…'}
-      {commands.length > 0 && <span className="muted"> · {commands.length} {commands.length === 1 ? 'comando' : 'comandos'}</span>}</p>
+  return <section className="qa-live" aria-label={t('QA em andamento')} aria-busy="true">
+    <p className="qa-live-summary" aria-live="polite">{current ? <>{t('Agora:')} <strong>{current.kinds.map(kind => kinds[kind].label).join(' · ')}</strong></> : next ? <>{t('Preparando:')} <strong>{kinds[next].label}</strong></> : commands.length ? t('Pensando no próximo passo…') : t('Preparando o laboratório…')}
+      {commands.length > 0 && <span className="muted"> · {t(commands.length === 1 ? '{count} comando' : '{count} comandos', { count: commands.length })}</span>}</p>
     <ol className="qa-run qa-live-run">
       {commands.map(item => { const { Icon } = kinds[item.kinds[0]]; const label = item.kinds.map(kind => kinds[kind].label).join(' · '); return <li key={item.id} className={`qa-run-row is-live is-${item.status}`}>
         <div className="qa-run-head">
@@ -120,7 +131,7 @@ export function QALiveRun({ backend, sessionId }: { backend: Backend; sessionId?
           <span className="qa-run-status" aria-hidden="true">{kind === next ? <LoaderCircle className="qa-spin" /> : <CircleDashed />}</span>
           <span className="qa-live-name"><strong>{label}</strong></span>
           <span className="qa-run-kind"><Icon aria-hidden="true" />{label}</span>
-          <span className="qa-run-result">{kind === next ? 'Preparando…' : 'Ainda não começou'}</span>
+          <span className="qa-run-result">{kind === next ? t('Preparando…') : t('Ainda não começou')}</span>
         </div>
       </li> })}
     </ol>

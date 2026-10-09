@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './locale'
 
 for (const width of [320, 1440]) {
   test(`local log index filters and exports audit at ${width}px`, async ({ page }, info) => {

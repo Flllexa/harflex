@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './locale'
 import codexEvents from '../../internal/externalagent/testdata/codex-events.json' with { type: 'json' }
 import opencodeEvents from '../../internal/externalagent/testdata/opencode-events.json' with { type: 'json' }
 
@@ -19,7 +19,7 @@ for (const width of [320, 768, 900, 1440]) for (const [adapter, phase] of [['cod
     await page.getByLabel('Caminho da pasta').fill('/synthetic/workspace/protocol')
     await page.getByRole('button', { name: 'Abrir projeto' }).click()
     await page.getByRole('button', { name: 'Abrir histórico' }).click()
-    await expect(page.getByText('Pergunta sintética', { exact: true })).toBeVisible()
+    await expect(page.getByRole('list', { name: 'Conversa' }).getByText('Pergunta sintética', { exact: true })).toBeVisible()
     const answers = adapter === 'codex' ? ['Resposta do Codex.'] : phase === 'shorter' ? ['Olá'] : ['Segunda parte.']
     for (const answer of answers) {
       await expect(page.getByText(answer, { exact: true })).toHaveCount(1)

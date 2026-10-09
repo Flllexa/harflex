@@ -2,11 +2,13 @@ import { useEffect, useRef, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { UNSAFE_PortalProvider } from '@react-aria/overlays'
 import { X } from 'lucide-react'
+import { useT } from '../i18n'
 
 /** Shared modal boundary: traps focus, isolates the shell and restores its trigger. */
 export function Modal({ title, titleId, initialFocus, onClose, children }: {
   title: string; titleId: string; initialFocus: RefObject<HTMLElement>; onClose: () => void; children: ReactNode
 }) {
+  const t = useT()
   const layer = useRef<HTMLDivElement>(null)
   const dialog = useRef<HTMLDivElement>(null)
   const overlayHost = useRef<HTMLDivElement>(null)
@@ -45,7 +47,7 @@ export function Modal({ title, titleId, initialFocus, onClose, children }: {
   return createPortal(<div ref={layer} className="dialog-layer">
     <div className="drawer-scrim" aria-hidden="true" onClick={onClose} />
     <div ref={dialog} className="dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      <div className="panel-heading"><h2 id={titleId}>{title}</h2><button type="button" className="touch-target icon-button" aria-label="Fechar" onClick={onClose}><X aria-hidden="true" /></button></div>
+      <div className="panel-heading"><h2 id={titleId}>{title}</h2><button type="button" className="touch-target icon-button" aria-label={t('Fechar')} onClick={onClose}><X aria-hidden="true" /></button></div>
       <UNSAFE_PortalProvider getContainer={() => overlayHost.current}>{children}</UNSAFE_PortalProvider>
     </div>
     <div ref={overlayHost} className="dialog-overlay-host" />
