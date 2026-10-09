@@ -23,7 +23,7 @@ $(error TARGET_OS deve ser darwin, windows ou linux)
 endif
 endif
 
-.PHONY: help setup setup-e2e wails-cli bindings dev build package installers test-web test-go test-e2e test lint check doctor
+.PHONY: help setup setup-e2e wails-cli bindings dev build package installers release screenshots test-web test-go test-e2e test lint check doctor
 
 help:
 	@printf '%s\n' \
@@ -36,6 +36,9 @@ help:
 	  '  make package        Empacotar app (macOS: assinatura ad hoc)' \
 	  '  make installers     Gerar instaladores (macOS .dmg, Windows .exe NSIS, Linux AppImage/deb/rpm)' \
 	  '                      TARGET_OS opcional; UNIVERSAL=1 gera .dmg para Apple Silicon e Intel' \
+	  '  make release VERSION=X.Y.Z' \
+	  '                      Aplica a versão, cria a tag vX.Y.Z e envia: o GitHub compila e publica a release' \
+	  '  make screenshots    Tira os prints do app (docs/screenshots) com dados de demonstração' \
 	  '  make test-web       Vitest, typecheck e build frontend' \
 	  '  make test-go        Go -race e vet (inclui pré-build frontend)' \
 	  '  make test-e2e       Playwright' \
@@ -77,6 +80,24 @@ installers: wails-cli
 	@PATH="$(BIN_DIR):$$PATH" "$(WAILS_BIN)" task installers $(WAILS_TARGET) $(if $(UNIVERSAL),UNIVERSAL=$(UNIVERSAL),)
 	@printf '%s\n' 'Instaladores gerados:'
 	@ls -1 bin/*.dmg bin/*.AppImage bin/*.deb bin/*.rpm bin/*.pkg.tar.zst build/windows/nsis/*-installer.exe 2>/dev/null || true
+
+# A release is a version tag: the Release workflow builds the macOS, Windows and Linux installers and publishes them.
+release:
+	@if ! printf '%s' "$(VERSION)" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$$'; then echo 'Uso: make release VERSION=X.Y.Z (ex.: make release VERSION=0.2.0)'; exit 1; fi
+	@if [ "$$(git rev-parse --abbrev-ref HEAD)" != main ]; then echo 'A release sai da branch main.'; exit 1; fi
+	@if [ -n "$$(git status --porcelain)" ]; then echo 'Há mudanças não commitadas; faça commit antes da release.'; exit 1; fi
+	@git fetch --quiet origin main --tags
+	@if [ "$$(git rev-parse HEAD)" != "$$(git rev-parse origin/main)" ] && ! git merge-base --is-ancestor origin/main HEAD; then echo 'A main local está atrás do GitHub; atualize antes.'; exit 1; fi
+	@if git rev-parse -q --verify "refs/tags/v$(VERSION)" >/dev/null; then echo 'A tag v$(VERSION) já existe.'; exit 1; fi
+	@node scripts/set-version.mjs $(VERSION)
+	@if [ -n "$$(git status --porcelain)" ]; then git commit --quiet -am "release: v$(VERSION)"; fi
+	@git tag -a "v$(VERSION)" -m "Harflex v$(VERSION)"
+	@git push --quiet origin main "v$(VERSION)"
+	@printf '%s\n' 'Tag v$(VERSION) enviada. Acompanhe: https://github.com/Flllexa/harflex/actions/workflows/release.yml'
+
+# Screenshots of each screen with demonstration data, for the README.
+screenshots:
+	cd frontend && npx playwright test --config playwright.screenshots.config.ts
 
 test-web: wails-cli
 	@PATH="$(BIN_DIR):$$PATH" "$(WAILS_BIN)" task test:frontend

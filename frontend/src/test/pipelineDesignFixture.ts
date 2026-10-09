@@ -23,7 +23,8 @@ export function designReadback(pipeline = designPipeline(), complete = false): P
 
 type Saved = { pipelines: Pipeline[]; designs: Record<string, PipelineDesign>; prepareCount: number }
 type Persistence = Pick<Storage, 'getItem' | 'setItem'>
-export function installPipelineDesignFixture(backend: Backend, persistence?: Persistence, seed?: { pipeline: Pipeline; design?: PipelineDesign }) {
+// `written` replaces the SPEC and Plan the synthetic AI writes, for pictures of another project.
+export function installPipelineDesignFixture(backend: Backend, persistence?: Persistence, seed?: { pipeline: Pipeline; design?: PipelineDesign }, written?: { spec: string; plan: string }) {
   const stored = persistence?.getItem(designFixtureKey)
   const saved: Saved = stored ? JSON.parse(stored) : { pipelines: seed ? [clone(seed.pipeline)] : [], designs: seed ? { [seed.pipeline.id]: clone(seed.design ?? designReadback(seed.pipeline)) } : {}, prepareCount: 0 }
   const persist = () => persistence?.setItem(designFixtureKey, JSON.stringify(saved))
@@ -63,7 +64,7 @@ export function installPipelineDesignFixture(backend: Backend, persistence?: Per
     await new Promise(resolve => setTimeout(resolve, 120))
     if (attempt.status !== 'running') return read(value.pipelineId)
     for (const stage of stages) {
-      const content = stage === 'discovery' ? `# Discovery\n\n${value.documents.discovery.content}\n\n${input.message}` : stage === 'spec' ? `# SPEC\n\n## Escopo\n\nExportar faturas em CSV.\n\n## Critérios de aceite\n\n- Respeitar filtros e usar datas ISO.\n${input.message ? `- ${input.message}` : ''}` : `# Plan\n\n## Implementação\n\n1. Criar exportação com filtros.\n2. Verificar o formato das datas.\n${input.message ? `3. ${input.message}` : ''}`
+      const content = written && stage !== 'discovery' ? written[stage] : stage === 'discovery' ? `# Discovery\n\n${value.documents.discovery.content}\n\n${input.message}` : stage === 'spec' ? `# SPEC\n\n## Escopo\n\nExportar faturas em CSV.\n\n## Critérios de aceite\n\n- Respeitar filtros e usar datas ISO.\n${input.message ? `- ${input.message}` : ''}` : `# Plan\n\n## Implementação\n\n1. Criar exportação com filtros.\n2. Verificar o formato das datas.\n${input.message ? `3. ${input.message}` : ''}`
       publish(value, stage, content, 'ai', 'generated')
     }
     value.messages.push({ id: `reply-${input.ref.requestId}`, role: 'assistant', content: `${stages.map(stage => stage === 'spec' ? 'SPEC' : stage === 'plan' ? 'Plan' : 'Discovery').join(' e ')} preparados para revisão.`, target: input.target, attemptId: attempt.id, createdAt: now() })

@@ -8,6 +8,7 @@ import { createFoundationBackend } from './foundationBackend'
 import { installAuthoringStageFixture } from './authoringStageFixture'
 import { installPipelineDesignFixture } from './pipelineDesignFixture'
 import { installWorktrees } from './worktreeFixture'
+import { installShowcase, showcaseDocuments, type ShowcaseView } from './showcaseFixture'
 import type { Agent, AgentEvent, Brainstorm, ChannelMessage, Delegation, KnowledgeDocument, KnowledgeEmbeddingProfile, LocalChannel, MCPServer, Pipeline, PipelineStage, ProviderProfile, Schedule, ScheduleJob, Skill, Workflow, WorkflowRun } from '../lib/backend'
 
 const scenario = new URLSearchParams(window.location.search).get('scenario')
@@ -22,7 +23,8 @@ if (foundation) {
 const fake = createFakeBackend()
 const backend = foundation ?? (scenario === 'approval-cancel' ? createApprovalReplayBackend()
   : scenario === 'replay' || scenario === 'replay-outage' ? createReplayBackend(scenario === 'replay-outage') : fake.backend)
-if (scenario === 'conversational-design') installPipelineDesignFixture(backend, sessionStorage)
+if (scenario === 'conversational-design') installPipelineDesignFixture(backend, sessionStorage, undefined, new URLSearchParams(window.location.search).get('demo') === 'todo' ? showcaseDocuments : undefined)
+if (scenario === 'showcase') installShowcase(backend, (new URLSearchParams(window.location.search).get('view') ?? 'code') as ShowcaseView)
 if (scenario === 'approval-cancel') {
   const cancel = backend.cancel
   const prompt = backend.prompt

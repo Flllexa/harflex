@@ -5,9 +5,9 @@
 	"info": {
 		"0000": {
 			"ProductVersion": "0.1.0",
-			"CompanyName": "My Company",
+			"CompanyName": "persio.flexa",
 			"FileDescription": "Local-first agentic development harness",
-			"LegalCopyright": "© 2026, My Company",
+			"LegalCopyright": "© 2026 persio.flexa",
 			"ProductName": "Harflex",
 			"Comments": "This is a comment"
 		}

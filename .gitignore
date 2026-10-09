@@ -24,3 +24,6 @@ coverage/
 build/android/.gradle/
 build/android/build/
 .DS_Store
+
+# Local Claude Code settings and worktrees
+.claude/

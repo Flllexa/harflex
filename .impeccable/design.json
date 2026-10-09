@@ -180,17 +180,17 @@
     "shadows": [
       {
         "name": "drawer-left",
-        "value": "12px 0 40px #0008",
+        "value": "12px 0 40px var(--shadow)",
         "purpose": "Gaveta esquerda."
       },
       {
         "name": "drawer-right",
-        "value": "-12px 0 40px #0008",
+        "value": "-12px 0 40px var(--shadow)",
         "purpose": "Gaveta direita."
       },
       {
         "name": "dialog",
-        "value": "0 24px 64px #000a",
+        "value": "0 24px 64px var(--shadow)",
         "purpose": "Diálogo modal."
       }
     ],

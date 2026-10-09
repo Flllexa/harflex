@@ -88,7 +88,7 @@ func newWorktreeFixture(t *testing.T) worktreeFixture {
 	commitAll(t, f.midway, "task side")
 	writeFile(t, filepath.Join(f.main, "conflict.txt"), "from main again\n")
 	commitAll(t, f.main, "main side")
-	if output, err := exec.Command("git", "-C", f.midway, "merge", "main").CombinedOutput(); err == nil {
+	if output, err := exec.Command("git", "-C", f.midway, "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "merge", "main").CombinedOutput(); err == nil {
 		t.Fatalf("the merge should have stopped on a conflict: %s", output)
 	}
 	return f

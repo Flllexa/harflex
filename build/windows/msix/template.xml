@@ -10,13 +10,13 @@
     <Installer
         Path="harflex"
         Arguments=""
-        InstallLocation="C:\Program Files\My Company\Harflex">
+        InstallLocation="C:\Program Files\Harflex">
     </Installer>
     <PackageInformation
         PackageName="Harflex"
         PackageDisplayName="Harflex"
-        PublisherName="CN=My Company"
-        PublisherDisplayName="My Company"
+        PublisherName="CN=persio.flexa"
+        PublisherDisplayName="persio.flexa"
         Version="0.1.0.0"
         PackageDescription="Local-first agentic development harness">
         <Capabilities>
@@ -42,7 +42,7 @@
         <Properties>
             <Framework>false</Framework>
             <DisplayName>Harflex</DisplayName>
-            <PublisherDisplayName>My Company</PublisherDisplayName>
+            <PublisherDisplayName>persio.flexa</PublisherDisplayName>
             <Description>Local-first agentic development harness</Description>
             <Logo>Assets\AppIcon.png</Logo>
         </Properties>

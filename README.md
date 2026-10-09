@@ -2,6 +2,38 @@
 
 Harness desktop local-first em Go + Wails v3 e React, orientado a sessões de agentes e evidências SDD. O aplicativo implementa catálogo SQLite, cofre do sistema, journal de eventos, provedor OpenAI compatível, adaptadores CLI e ferramentas com política de aprovação. As 17 áreas do menu têm ações próprias, incluindo pipelines SDD, agentes, skills, MCP, workflows, Git, worktrees, agendamentos com o app aberto, canais por pasta local e busca textual no conhecimento do projeto. O [plano do produto](PRODUCT.md) registra recursos mais profundos ainda pendentes; esta versão não afirma paridade integral com Pi ou LionClaw.
 
+## Download
+
+Baixe o instalador da [última release](https://github.com/Flllexa/harflex/releases/latest): `.dmg` para macOS (Apple Silicon e Intel), `.exe` para Windows e `.AppImage`, `.deb` ou `.rpm` para Linux. Os instaladores não são assinados por uma autoridade: no macOS, na primeira vez, clique com o botão direito no app e escolha **Abrir**.
+
+## Como fica
+
+Os prints abaixo são do próprio app com um projeto de demonstração (`make screenshots` gera de novo).
+
+**Chat:** um agente cria o trabalho SDD a partir da conversa, e o trabalho aparece na barra lateral com a etapa em que está.
+
+![Chat casual com o trabalho SDD na barra lateral](docs/screenshots/01-chat.png)
+
+**Discovery, SPEC e Plan:** você escreve a Discovery e a IA prepara a SPEC e o Plan; dá para conversar ou editar antes de aprovar.
+
+![Preparação do trabalho com Discovery, SPEC e Plan](docs/screenshots/02-design.png)
+
+**Code:** o Coder trabalha numa cópia privada do projeto, e a mudança aparece arquivo por arquivo antes de ir para a QA.
+
+![Bancada do Code com o diff por arquivo](docs/screenshots/03-code.png)
+
+**QA rodando:** o QA roda de verdade a instalação, o build, os testes, o E2E e o app no ar, num laboratório próprio, e mostra cada comando enquanto roda.
+
+![Laboratório de QA rodando um comando de cada vez](docs/screenshots/04-qa-running.png)
+
+**Relatório da QA:** falhas e melhorias viram uma lista para marcar; as correções voltam ao Code e o QA roda de novo sozinho até passar.
+
+![Relatório da QA com falhas e melhorias](docs/screenshots/05-qa-report.png)
+
+**PRs:** a IA abre o pull request e a vigia confere os comentários da revisão a cada 10 minutos, corrige e faz push sozinha.
+
+![Mesa de revisão com o PR e a vigia de comentários](docs/screenshots/06-prs.png)
+
 ## Desenvolvimento local
 
 Pré-requisitos: Go com toolchain preferencial 1.26.8, Node 22/npm, dependências nativas da plataforma e Wails **v3.0.0-beta.26**. O módulo mantém `go 1.25.0`; `toolchain go1.26.8` sugere uma toolchain, não fixa exatamente o compilador nem substitui atualizações de segurança. Confira a versão efetiva com `go version`.
@@ -19,6 +51,8 @@ make check            # também tidy, diff e release gates
 make build            # app da plataforma atual
 make package          # pacote da plataforma atual
 make installers       # instaladores: .dmg no macOS, .exe NSIS no Windows, AppImage/deb/rpm no Linux
+make screenshots      # prints do README (docs/screenshots) com dados de demonstração
+make release VERSION=0.2.0  # cria a tag v0.2.0; o GitHub compila e publica a release
 ```
 
 Para rodar `make dev` ao lado do app instalado (ou de outro worktree) sem tocar nos dados reais, aponte um diretório próprio: `HARFLEX_DATA_DIR=/tmp/harflex-dev make dev`. O catálogo SQLite, o diretório privado do Code, as cópias de execução do Code de pipeline e o lock de instância única passam a depender desse diretório; sem a variável, o comportamento é o de sempre (`<config do usuário>/Harflex`). Para explorar a interface no navegador com o backend Go real (por exemplo, para automação), compile com `go build -tags server -o bin/harflex-server .` e rode com `FRONTEND_DEVSERVER_URL=http://127.0.0.1:9245 WAILS_SERVER_PORT=9246 HARFLEX_DATA_DIR=... bin/harflex-server` ao lado de `npm run dev -- --port 9245`; diálogos nativos (escolher pasta/arquivo) só existem no app desktop.

@@ -5,12 +5,12 @@ version: '3'
 
 # This information is used to generate the build assets.
 info:
-  companyName: "My Company" # The name of the company
+  companyName: "persio.flexa" # The name of the company
   productName: "Harflex" # The name of the application
   productIdentifier: "ai.harflex.desktop" # The unique product identifier
   description: "Local-first agentic development harness" # The application description
-  copyright: "(c) 2025, My Company" # Copyright text
-  comments: "Some Product Comments" # Comments
+  copyright: "© 2026 persio.flexa" # Copyright text
+  comments: "https://github.com/Flllexa/harflex" # Comments
   version: "0.1.0" # The application version
   # cfBundleIconName: "appicon" # The macOS icon name in Assets.car icon bundles (optional)
   #                               # Should match the name of your .icon file without the extension
@@ -26,7 +26,7 @@ info:
 #   # The app version to embed in Info.plist (CFBundleShortVersionString/CFBundleVersion)
 #   version: "0.0.1"
 #   # The company/organisation name for templates and project settings
-#   company: "My Company"
+#   company: "persio.flexa"
 #   # Additional comments to embed in Info.plist metadata
 #   comments: "Some Product Comments"
 

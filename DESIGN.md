@@ -157,7 +157,7 @@ O sistema é plano por padrão. Profundidade nasce de camadas tonais, bordas fin
 
 **The Flat Until Lifted Rule.** Uma superfície só recebe sombra quando realmente se move acima de outra.
 
-Sombras observadas: gaveta esquerda (`12px 0 40px #0008`), direita (`-12px 0 40px #0008`) e diálogo (`0 24px 64px #000a`). O scrim usa `#0009`.
+Sombras observadas: gaveta esquerda (`12px 0 40px var(--shadow)`), direita (`-12px 0 40px var(--shadow)`) e diálogo (`0 24px 64px var(--shadow)`). O scrim usa `var(--shadow)`; o token muda com o tema claro ou escuro.
 
 ## Shapes
 

@@ -14,7 +14,7 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,7 +41,8 @@ jobs:
       - run: npm run build
         working-directory: frontend
       # main.go embeds frontend/dist, which is intentionally not versioned.
-      - run: go test ./... -race
+      # The race detector makes the application and storage packages run for well over the default 10 minutes here.
+      - run: go test ./... -race -timeout 40m
       - run: go vet ./...
       - run: go mod tidy -diff
       - run: npx playwright install --with-deps chromium
