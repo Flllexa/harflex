@@ -63,10 +63,22 @@ jobs:
       - run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.26
       - run: npm ci
         working-directory: frontend
-      - name: Build the installers
+      - name: Build the installers (Windows and Linux)
+        if: runner.os != 'macOS'
+        run: wails3 task installers
+      - name: Build the macOS app
+        if: runner.os == 'macOS'
+        run: wails3 task darwin:package:universal
+      - name: Sign, notarize and build the macOS installer
+        if: runner.os == 'macOS'
         env:
-          UNIVERSAL: ${{ runner.os == 'macOS' && '1' || '0' }}
-        run: wails3 task installers UNIVERSAL="$UNIVERSAL"
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: bash scripts/macos-sign.sh
       - name: Name the installers
         env:
           VERSION: ${{ steps.version.outputs.version }}
