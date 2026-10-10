@@ -623,8 +623,10 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
       if (!created) throw firstFailure
       // The person may have opened something else while the conversation was being created.
       if (store.getState().session?.id !== previous.id || store.getState().workspace?.id !== workspace.id) { store.getState().finishCall(); return }
+      // The chat of a work stays the work's chat, whichever conversation carries it now.
+      await backend.continueWorkChat(previous.id, created.id).catch(() => false)
       const opened = await activateSession(created, workspace.id)
-      continuationContext.current = { sessionId: created.id, context: continuationPrompt(request, { session: previous, messages, patchPending }).slice(request.length) }
+      continuationContext.current = { sessionId: created.id, context: continuationPrompt(request, { session: previous, messages, patchPending, switched: !!override }).slice(request.length) }
       // What was typed stays in the box until the journal shows the message, so a send that fails loses nothing; the
       // context stays with the new conversation for the retry.
       if (store.getState().session?.id === created.id) store.getState().setDraft(request)

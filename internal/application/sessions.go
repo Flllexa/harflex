@@ -490,6 +490,8 @@ func (s *Service) makeRunnerAt(record *catalog.SessionRecord, workspace catalog.
 			requestCWD = executionRoot
 		}
 		request := externalagent.Request{CWD: requestCWD, SessionID: history.externalID, SystemPrompt: instructions}
+		// An ordinary chat follows the project's profile: on Full access the CLI is not held to what it may do without asking.
+		request.FullAccess = record.Mode == "" && security.Profile(workspace.Profile) == security.FullAccess
 		if record.Mode == "" && (record.BackendID == "codex" || record.BackendID == "claude") {
 			// Without the platform tools the chat still works; the agent just cannot reach Harflex.
 			if url, token, err := s.platformMCPEndpoint(record.ID, workspace.ID); err == nil {
@@ -785,6 +787,7 @@ func (s *Service) Prompt(in PromptInput) (RunResultDTO, error) {
 	if record.Mode == "sdd_readonly" || record.Mode == catalog.AuthoringCodeSessionMode {
 		return RunResultDTO{}, ErrInvalidInput
 	}
+	s.followWorkspaceProfile(runner, record)
 	if record.Mode == "sdd_code" {
 		active, err := s.pipelineCodeSessionActive(record.ID)
 		if err != nil {
@@ -1180,4 +1183,24 @@ func (j *eventJournal) emit(event events.Event) {
 	if emit != nil {
 		emit("harflex:event", eventDTO(event))
 	}
+}
+
+// fullAccessFollower is a CLI conversation that takes the project's Full access choice from one run to the next.
+type fullAccessFollower interface{ SetFullAccess(bool) }
+
+// followWorkspaceProfile gives an ordinary CLI chat the project's current permission profile before it runs, so a change
+// made between two messages (to or from Full access) applies to the next one and not only to chats opened afterwards.
+func (s *Service) followWorkspaceProfile(runner sessionRunner, record catalog.SessionRecord) {
+	if record.Mode != "" {
+		return
+	}
+	follower, ok := runner.(fullAccessFollower)
+	if !ok {
+		return
+	}
+	workspace, err := s.store.GetWorkspace(s.ctx, record.WorkspaceID)
+	if err != nil {
+		return
+	}
+	follower.SetFullAccess(security.Profile(workspace.Profile) == security.FullAccess)
 }

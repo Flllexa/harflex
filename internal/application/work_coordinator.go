@@ -1,10 +1,10 @@
 package application
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"strings"
-	"unicode/utf8"
 )
 
 // WorkCoordinatorDTO is an SDD work and the chat that coordinates it, as the Casual sidebar lists it.
@@ -14,7 +14,9 @@ type WorkCoordinatorDTO struct {
 	Title        string            `json:"title"`
 	CurrentStage string            `json:"currentStage"`
 	StageStatus  map[string]string `json:"stageStatus"`
-	UpdatedAt    string            `json:"updatedAt"`
+	// PreviousSessionIDs are the conversations that were the work's chat before this one; the sidebar leaves them out.
+	PreviousSessionIDs []string `json:"previousSessionIds"`
+	UpdatedAt          string   `json:"updatedAt"`
 }
 
 // ListWorkCoordinators returns the works of a project that have a chat coordinating them, newest first.
@@ -34,7 +36,9 @@ func (s *Service) ListWorkCoordinators(workspaceID string) ([]WorkCoordinatorDTO
 	for _, item := range found {
 		status := map[string]string{}
 		_ = json.Unmarshal(item.StageStatus, &status)
-		out = append(out, WorkCoordinatorDTO{SessionID: item.SessionID, PipelineID: item.PipelineID, Title: item.Title, CurrentStage: item.CurrentStage, StageStatus: status, UpdatedAt: item.UpdatedAt})
+		previous := []string{}
+		_ = json.Unmarshal(item.Previous, &previous)
+		out = append(out, WorkCoordinatorDTO{SessionID: item.SessionID, PipelineID: item.PipelineID, Title: item.Title, CurrentStage: item.CurrentStage, StageStatus: status, PreviousSessionIDs: previous, UpdatedAt: item.UpdatedAt})
 	}
 	return out, nil
 }
@@ -86,22 +90,53 @@ func (s *Service) EnsureWorkChats(workspaceID string) (EnsureWorkChatsResult, er
 	return EnsureWorkChatsResult{Coordinators: coordinators, Created: created}, err
 }
 
-// coordinatorInstructions tells a chat which work it coordinates, so it can read and explain that work.
+// coordinatorInstructions tells a chat which work it coordinates and where that work stands, so it can answer "where are we"
+// and carry on with what is missing without exploring the project to find out.
 func (s *Service) coordinatorInstructions(sessionID string) string {
 	pipelineID, err := s.store.GetPipelineIDForCoordinator(s.ctx, sessionID)
 	if err != nil {
 		return ""
 	}
-	run, err := s.loadPipeline(pipelineID)
+	report, err := s.workStatusReport(pipelineID)
 	if err != nil {
 		return ""
 	}
-	title := strings.TrimSpace(run.Title)
-	if title == "" || !utf8.ValidString(title) {
-		title = "untitled work"
+	return fmt.Sprintf("This conversation IS the main chat of an SDD work (pipelineId %q), not a loose chat. Its phases are Discovery, SPEC, Plan, Code, QA and PRs; the person approves each phase on the Pipelines screen, and they come back here to talk about the work and to ask for more. "+
+		"Here is where the work stood when this conversation started:\n\n%s\n"+
+		"The state moves while people work, so for a current answer read it again with harflex_get_pipeline (pipelineId %q; includeDocuments when you need the documents) rather than searching the project, other tools or past files. "+
+		"When asked what was done or where it stopped, answer from this state, phase by phase. If the person wants more done in the work, do it or say which phase and screen it belongs to. Keep the decisions of the work in this conversation.", pipelineID, report, pipelineID)
+}
+
+// ContinueWorkChat makes next the chat of the work that previous coordinated, when it coordinated one: a conversation that
+// moved to another model, or that could not be resumed, is still the work's chat. It reports whether anything moved.
+func (s *Service) ContinueWorkChat(previousSessionID, nextSessionID string) (bool, error) {
+	if err := s.beginCall(); err != nil {
+		return false, err
 	}
-	quoted, _ := json.Marshal(title)
-	return fmt.Sprintf("This conversation coordinates the SDD work %s (pipelineId %q). Its phases are Discovery, SPEC, Plan, Code, QA and PRs; the person approves each phase on the Pipelines screen. "+
-		"When the person asks where the work stands, what is next or what to do, read it with harflex_get_pipeline (pipelineId %q; includeDocuments when you need the documents) and answer from what it says. "+
-		"Keep the decisions of the work in this conversation, and say what each phase needs from the person.", quoted, pipelineID, pipelineID)
+	defer s.endCall()
+	if previousSessionID == "" || nextSessionID == "" || previousSessionID == nextSessionID {
+		return false, ErrInvalidInput
+	}
+	pipelineID, err := s.store.GetPipelineIDForCoordinator(s.ctx, previousSessionID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, safe("read work chat", err)
+	}
+	run, err := s.loadPipeline(pipelineID)
+	if err != nil {
+		return false, safe("read work", err)
+	}
+	next, err := s.store.GetSession(s.ctx, nextSessionID)
+	if err != nil || next.WorkspaceID != run.WorkspaceID {
+		return false, ErrSessionNotFound
+	}
+	if err := s.store.ReplacePipelineCoordinator(s.ctx, pipelineID, previousSessionID, nextSessionID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, safe("move work chat", err)
+	}
+	return true, nil
 }

@@ -70,6 +70,7 @@ type Service struct {
 	catalogTokenReady            bool
 	audit                        AuditExporter
 	emit                         func(string, any)
+	update                       updateState
 	closing                      bool
 	activeCalls                  int
 	drained                      chan struct{}

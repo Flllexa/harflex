@@ -3,6 +3,7 @@ import { Activity, ChevronDown, ChevronRight, FolderOpen, FolderSearch, MessageS
 import type { AgentEvent, Backend, ChatProject, WorkCoordinator } from '../lib/backend'
 import type { Session, Workspace } from '../lib/backend'
 import { destinations, type Destination } from './Sidebar'
+import { UpdateButton } from './UpdateButton'
 import { requestOf } from '../features/workbench/continuation'
 import { workProgressOf } from '../features/pipelines/RecentWork'
 import { localeTag, t, useT } from '../i18n'
@@ -134,7 +135,7 @@ export function CasualSidebar({ backend, workspace, activeSessionId, activeSessi
       () => { backend.listWorkCoordinators(workspace.id).then(items => { if (live) read(items) }, () => { if (live) setCoordinators({}) }) },
     )
     return () => { live = false }
-  }, [backend, workspace?.id, pipelineRevision])
+  }, [backend, workspace?.id, pipelineRevision, activeSessionId])
 
   const loadHistory = useCallback(async () => {
     const request = ++generation.current
@@ -170,7 +171,9 @@ export function CasualSidebar({ backend, workspace, activeSessionId, activeSessi
   }, [loadHistory, activeSessionId, activeSessionUpdatedAt, historyHasUserMessage, workChatsRevision])
   useEffect(() => { setOpenedChatId(undefined) }, [workspace?.id])
 
-  const filtered = chats.filter(chat => chat.title.toLocaleLowerCase('pt-BR').includes(search.trim().toLocaleLowerCase('pt-BR')))
+  // A chat that was the work's and moved on (to another model) is part of the work's chat now, not a second row.
+  const superseded = new Set(Object.values(coordinators).flatMap(item => item.previousSessionIds))
+  const filtered = chats.filter(chat => !superseded.has(chat.session.id)).filter(chat => chat.title.toLocaleLowerCase('pt-BR').includes(search.trim().toLocaleLowerCase('pt-BR')))
   const canLoadMore = chats.length < totalSessions
   function startChat() {
     const active = chats.find(chat => chat.session.id === (activeSessionId ?? openedChatId))
@@ -201,7 +204,7 @@ export function CasualSidebar({ backend, workspace, activeSessionId, activeSessi
 
   return <aside className={`casual-sidebar-content${mobileOpen ? ' is-open' : ''}`} aria-label={t('Histórico de conversas')}>
     <div className="sidebar-brand casual-brand">
-      <span className="brand-word">Harflex</span><span className="local-label">Local</span>
+      <span className="brand-word">Harflex</span><span className="local-label">Local</span><UpdateButton backend={backend} />
       <button className="touch-target icon-button sidebar-close" aria-label={t('Fechar histórico')} onClick={onClose}><X aria-hidden="true" /></button>
     </div>
 

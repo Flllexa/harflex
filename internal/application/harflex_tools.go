@@ -168,6 +168,10 @@ func harflexGetPipeline(s *Service, workspaceID, _ string, args json.RawMessage)
 		return nil, ErrPipelineNotFound
 	}
 	result := map[string]any{"pipeline": pipelineSummary(found), "objective": found.Objective}
+	// Every phase, where the work stopped and what is next, in plain text.
+	if report, err := s.workStatusReport(found.ID); err == nil {
+		result["status"] = report
+	}
 	if in.IncludeDocuments {
 		documents := map[string]any{}
 		for stage, artifact := range found.Artifacts {

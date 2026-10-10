@@ -1,5 +1,7 @@
 import { Activity, BookOpen, Brain, Bot, CalendarClock, Coins, Folder, FolderGit2, GitBranch, GitFork, Inbox, ListTree, LockKeyhole, MessageSquare, Network, Plus, ScrollText, Settings, Sparkles, X, type LucideIcon } from 'lucide-react'
+import type { Backend } from '../lib/backend'
 import { useT } from '../i18n'
+import { UpdateButton } from './UpdateButton'
 
 // Grouped by how often people reach for them: the daily loop first, then the
 // building blocks the agents use, then project context and housekeeping.
@@ -16,13 +18,13 @@ const groups: readonly { label: string; items: readonly Entry[] }[] = navigation
 
 export const destinations: readonly Entry[] = groups.flatMap(group => group.items)
 
-type Props = { selected: Destination; onSelect: (name: Destination) => void; onNewWork: () => void; onToggleMode: () => void; onClose: () => void }
+type Props = { backend?: Backend; selected: Destination; onSelect: (name: Destination) => void; onNewWork: () => void; onToggleMode: () => void; onClose: () => void }
 
-export function Sidebar({ selected, onSelect, onNewWork, onToggleMode, onClose }: Props) {
+export function Sidebar({ backend, selected, onSelect, onNewWork, onToggleMode, onClose }: Props) {
   const t = useT()
   return <>
     <div className="sidebar-brand">
-      <span className="brand-word">Harflex</span><span className="local-label">Local</span>
+      <span className="brand-word">Harflex</span><span className="local-label">Local</span><UpdateButton backend={backend} />
       <button className="touch-target icon-button sidebar-close" aria-label={t('Fechar navegação')} onClick={onClose}><X aria-hidden="true" /></button>
     </div>
     <button className="touch-target primary-button new-work" onClick={() => onNewWork()} title={t('Novo trabalho')}>

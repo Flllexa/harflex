@@ -27,6 +27,7 @@ const targets = [
   ['frontend/package.json', /(^\s*"version":\s*")[^"]*(")/m],
   ['internal/externalagent/codex_catalog.go', /("title": "Harflex", "version": ")[^"]*(")/],
   ['internal/mcp/client.go', /(Name: "Harflex", Version: ")[^"]*(")/],
+  ['internal/buildinfo/buildinfo.go', /(const Version = ")[^"]*(")/],
 ]
 // MSIX wants four numbers.
 const msix = [['build/windows/msix/app_manifest.xml', /(<Identity[\s\S]*?\sVersion=")[^"]*(")/], ['build/windows/msix/template.xml', /(\sVersion=")\d+\.\d+\.\d+\.\d+(")/]]

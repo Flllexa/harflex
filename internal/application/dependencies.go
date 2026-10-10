@@ -115,6 +115,7 @@ type Store interface {
 	GetPipelineIDForPRSession(context.Context, string) (string, error)
 	SetPipelineCoordinator(ctx context.Context, pipelineID, sessionID string) error
 	GetPipelineIDForCoordinator(context.Context, string) (string, error)
+	ReplacePipelineCoordinator(ctx context.Context, pipelineID, previous, next string) error
 	ListWorkCoordinators(ctx context.Context, workspaceID string) ([]catalog.WorkCoordinator, error)
 	SavePipelinePullRequest(context.Context, catalog.PipelinePullRequest) (catalog.PipelinePullRequest, error)
 	GetPipelinePullRequest(context.Context, string) (catalog.PipelinePullRequest, error)

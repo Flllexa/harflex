@@ -23,7 +23,10 @@ type Request struct {
 	Policy                                                       string
 	Sandbox                                                      string
 	IgnoreUserConfig, Ephemeral, ApproveForMe                    bool
-	MaxAssistantOutputBytes                                      int
+	// FullAccess is the person's "Full access" choice for the project, for an ordinary chat: nothing the CLI does is refused for
+	// lack of permission, because a print-mode run has nobody to ask.
+	FullAccess              bool
+	MaxAssistantOutputBytes int
 	// Harflex's own MCP server for this conversation (its tools act on the platform). The token reaches the CLI
 	// only through the environment, never its arguments.
 	HarflexMCPURL, HarflexMCPToken string
@@ -266,6 +269,9 @@ func validateRequest(r Request, adapterID string, resumable bool) error {
 	}
 	if r.ApproveForMe && (adapterID != "codex" || r.Policy != "sdd_code" || r.Sandbox != "workspace-write") {
 		return errors.New("automatic review is only available for isolated Code")
+	}
+	if r.FullAccess && (r.Sandbox != "" || r.Policy != "" || r.IgnoreUserConfig || r.Ephemeral || r.ApproveForMe || r.MaxAssistantOutputBytes > 0) {
+		return errors.New("full access is only for ordinary chats")
 	}
 	if r.MaxAssistantOutputBytes < 0 || r.MaxAssistantOutputBytes > 1024*1024 {
 		return errors.New("invalid external assistant output limit")

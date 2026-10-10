@@ -7,5 +7,6 @@ type WorkCoordinator struct {
 	Title        string
 	CurrentStage string
 	StageStatus  []byte
+	Previous     []byte // JSON list of the chats that coordinated the work before
 	UpdatedAt    string
 }

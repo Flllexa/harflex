@@ -14,6 +14,7 @@ declare module "@wailsio/runtime" {
         interface CustomEvents {
             "harflex:event": application$0.EventDTO;
             "harflex:schedule": application$0.ScheduleChangeDTO;
+            "harflex:update": application$0.UpdateStateDTO;
         }
     }
 }

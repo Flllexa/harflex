@@ -164,6 +164,8 @@ export type {
     StartTerminalInput,
     StartWorkflowInput,
     TerminalDTO,
+    UpdateInfoDTO,
+    UpdateStateDTO,
     WorkCoordinatorDTO,
     WorkflowDTO,
     WorkflowRunDTO,

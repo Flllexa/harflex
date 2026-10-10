@@ -4,7 +4,9 @@ Local-first desktop harness built with Go + Wails v3 and React, oriented toward 
 
 ## Download
 
-Download the installer from the [latest release](https://github.com/Flllexa/harflex/releases/latest): `.dmg` for macOS (Apple Silicon and Intel), `.exe` for Windows, and `.AppImage`, `.deb`, or `.rpm` for Linux. The installers are not signed by a certificate authority: on macOS, the first time, right-click the app and choose **Open**.
+Download the installer from the [latest release](https://github.com/Flllexa/harflex/releases/latest): `.dmg` for macOS (Apple Silicon and Intel), `.exe` for Windows, and `.AppImage`, `.deb`, or `.rpm` for Linux. The macOS app is signed with a Developer ID and notarized by Apple, so it opens normally. The Windows and Linux installers are not signed.
+
+**Updates:** when a newer release is published, an **Update vX.Y.Z** button appears beside the logo. One click downloads the installer, checks it against the release's `SHA256SUMS.txt`, replaces the app and reopens it. On macOS the new app must carry a valid signature from the same Developer ID team as the running one, and Gatekeeper must accept it. On Windows it starts the installer; on Linux it replaces the AppImage; a `.deb` or `.rpm` install, or a development build, shows **Download** instead and opens the release page. The check reads the public GitHub releases of this repository and sends nothing else; set `HARFLEX_NO_UPDATE_CHECK=1` to turn it off.
 
 ## What it looks like
 

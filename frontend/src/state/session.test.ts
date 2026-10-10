@@ -46,6 +46,13 @@ describe('session event ingestion', () => {
     expect(project(events.slice(0, 2)).messages).toMatchObject([{ kind: 'assistant', text: 'Olá' }])
     expect(project(events).messages).toEqual([])
   })
+  it('keeps the writing dots on the last reply only, when a run sends several messages', () => {
+    const message = (index: number, messageId: string, content: string) => ({
+      ...event(index, ''), type: 'external.event', data: { type: 'assistant.message', text: content, raw: {}, mode: 'replace', messageId },
+    })
+    const events = [{ ...event(1, ''), type: 'external.run.started', data: {} }, message(2, 'm1', 'Primeiro.'), message(3, 'm2', 'Segundo.'), message(4, 'm3', 'Terceiro.')]
+    expect(project(events).messages).toMatchObject([{ text: 'Primeiro.', streaming: false }, { text: 'Segundo.', streaming: false }, { text: 'Terceiro.', streaming: true }])
+  })
   it('replays shortened and emptied OpenCode fixture prefixes in journal order', () => {
     const events = parse.events(opencodeEvents.map((data, index) => ({
       ...event(index + 1, ''), type: 'external.event', data, createdAt: '2026-09-26T12:00:00Z',

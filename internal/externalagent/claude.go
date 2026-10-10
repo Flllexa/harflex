@@ -21,10 +21,15 @@ func validClaudeReasoningEffort(value string) bool {
 
 // NewClaudeCode creates the Claude Code adapter; an empty path uses known install locations, then PATH.
 // The prompt goes through stdin. Edits inside the working directory are accepted; any other tool that would
-// ask for permission is refused, because a print-mode run has nobody to answer it.
+// ask for permission is refused, because a print-mode run has nobody to answer it, unless the project is on Full access.
 func NewClaudeCode(path string) Adapter {
 	return &cliAdapter{id: "claude", path: path, resumable: true, newNormalizer: newClaudeNormalizer, build: func(r Request) ([]string, string) {
-		args := []string{"-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits"}
+		// Edits in the working directory are accepted; with the project on Full access nothing is refused (the person chose that).
+		mode := "acceptEdits"
+		if r.FullAccess {
+			mode = "bypassPermissions"
+		}
+		args := []string{"-p", "--output-format", "stream-json", "--verbose", "--permission-mode", mode}
 		if r.Model != "" {
 			args = append(args, "--model", r.Model)
 		}

@@ -53,6 +53,14 @@ func RestoreSession(id string, adapter Adapter, recorder Recorder, request Reque
 	s.used = used
 	return s
 }
+
+// SetFullAccess follows the project's permission profile from one run to the next: the person may change it between messages.
+func (s *Session) SetFullAccess(on bool) {
+	s.mu.Lock()
+	s.request.FullAccess = on
+	s.mu.Unlock()
+}
+
 func (s *Session) Cancel() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -141,7 +149,9 @@ func (s *Session) Prompt(parent context.Context, text string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	s.mu.Lock()
 	request := s.request
+	s.mu.Unlock()
 	boundSessionID := request.SessionID
 	request.Prompt = text
 	// Codex and Claude Code take the instructions as such on every turn; only a CLI without that option gets them

@@ -960,6 +960,20 @@ describe('continuing a closed conversation', () => {
     return screen.getByLabelText('Mensagem')
   }
 
+  it('hands the work its chat when the conversation that coordinated it is continued, before the message is sent', async () => {
+    const user = userEvent.setup()
+    const { backend } = closedProject()
+    const order: string[] = []
+    backend.continueWorkChat = vi.fn(async () => { order.push('moved'); return true })
+    const send = backend.prompt
+    backend.prompt = vi.fn(async (...args: Parameters<typeof send>) => { order.push('prompt'); return send(...args) })
+    const box = await openClosed(user, backend)
+    await user.type(box, 'Agora ajuste o título{Enter}')
+    await waitFor(() => expect(backend.prompt).toHaveBeenCalledTimes(1))
+    expect(backend.continueWorkChat).toHaveBeenCalledWith(closed.id, 'new-session')
+    expect(order).toEqual(['moved', 'prompt'])
+  })
+
   it('opens a new chat on a usable backend, carries the old conversation and sends the message there', async () => {
     const user = userEvent.setup()
     const { backend } = closedProject()

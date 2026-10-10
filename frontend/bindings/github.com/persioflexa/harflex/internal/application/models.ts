@@ -1509,6 +1509,29 @@ export interface TerminalDTO {
 }
 
 /**
+ * UpdateInfoDTO says whether a newer version is published, and whether this copy can install it by itself.
+ */
+export interface UpdateInfoDTO {
+    "currentVersion": string;
+    "available": boolean;
+    "version": string;
+    "pageUrl": string;
+    "canInstall": boolean;
+}
+
+/**
+ * UpdateStateDTO is the progress of an install, sent as the "harflex:update" event.
+ */
+export interface UpdateStateDTO {
+    /**
+     * downloading, installing, restarting or failed
+     */
+    "phase": string;
+    "percent": number;
+    "errorCode": string;
+}
+
+/**
  * WorkCoordinatorDTO is an SDD work and the chat that coordinates it, as the Casual sidebar lists it.
  */
 export interface WorkCoordinatorDTO {
@@ -1517,6 +1540,11 @@ export interface WorkCoordinatorDTO {
     "title": string;
     "currentStage": string;
     "stageStatus": { [_ in string]?: string } | null;
+
+    /**
+     * PreviousSessionIDs are the conversations that were the work's chat before this one; the sidebar leaves them out.
+     */
+    "previousSessionIds": string[] | null;
     "updatedAt": string;
 }
 

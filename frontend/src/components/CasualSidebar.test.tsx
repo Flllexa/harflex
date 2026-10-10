@@ -318,7 +318,7 @@ describe('CasualSidebar', () => {
       backend.listSessions = async () => [session]
       backend.openSession = async () => session
       backend.listEvents = async () => []
-      backend.ensureWorkChats = async () => ({ coordinators: [{ sessionId: session.id, pipelineId: 'todo', title: 'Crie um TODO com html', currentStage: 'eval', stageStatus: { eval: 'waiting_user' }, updatedAt: '2026-10-08T10:00:00Z' }], created: 0 })
+      backend.ensureWorkChats = async () => ({ coordinators: [{ sessionId: session.id, pipelineId: 'todo', title: 'Crie um TODO com html', currentStage: 'eval', stageStatus: { eval: 'waiting_user' }, previousSessionIds: [], updatedAt: '2026-10-08T10:00:00Z' }], created: 0 })
     })
     const row = await screen.findByRole('button', { name: /Crie um TODO com html/ })
     expect(row).toHaveTextContent('QA · aguardando você')
@@ -328,13 +328,26 @@ describe('CasualSidebar', () => {
     expect(onOpenPipeline).not.toHaveBeenCalled()
   })
 
+  it('shows one row for a work whose chat moved to another conversation, and never the old one', async () => {
+    const old = { ...session, id: 'session-old', title: 'Conversa antiga' }
+    renderSidebar({}, backend => {
+      backend.listSessions = async () => [session, old]
+      backend.openSession = async () => session
+      backend.listEvents = async () => []
+      backend.ensureWorkChats = async () => ({ coordinators: [{ sessionId: session.id, pipelineId: 'todo', title: 'Crie um TODO com html', currentStage: 'code', stageStatus: { code: 'active' }, previousSessionIds: [old.id], updatedAt: '2026-10-08T10:00:00Z' }], created: 0 })
+    })
+    expect(await screen.findByRole('button', { name: /Crie um TODO com html/ })).toBeInTheDocument()
+    expect(screen.queryByText('Conversa antiga')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /Crie um TODO com html/ })).toHaveLength(1)
+  })
+
   it('reads the chats again after giving the works that had none their chat', async () => {
     const listed = vi.fn(async () => [session])
     renderSidebar({}, backend => {
       backend.listSessions = listed
       backend.openSession = async () => session
       backend.listEvents = async () => []
-      backend.ensureWorkChats = async () => ({ coordinators: [{ sessionId: session.id, pipelineId: 'todo', title: 'Crie um TODO com html', currentStage: 'code', stageStatus: { code: 'active' }, updatedAt: '2026-10-08T10:00:00Z' }], created: 1 })
+      backend.ensureWorkChats = async () => ({ coordinators: [{ sessionId: session.id, pipelineId: 'todo', title: 'Crie um TODO com html', currentStage: 'code', stageStatus: { code: 'active' }, previousSessionIds: [], updatedAt: '2026-10-08T10:00:00Z' }], created: 1 })
     })
     await screen.findByRole('button', { name: /Crie um TODO com html/ })
     await waitFor(() => expect(listed.mock.calls.length).toBeGreaterThanOrEqual(2))

@@ -201,7 +201,7 @@ export function AppShell({ initialActivityOpen, workState = 'empty', backend, re
     {overlayOpen && <div className="drawer-scrim" aria-hidden="true" />}
     <div ref={sidebarContainer} id="sidebar" className={`sidebar${sidebarOpen ? ' is-open' : ''}`} role={sidebarOpen ? 'dialog' : undefined} aria-modal={sidebarOpen || undefined} aria-label={sidebarOpen ? viewMode === 'casual' ? t('Histórico de conversas') : t('Navegação') : undefined}>
       {viewMode === 'professional'
-        ? <Sidebar selected={selected} onClose={closeSidebar} onSelect={selectDestination} onNewWork={startNewChat} onToggleMode={() => changeMode('casual')} />
+        ? <Sidebar backend={backend} selected={selected} onClose={closeSidebar} onSelect={selectDestination} onNewWork={startNewChat} onToggleMode={() => changeMode('casual')} />
         : <CasualSidebar backend={backend} workspace={workbenchContext.workspace} activeSessionId={workbenchContext.session?.id} activeSessionUpdatedAt={workbenchContext.session?.updatedAt} historyHasUserMessage={workbenchContext.historyHasUserMessage} recoveryPrompt={workbenchContext.recoveryPrompt} selected={selected} busy={workbenchContext.busy} loadingHistory={workbenchContext.loadingHistory} hasDraft={workbenchContext.hasDraft} mobileOpen={sidebarOpen} onOpenSession={openHistorySession} onOpenPipeline={openPipeline} pipelineRevision={currentPipeline ? `${currentPipeline.id}:${currentPipeline.revision}` : ''} onOpenProject={openProjectFromSidebar} onSelectDestination={selectDestination} onNewChat={startNewChat} onProjects={() => selectDestination('Projetos')} onToggleMode={() => changeMode('professional')} onClose={closeSidebar} />}
     </div>
     <div className="workspace" ref={background}>

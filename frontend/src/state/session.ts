@@ -173,7 +173,11 @@ export function project(events: AgentEvent[]): Projection {
   }
   if (pending.size > 0) activeRun = 'awaiting_approval'
   // A complete empty replacement retracts the part; keep no empty chat bubble.
-  return { messages: messages.filter(message => message.kind !== 'assistant' || message.text !== ''), pendingApprovals: [...pending.values()], activeRun, outcome }
+  const shown = messages.filter(message => message.kind !== 'assistant' || message.text !== '')
+  // Only the reply at the end of the conversation is still being written: an agent that sends several messages in one
+  // run (CLI agents, with a message id each) leaves the earlier ones closed, or every one would keep its own dots.
+  shown.forEach((message, index) => { if (message.kind === 'assistant' && index < shown.length - 1) message.streaming = false })
+  return { messages: shown, pendingApprovals: [...pending.values()], activeRun, outcome }
 }
 
 export type SessionState = Projection & {

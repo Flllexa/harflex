@@ -364,6 +364,13 @@ type selectedCLIRunner struct {
 	timeout         time.Duration
 }
 
+// SetFullAccess passes the project's permission profile on to the CLI conversation underneath.
+func (r *selectedCLIRunner) SetFullAccess(on bool) {
+	if follower, ok := r.base.(fullAccessFollower); ok {
+		follower.SetFullAccess(on)
+	}
+}
+
 func (r *selectedCLIRunner) Prompt(parent context.Context, text string) error {
 	return r.execute(parent, func(ctx context.Context) error { return r.base.Prompt(ctx, text) })
 }

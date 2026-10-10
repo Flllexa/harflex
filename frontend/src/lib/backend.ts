@@ -58,8 +58,12 @@ const pullRequestEvent = z.object({ at: z.string(), kind: z.string(), summary: z
 const pullRequest = z.object({ id: z.string().min(1), pipelineId: z.string(), sessionId: z.string(), url: z.string(), title: z.string(), branch: z.string(), state: z.enum(['open', 'merged', 'closed']), watch: z.boolean(),
   lastCheckedAt: z.string().optional(), nextCheckAt: z.string().optional(), checking: z.boolean(), timeline: z.array(pullRequestEvent).nullish().transform(value => value ?? []) })
 export type PullRequest = z.infer<typeof pullRequest>
-const workCoordinator = z.object({ sessionId: z.string().min(1), pipelineId: z.string().min(1), title: z.string(), currentStage: z.union([pipelineStage, z.literal('')]), stageStatus: z.record(z.string(), z.string()), updatedAt: z.string() })
+const workCoordinator = z.object({ sessionId: z.string().min(1), pipelineId: z.string().min(1), title: z.string(), currentStage: z.union([pipelineStage, z.literal('')]), stageStatus: z.record(z.string(), z.string()), previousSessionIds: z.array(z.string()).nullish().transform(items => items ?? []), updatedAt: z.string() })
 export type WorkCoordinator = z.infer<typeof workCoordinator>
+const updateInfo = z.object({ currentVersion: z.string(), available: z.boolean(), version: z.string(), pageUrl: z.string(), canInstall: z.boolean() })
+export type UpdateInfo = z.infer<typeof updateInfo>
+const updateState = z.object({ phase: z.enum(['downloading', 'installing', 'restarting', 'failed']), percent: z.number().min(0).max(100), errorCode: z.string() })
+export type UpdateState = z.infer<typeof updateState>
 
 const pipeline = z.object({ id: z.string().min(1), workspaceId: z.string().min(1), kind: z.enum(['legacy', 'ai_authoring']).optional(), preparationExperience: z.literal('conversational').optional(), derivedFromPipelineId: z.string().optional(), discoveryFrozenVersion: z.number().int().nonnegative().optional(), title: z.string(), objective: z.string(), currentStage: z.union([pipelineStage, z.literal('')]), stageStatus: z.record(z.string(), z.enum(['pending', 'active', 'completed', 'skipped', 'failed', 'paused', 'waiting_user'])), revision: z.number().int().positive(), artifacts: z.record(z.string(), pipelineArtifact), archivedArtifacts: z.array(pipelineArchivedArtifact).optional(), executionReviews: z.array(pipelineExecutionReview).optional(), codeAppliedAt: z.iso.datetime({ offset: true }).optional(), codePatchPending: z.boolean().optional(), codeReviewRecoveryStatus: z.enum(['available', 'snapshot_unavailable', 'already_applied', 'source_drift']).optional(), codeReviewRecoveryReason: z.string().optional(), createdAt: z.iso.datetime({ offset: true }), updatedAt: z.iso.datetime({ offset: true }) })
 const authoringPipeline = pipeline.refine(
@@ -454,8 +458,15 @@ export interface Backend {
   getAuthoringCodeCopyPreparations(input: GetAuthoringCodeCopyPreparationsInput): Promise<AuthoringCodeCopyPreparations>
   getAuthoringCodeRunPatch(input: GetAuthoringCodeRunPatchInput): Promise<AuthoringCodeRunPatchPage>
   listPipelines(workspaceId: string): Promise<Pipeline[]>
+  /** Asks GitHub whether a newer version is published. Rejects when it cannot be reached; callers may ignore that. */
+  checkForUpdate(): Promise<UpdateInfo>
+  /** Downloads and applies the newer version, then restarts the app. Resolves at once; onUpdateState carries the progress. */
+  installUpdate(): Promise<void>
+  onUpdateState(listener: (state: UpdateState) => void): () => void
   /** The works of a project that have a chat coordinating them. */
   listWorkCoordinators(workspaceId: string): Promise<WorkCoordinator[]>
+  /** Makes `next` the chat of the work that `previous` coordinated (a conversation that moved to another model or could not be resumed is still the work's chat). Resolves false when `previous` coordinated nothing. */
+  continueWorkChat(previousSessionId: string, nextSessionId: string): Promise<boolean>
   /** Gives every work of the project that has no chat one (its main conversation); safe to repeat. */
   ensureWorkChats(workspaceId: string): Promise<{ coordinators: WorkCoordinator[]; created: number }>
   getPipelineStageActivity(pipelineId: string, stage: PipelineStage): Promise<PipelineStageActivity>
@@ -582,6 +593,8 @@ export const parse = {
   authoringCodeRunPatchPage: (value: unknown) => authoringCodeRunPatchPage.parse(value),
   brainstorms: (value: unknown) => z.array(brainstorm).parse(value ?? []),
   pipelines: (value: unknown) => z.array(pipeline).parse(value ?? []),
+  updateInfo: (value: unknown) => updateInfo.parse(value),
+  updateState: (value: unknown) => updateState.safeParse(value).data,
   workCoordinators: (value: unknown) => z.array(workCoordinator).parse(value ?? []),
   ensureWorkChats: (value: unknown) => z.object({ coordinators: z.array(workCoordinator).nullish().transform(items => items ?? []), created: z.number().int().nonnegative() }).parse(value),
   pipelineSession: (value: unknown) => pipelineSession.parse(value),

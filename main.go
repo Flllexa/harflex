@@ -27,6 +27,7 @@ var assets embed.FS
 func init() {
 	application.RegisterEvent[appservice.EventDTO]("harflex:event")
 	application.RegisterEvent[appservice.ScheduleChangeDTO]("harflex:schedule")
+	application.RegisterEvent[appservice.UpdateStateDTO]("harflex:update")
 }
 
 const instanceID = "ai.harflex.desktop"
@@ -164,6 +165,7 @@ func run() error {
 	stopScheduler = scheduler.Stop
 	defer shutdown()
 	appservice.SetEmitter(service, func(name string, payload any) { app.Event.Emit(name, payload) })
+	appservice.SetQuitHandler(service, app.Quit)
 	app.Window.NewWithOptions(windowOptions())
 	if err := app.Run(); err != nil {
 		return fmt.Errorf("run desktop application: %w", err)

@@ -241,7 +241,7 @@ export function installShowcase(backend: Backend, view: ShowcaseView) {
     { workspaceId, stage: 'prs' as const, backendId: 'openrouter', modelId: 'anthropic/claude-opus-5.5', updatedAt: checkedAt },
   ]
   backend.listPipelines = async () => [pipeline]
-  const coordinators = [{ sessionId: chatSession.id, pipelineId: pipeline.id, title: pipeline.title, currentStage: pipeline.currentStage, stageStatus: pipeline.stageStatus, updatedAt: at(40) }]
+  const coordinators = [{ sessionId: chatSession.id, pipelineId: pipeline.id, title: pipeline.title, currentStage: pipeline.currentStage, stageStatus: pipeline.stageStatus, previousSessionIds: [], updatedAt: at(40) }]
   backend.listWorkCoordinators = async () => coordinators
   backend.ensureWorkChats = async () => ({ coordinators, created: 0 })
   backend.getPipeline = async () => pipeline

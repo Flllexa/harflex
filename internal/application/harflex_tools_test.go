@@ -61,6 +61,10 @@ func TestHarflexToolsCreateAndReadPipelinesOfTheirOwnProjectOnly(t *testing.T) {
 	if err != nil || !strings.Contains(string(read.Content), "Permitir baixar parte") {
 		t.Fatalf("get: %s %v", read.Content, err)
 	}
+	// The read also says every phase and where the work stopped, in plain text.
+	if !strings.Contains(string(read.Content), "Where it stands") || !strings.Contains(string(read.Content), "Discovery: ") {
+		t.Fatalf("get without the work status: %s", read.Content)
+	}
 
 	var failure *agentcore.ToolFailure
 	_, err = harflexToolNamed(t, s.harflexTools(other.ID, ""), harflexGetPipelineTool).Execute(t.Context(), json.RawMessage(`{"pipelineId":"`+result.Pipeline.ID+`"}`), nil)

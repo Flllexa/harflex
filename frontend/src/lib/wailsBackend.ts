@@ -134,6 +134,13 @@ export const wailsBackend: Backend = {
     return page
   },
   listPipelines: async workspaceId => parse.pipelines(await Service.ListPipelines(workspaceId)),
+  checkForUpdate: async () => parse.updateInfo(await Service.CheckForUpdate()),
+  installUpdate: async () => { await Service.InstallUpdate() },
+  onUpdateState: listener => Events.On('harflex:update', event => {
+    const state = parse.updateState(event.data)
+    if (state) listener(state)
+  }),
+  continueWorkChat: async (previousSessionId, nextSessionId) => Service.ContinueWorkChat(previousSessionId, nextSessionId),
   listWorkCoordinators: async workspaceId => parse.workCoordinators(await Service.ListWorkCoordinators(workspaceId)),
   ensureWorkChats: async workspaceId => parse.ensureWorkChats(await Service.EnsureWorkChats(workspaceId)),
   getPipeline: async pipelineId => parse.pipeline(await Service.GetPipeline(pipelineId)),

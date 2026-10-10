@@ -78,6 +78,14 @@ export function CancelWorkflowRun(runID: string): $CancellablePromise<$models.Wo
 }
 
 /**
+ * CheckForUpdate asks GitHub whether a version newer than this one is published. Failing to reach it is an error the
+ * caller may ignore: nobody has to be told that the check could not run.
+ */
+export function CheckForUpdate(): $CancellablePromise<$models.UpdateInfoDTO> {
+    return $Call.ByID(15575283);
+}
+
+/**
  * CheckPullRequestNow asks the PRs conversation to look at the pull request now, whatever the watch's schedule.
  */
 export function CheckPullRequestNow(prID: string): $CancellablePromise<$models.PullRequestDTO> {
@@ -116,6 +124,14 @@ export function ConfirmDiscoveryAfterSkip($in: $models.BrainstormRequestInput): 
 
 export function ConnectMCPServer(id: string): $CancellablePromise<$models.MCPServerDTO> {
     return $Call.ByID(9010868, id);
+}
+
+/**
+ * ContinueWorkChat makes next the chat of the work that previous coordinated, when it coordinated one: a conversation that
+ * moved to another model, or that could not be resumed, is still the work's chat. It reports whether anything moved.
+ */
+export function ContinueWorkChat(previousSessionID: string, nextSessionID: string): $CancellablePromise<boolean> {
+    return $Call.ByID(3034680119, previousSessionID, nextSessionID);
 }
 
 export function CreateAuthoringPipeline($in: $models.CreateAuthoringPipelineInput): $CancellablePromise<$models.PipelineDTO> {
@@ -319,6 +335,14 @@ export function IndexKnowledgeVectors($in: $models.IndexKnowledgeVectorsInput): 
 
 export function InspectRepository(workspaceID: string): $CancellablePromise<$models.RepositoryDTO> {
     return $Call.ByID(4268642819, workspaceID);
+}
+
+/**
+ * InstallUpdate downloads the newer version, checks it, swaps the app and restarts it. It returns at once; the
+ * "harflex:update" event carries the progress, and the app quits by itself when the swap is armed.
+ */
+export function InstallUpdate(): $CancellablePromise<void> {
+    return $Call.ByID(4110971241);
 }
 
 export function ListAgents(): $CancellablePromise<$models.AgentDTO[] | null> {

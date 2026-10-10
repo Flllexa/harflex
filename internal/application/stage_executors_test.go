@@ -120,7 +120,7 @@ func TestStageExecutorRefusesWhatThePhaseCannotRunOn(t *testing.T) {
 		{WorkspaceID: workspace.ID, Stage: "eval", BackendID: "alpha", ModelID: "alpha-model"},
 		{WorkspaceID: workspace.ID, Stage: "prs", BackendID: "alpha", ModelID: "alpha-model"},
 		{WorkspaceID: workspace.ID, Stage: "prs", BackendID: "claude", ModelID: "opus"}, // resumes its conversation, and reaches the tools over MCP
-		{WorkspaceID: workspace.ID, Stage: "prs", BackendID: "local"}, // the pull requests need no catalog
+		{WorkspaceID: workspace.ID, Stage: "prs", BackendID: "local"},                   // the pull requests need no catalog
 	} {
 		if _, err := s.SaveStageExecutor(in); err != nil {
 			t.Fatalf("%+v: %v", in, err)

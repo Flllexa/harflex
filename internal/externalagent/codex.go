@@ -12,6 +12,9 @@ func NewCodex(path string) Adapter {
 		if sandbox == "" {
 			sandbox = "workspace-write"
 		}
+		if r.FullAccess {
+			sandbox = "danger-full-access" // the person's Full access choice for the project
+		}
 		args := []string{"exec", "--json", "--color", "never"}
 		if r.ApproveForMe {
 			// Codex CLI defines --approve-for-me as a workspace-write sandbox
