@@ -17,7 +17,7 @@
         PackageDisplayName="Harflex"
         PublisherName="CN=persio.flexa"
         PublisherDisplayName="persio.flexa"
-        Version="0.2.2.0"
+        Version="0.2.3.0"
         PackageDescription="Local-first agentic development harness">
         <Capabilities>
             <Capability Name="runFullTrust" />

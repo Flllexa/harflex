@@ -10,7 +10,7 @@
   <Identity
     Name="ai.harflex.desktop"
     Publisher="CN=persio.flexa"
-    Version="0.2.2.0"
+    Version="0.2.3.0"
     ProcessorArchitecture="arm64" />
 
   <Properties>

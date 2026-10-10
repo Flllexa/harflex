@@ -231,7 +231,7 @@ func (p *codexCatalogProtocol) run(ctx context.Context) modelcatalog.Result {
 	result := codexCatalogFailure("catalog_unavailable")
 	initID := p.nextID
 	p.nextID++
-	if err := p.send("initialize", initID, map[string]any{"clientInfo": map[string]string{"name": "harflex", "title": "Harflex", "version": "0.2.2"}}); err != nil {
+	if err := p.send("initialize", initID, map[string]any{"clientInfo": map[string]string{"name": "harflex", "title": "Harflex", "version": "0.2.3"}}); err != nil {
 		return result
 	}
 	if _, _, err := p.await(ctx, initID); err != nil {
