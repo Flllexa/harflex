@@ -33,7 +33,7 @@ export function PipelineDesignStudio({ backend, pipeline, stageExecutors = [], o
   const [pending, setPending] = useState<Command>(), pendingRef = useRef<Command>(), receipt = useRef<Receipt>()
   const preparationIntent = useRef<{ key: string; input: PreparePipelineDesignInput }>()
   const [confirmedPipeline, setConfirmedPipeline] = useState<Pipeline>(), confirmationNumber = useRef(0)
-  const [uncertain, setUncertain] = useState(false), [pollingStopped, setPollingStopped] = useState(false), pollStarted = useRef(0)
+  const [uncertain, setUncertain] = useState(false), pollStarted = useRef(0)
   const [composer, setComposer] = useState(() => ({ backend, scope, draft: readComposer(backend, scope) })), [stage, setStage] = useState<PipelineDesignStage>('spec')
   const draft = composer.backend === backend && composer.scope === scope ? composer.draft : readComposer(backend, scope)
   const { message, target } = draft
@@ -58,7 +58,7 @@ export function PipelineDesignStudio({ backend, pipeline, stageExecutors = [], o
   useLayoutEffect(() => {
     scopeRef.current = scope; epoch.current++; readNumber.current++; confirmationNumber.current++; designRef.current = undefined; pendingRef.current = undefined; receipt.current = undefined; preparationIntent.current = undefined; pollStarted.current = 0
     setConfirmedPipeline(undefined)
-    setDesign(undefined); setState('loading'); setError(''); setNotice(''); setPending(undefined); setUncertain(false); setPollingStopped(false); setComposer({ backend, scope, draft: readComposer(backend, scope) }); setStage('spec'); setEditing(false); setMobilePane('conversation'); setSelections({}); setModelsReady(true)
+    setDesign(undefined); setState('loading'); setError(''); setNotice(''); setPending(undefined); setUncertain(false); setComposer({ backend, scope, draft: readComposer(backend, scope) }); setStage('spec'); setEditing(false); setMobilePane('conversation'); setSelections({}); setModelsReady(true)
     return () => { epoch.current++; readNumber.current++ }
   }, [backend, scope])
   useEffect(() => {
@@ -116,19 +116,19 @@ export function PipelineDesignStudio({ backend, pipeline, stageExecutors = [], o
   useEffect(() => { void refresh(); return () => { readNumber.current++ } }, [backend, scope, pipeline.revision])
   const needsPolling = running(design) || pending === 'prepare'
   useEffect(() => {
-    if (!needsPolling || pollingStopped) { if (!needsPolling) pollStarted.current = 0; return }
+    if (!needsPolling) { pollStarted.current = 0; return }
     if (!pollStarted.current) pollStarted.current = Date.now()
     let active = true, timer: ReturnType<typeof setTimeout>
     const ticket = epoch.current
     const poll = async () => {
       if (!active || !validScope(ticket)) return
-      if (Date.now() - pollStarted.current >= 180000) { setPollingStopped(true); return }
       await refresh(false)
-      if (active && validScope(ticket)) timer = setTimeout(() => void poll(), 1000)
+      // Preparing has no time limit, so following it never stops; after the first minutes it checks less often.
+      if (active && validScope(ticket)) timer = setTimeout(() => void poll(), Date.now() - pollStarted.current >= 180000 ? 5000 : 1000)
     }
     timer = setTimeout(() => void poll(), 1000)
     return () => { active = false; clearTimeout(timer) }
-  }, [backend, scope, needsPolling, pollingStopped])
+  }, [backend, scope, needsPolling])
   useEffect(() => {
     if (!log.current) return
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -163,7 +163,7 @@ export function PipelineDesignStudio({ backend, pipeline, stageExecutors = [], o
     if (!current || pendingRef.current || running(current) || current.needsDerivation || editing || savedManualEditorStage(backend, current) || !modelsReady) return
     if (destination === 'plan' && current.documents.spec.stale) { setError(staleSpecMessage); return }
     const ticket = epoch.current
-    setCommand('prepare'); setError(''); setNotice(''); setUncertain(false); setPollingStopped(false); pollStarted.current = Date.now()
+    setCommand('prepare'); setError(''); setNotice(''); setUncertain(false); pollStarted.current = Date.now()
     const key = JSON.stringify([current.pipelineId, current.currentPipelineRevision, current.revision, text, destination, selections])
     const input: PreparePipelineDesignInput = preparationIntent.current?.key === key ? preparationIntent.current.input : { ref: reference(current, requestId), message: text, target: destination, ...(Object.keys(selections).length ? { selections } : {}) }
     preparationIntent.current = { key, input }
@@ -242,7 +242,7 @@ export function PipelineDesignStudio({ backend, pipeline, stageExecutors = [], o
   const failedMessage = design?.state === 'paused' && lastAttempt?.status === 'failed' ? design.messages.find(item => item.role === 'user' && item.attemptId === lastAttempt.id) : undefined
   const phase = design?.phase && designStageOrder.includes(design.phase as PipelineDesignStage) ? designLabels[design.phase as PipelineDesignStage] : t('SPEC e Plan')
   return <section className="pipeline-design-studio" aria-labelledby="design-studio-title" data-pane={mobilePane}>
-    <header className="design-studio-header"><div><h3 id="design-studio-title">{t('Preparar trabalho')}</h3><p className="muted">{design?.needsDerivation ? t('Documentos aprovados para esta execução.') : t('Converse com a IA ou ajuste os documentos.')}</p></div><button type="button" className="touch-target secondary-button" onClick={() => { pollStarted.current = Date.now(); setPollingStopped(false); void refresh() }} disabled={state === 'loading'}><RefreshCw aria-hidden="true" />{t('Atualizar trabalho')}</button></header>
+    <header className="design-studio-header"><div><h3 id="design-studio-title">{t('Preparar trabalho')}</h3><p className="muted">{design?.needsDerivation ? t('Documentos aprovados para esta execução.') : t('Converse com a IA ou ajuste os documentos.')}</p></div><button type="button" className="touch-target secondary-button" onClick={() => { pollStarted.current = Date.now(); void refresh() }} disabled={state === 'loading'}><RefreshCw aria-hidden="true" />{t('Atualizar trabalho')}</button></header>
     {state === 'loading' && <div className="design-loading" role="status"><span>{t('Carregando conversa e documentos…')}</span><div /><div /></div>}
     {state === 'error' && <div className="inline-error"><p>{t('Não foi possível abrir os documentos deste trabalho.')}</p><button type="button" className="touch-target secondary-button" onClick={() => void refresh()}>{t('Tentar abrir novamente')}</button></div>}
     {error && <p className="form-error" role="alert">{error}</p>}
@@ -255,7 +255,7 @@ export function PipelineDesignStudio({ backend, pipeline, stageExecutors = [], o
         {conversation.map(item => <div key={item.id} className={`design-message design-message-${item.role}`}><div className="design-message-heading"><strong>{item.role === 'user' ? t('Você') : item.role === 'assistant' ? t('IA') : t('Trabalho')}</strong>{item.role === 'user' && <span className="muted">{item.target === 'all' ? t('Todos os documentos') : designLabels[item.target as PipelineDesignStage] || item.target}</span>}</div>{item.role === 'assistant' ? <DesignMarkdown content={item.content} /> : <p>{item.content}</p>}</div>)}
         {conversation.length === 0 && <p className="muted design-conversation-hint">{t('A IA prepara SPEC e Plan com base no Discovery. Depois, peça ajustes por aqui.')}</p>}
       </div>
-      <div className="design-progress" aria-live="polite">{design.state === 'cancellation_pending' ? <p>{t('Aguardando a confirmação do cancelamento. Os documentos estão protegidos.')}</p> : design.state === 'running' || pending === 'prepare' ? <><p><RefreshCw className="design-preparing-icon" aria-hidden="true" />{design.state === 'running' ? t('Preparando {phase}…', { phase }) : t('Iniciando preparação…')}</p>{design.activeAttemptId && <button type="button" className="touch-target secondary-button" onClick={() => void cancel()} disabled={pending === 'cancel'}><Square aria-hidden="true" />{t('Cancelar preparação')}</button>}</> : latest ? <span className="muted">{t('Última atualização · {label} v{version} · {time}', { label: designLabels[latest.stage], version: latest.version, time: new Date(latest.updatedAt).toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' }) })}</span> : null}{pollingStopped && <p className="muted">{t('O acompanhamento pausou após 3 minutos. Use Atualizar trabalho para conferir o resultado.')}</p>}</div>
+      <div className="design-progress" aria-live="polite">{design.state === 'cancellation_pending' ? <p>{t('Aguardando a confirmação do cancelamento. Os documentos estão protegidos.')}</p> : design.state === 'running' || pending === 'prepare' ? <><p><RefreshCw className="design-preparing-icon" aria-hidden="true" />{design.state === 'running' ? t('Preparando {phase}…', { phase }) : t('Iniciando preparação…')}</p>{design.activeAttemptId && <button type="button" className="touch-target secondary-button" onClick={() => void cancel()} disabled={pending === 'cancel'}><Square aria-hidden="true" />{t('Cancelar preparação')}</button>}</> : latest ? <span className="muted">{t('Última atualização · {label} v{version} · {time}', { label: designLabels[latest.stage], version: latest.version, time: new Date(latest.updatedAt).toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' }) })}</span> : null}</div>
       {failedMessage && <div className="design-retry"><button type="button" className="touch-target secondary-button" onClick={() => void prepare(failedMessage.content, designStageOrder.includes(failedMessage.target as PipelineDesignStage) ? failedMessage.target as PipelineDesignStage : 'all', undefined, false)} disabled={!canGenerate || failedMessage.target === 'plan' && design.documents.spec.stale}>{t('Tentar preparação novamente')}</button></div>}
       {!design.needsDerivation && <form className="design-composer" onSubmit={send}><label className="field">{t('Pedido para a IA')}<textarea value={message} onChange={event => setMessage(event.target.value)} placeholder={t('O que você quer ajustar nos documentos?')} rows={3} maxLength={20000} /></label>{target === 'plan' && design.documents.spec.stale && <p className="design-stale" role="status">{staleSpecMessage}</p>}<div className="design-composer-actions"><IonPicker id="design-target" label={t('Alterar')} value={target} onChange={value => setTarget(value as PipelineDesignStage | 'all')} disabled={fenced || editing} options={[{ value: 'all', label: t('Todos') }, ...designStageOrder.map(item => ({ value: item, label: designLabels[item] }))]} /><button type="submit" className="touch-target primary-button" disabled={!message.trim() || !canSend}><Send aria-hidden="true" />{t('Enviar pedido')}</button></div></form>}
       </section><PipelineDesignDocument key={scope} backend={backend} design={design} stage={stage} disabled={fenced} readOnly={design.needsDerivation} onStageChange={setStage} onEditingChange={setEditing} onSave={(item, content) => mutate('save', current => backend.editPipelineDesignDocument({ ref: reference(current), stage: item, content }), t('{label} salvo e versionado.', { label: designLabels[item] }))} onRestore={(item, version) => mutate('restore', current => backend.restorePipelineDesignDocument({ ref: reference(current), stage: item, version }), t('Versão {version} restaurada em uma nova versão de {label}.', { version, label: designLabels[item] }))} />

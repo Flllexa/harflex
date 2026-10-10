@@ -1136,3 +1136,9 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: var
 .casual-others-heading { display: flex; align-items: center; justify-content: space-between; padding-right: var(--space-1); }
 .casual-others-heading .icon-button { width: 32px; height: 32px; min-height: 32px; color: var(--muted); }
 .casual-others-heading .icon-button svg { width: 15px; height: 15px; }
+
+.pipeline-choice { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--soft-mint); border-radius: var(--radius-panel); background: var(--forge); max-width: 560px; }
+.pipeline-choice p { margin: 0; font-size: 12px; }
+.pipeline-choice-options { display: flex; flex-direction: column; gap: var(--space-2); }
+.pipeline-choice-options button { justify-content: flex-start; text-align: left; }
+.pipeline-choice-options svg { width: 16px; height: 16px; flex: none; }

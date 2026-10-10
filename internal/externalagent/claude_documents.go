@@ -22,8 +22,6 @@ var ErrClaudeDocumentContractUnavailable = errors.New("isolated Claude Code docu
 var ErrClaudeDocumentProtocol = errors.New("unexpected Claude Code document protocol event")
 var ErrClaudeNotLoggedIn = errors.New("Claude Code is not logged in")
 
-const claudeDocumentTimeout = 3 * time.Minute
-
 // The only tool a document run may see is the one Claude Code adds itself to return the --json-schema answer.
 const claudeStructuredOutputTool = "StructuredOutput"
 
@@ -55,7 +53,8 @@ func (a *cliAdapter) generateClaudeDocument(parent context.Context, request Docu
 	if err := validateClaudeDocumentRequest(request); err != nil {
 		return DocumentResult{}, err
 	}
-	ctx, cancel := context.WithTimeout(parent, claudeDocumentTimeout)
+	// No time limit: a long document takes as long as it takes, and the caller cancels it.
+	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	path, err := a.executable()
 	if err != nil || path != filepath.Clean(request.ExpectedExecutablePath) || !nativeExecutable(path) {

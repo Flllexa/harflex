@@ -41,7 +41,6 @@ var ErrCodexDocumentProtocol = errors.New("unexpected Codex document protocol ev
 
 const codexDocumentVersion = "codex-cli 0.157.0"
 const codexDocumentExecutable = "/opt/homebrew/bin/codex"
-const codexDocumentTimeout = 3 * time.Minute
 
 // The exact 0.157.0 model contract keeps every selected model in Code Mode,
 // disables its host, and removes patch, image and experimental capabilities.
@@ -71,7 +70,8 @@ func (a *cliAdapter) GenerateDocument(parent context.Context, request DocumentRe
 	if err := validateCodexDocumentRequest(request); err != nil {
 		return DocumentResult{}, err
 	}
-	ctx, cancel := context.WithTimeout(parent, codexDocumentTimeout)
+	// No time limit: a long document takes as long as it takes, and the caller cancels it.
+	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	path, err := a.executable()
 	if err != nil || path != codexDocumentExecutable || path != filepath.Clean(request.ExpectedExecutablePath) || !nativeExecutable(path) {

@@ -1,8 +1,9 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
 import { ConversationPane } from './ConversationPane'
 import { continuationPrompt } from './continuation'
+import type { ConversationItem } from '../../state/session'
 
 function props() { return { state: { messages: [], pendingApprovals: [], activeRun: 'idle' as const, calling: false, draft: '', connectionState: 'ready' as const, readOnly: false }, loadingHistory: false, viewMode: 'casual' as const, onDraft: vi.fn(), onPrompt: vi.fn(), onResolve: vi.fn(), onCancel: vi.fn(), onRetry: vi.fn(), onNewWork: vi.fn() } }
 it('keeps an empty Casual conversation focused on the composer', () => {
@@ -123,4 +124,47 @@ it('shows an ordinary message as it was written', () => {
   render(<ConversationPane {...value} state={{ ...value.state, messages: [{ kind: 'user', id: 'u1', text: 'Crie o TODO' }] }} />)
   expect(screen.getByText('Crie o TODO')).toBeVisible()
   expect(screen.queryByText('Contexto levado da conversa anterior')).not.toBeInTheDocument()
+})
+
+const choiceBlock = '```harflex-choice\n{"kind":"pipeline"}\n```'
+const askedState = (text: string, extra: ConversationItem[] = []) => {
+  const value = props()
+  const messages: ConversationItem[] = [{ kind: 'user', id: 'u1', text: 'Integre o arquivo da Nuclea' }, { kind: 'assistant', id: 'a1', text, streaming: false }, ...extra]
+  return { ...value, state: { ...value.state, messages } }
+}
+
+it('offers the three ways to carry a large request in Casual, without showing the block', async () => {
+  const user = userEvent.setup(), onPipelineChoice = vi.fn()
+  const value = askedState(`Entendi: o arquivo precisa chegar na V2.\n\n${choiceBlock}`)
+  render(<ConversationPane {...value} onPipelineChoice={onPipelineChoice} />)
+  expect(screen.getByText('Entendi: o arquivo precisa chegar na V2.')).toBeInTheDocument()
+  expect(screen.queryByText(/harflex-choice/)).not.toBeInTheDocument()
+  const group = screen.getByRole('group', { name: 'Como você quer tocar isso?' })
+  await user.click(within(group).getByRole('button', { name: /fazer tudo por aqui, no Casual/ }))
+  await user.click(within(group).getByRole('button', { name: /ir para o modo Profissional/ }))
+  await user.click(within(group).getByRole('button', { name: /Só resolver aqui na conversa/ }))
+  expect(onPipelineChoice.mock.calls.map(call => call[0])).toEqual(['casual', 'professional', 'chat'])
+})
+
+it('offers two ways in Professional mode, where there is no other mode to go to', () => {
+  const value = askedState(`Entendi.\n\n${choiceBlock}`)
+  render(<ConversationPane {...value} viewMode="professional" onPipelineChoice={vi.fn()} />)
+  const group = screen.getByRole('group', { name: 'Como você quer tocar isso?' })
+  expect(within(group).getAllByRole('button').map(button => button.textContent)).toEqual(['Abrir a pipeline', 'Só resolver aqui na conversa, sem pipeline'])
+})
+
+it('closes the choice once the person has answered, while a reply is being written, or when the run is live', () => {
+  const answered = askedState(`Entendi.\n\n${choiceBlock}`, [{ kind: 'user', id: 'u2', text: 'Resolva por aqui' }])
+  const { unmount } = render(<ConversationPane {...answered} onPipelineChoice={vi.fn()} />)
+  expect(screen.queryByRole('group', { name: 'Como você quer tocar isso?' })).not.toBeInTheDocument()
+  expect(screen.queryByText(/harflex-choice/)).not.toBeInTheDocument()
+  unmount()
+  const writing = askedState(`Entendi.\n\n${choiceBlock}`)
+  writing.state.messages[1] = { kind: 'assistant', id: 'a1', text: `Entendi.\n\n${choiceBlock}`, streaming: true }
+  const second = render(<ConversationPane {...writing} onPipelineChoice={vi.fn()} />)
+  expect(screen.queryByRole('group', { name: 'Como você quer tocar isso?' })).not.toBeInTheDocument()
+  second.unmount()
+  const busy = askedState(`Entendi.\n\n${choiceBlock}`)
+  render(<ConversationPane {...busy} state={{ ...busy.state, activeRun: 'running' }} onPipelineChoice={vi.fn()} />)
+  for (const button of within(screen.getByRole('group', { name: 'Como você quer tocar isso?' })).getAllByRole('button')) expect(button).toBeDisabled()
 })

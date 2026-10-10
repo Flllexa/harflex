@@ -15,8 +15,6 @@ import (
 	"github.com/persioflexa/harflex/internal/storage/sqlite"
 )
 
-const pipelineDesignTimeout = 180 * time.Second
-
 type pipelineDesignOwner struct {
 	pipelineID string
 	cancel     context.CancelFunc

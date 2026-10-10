@@ -41,11 +41,11 @@ export function StageActivityPane({backend,pipeline,stage}: {backend:Backend; pi
   const labels: Record<string,string> = { pending: t('Ainda não iniciou'), ready: t('Pronto'), active: t('Em andamento'), running: t('IA trabalhando'), completed: t('IA concluiu a etapa'), failed: t('Execução falhou'), cancelled: t('Cancelada'), paused: t('Pausada'), stale: t('Documento desatualizado'), waiting_user: t('Aguardando revisão'), awaiting_approval: t('Aguardando sua autorização') }
   const panel = useRef<HTMLElement>(null)
   const scope = `${pipeline.workspaceId}:${pipeline.id}:${stage}`, epoch = useRef(0), session = useRef(''), order = useRef(0)
-  const [activity,setActivity] = useState<PipelineStageActivity>(), [events,setEvents] = useState<AgentEvent[]>([]), [error,setError] = useState(''), [retry,setRetry] = useState(0), [paused,setPaused] = useState(false)
+  const [activity,setActivity] = useState<PipelineStageActivity>(), [events,setEvents] = useState<AgentEvent[]>([]), [error,setError] = useState(''), [retry,setRetry] = useState(0)
   useEffect(() => { panel.current?.focus({preventScroll:true}); panel.current?.scrollIntoView?.({block:'start',behavior:'auto'}) },[scope])
   useEffect(() => {
     const ticket = ++epoch.current; let live = true, timer:ReturnType<typeof setTimeout> | undefined
-    const started = Date.now(); session.current = ''; setActivity(undefined); setEvents([]); setError(''); setPaused(false)
+    const started = Date.now(); session.current = ''; setActivity(undefined); setEvents([]); setError('')
     const valid = () => live && ticket === epoch.current
     const merge = (incoming:AgentEvent[]) => setEvents(current => [...new Map([...current,...incoming].map(event => [event.id,event])).values()].sort((a,b) => a.sequence-b.sequence).slice(-1000))
     const unsubscribe = backend.onEvent(event => { if (valid() && event.streamId === session.current) merge([event]) })
@@ -64,8 +64,8 @@ export function StageActivityPane({backend,pipeline,stage}: {backend:Backend; pi
           merge(found)
         }
         if (follow(value)) {
-          if (Date.now()-started >= 180000) { setPaused(true); return }
-          if (valid()) timer = setTimeout(() => void read(),1000)
+          // The run has no time limit, so following it never stops; after the first minutes it checks less often.
+          if (valid()) timer = setTimeout(() => void read(),Date.now()-started >= 180000 ? 5000 : 1000)
         }
       } catch (failure) { if (valid()) setError(errorMessage(failure)) }
     }
@@ -81,6 +81,5 @@ export function StageActivityPane({backend,pipeline,stage}: {backend:Backend; pi
     {!activity?.sessionId && activity && <p className="muted">{stage === 'discovery' ? t('O Discovery foi escrito por você. Os ajustes feitos pela IA aparecerão aqui.') : t('Esta etapa ainda não tem execução da IA registrada.')}</p>}
     {timeline.length > 0 && <ol className="stage-event-log">{timeline.map(({event,label}) => <li key={event.id}><span>{label}</span><time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleTimeString(localeTag())}</time></li>)}</ol>}
     {document && <details className="stage-prepared-preview"><summary className="touch-target">{t('Ver texto produzido pela IA nesta execução')}</summary><DesignMarkdown content={document} /></details>}
-    {paused && <p className="muted" role="status">{t('O acompanhamento pausou após 3 minutos. Atualize para conferir o resultado.')}</p>}
   </section>
 }

@@ -719,7 +719,7 @@ const errorMessages: Record<string, string> = {
   pipeline_design_invalid_request: 'O contexto deste trabalho excedeu o limite ou contém uma ferramenta não suportada. Reduza o escopo e tente novamente.',
   pipeline_design_invalid_response: 'A IA retornou uma resposta fora do formato esperado. Os documentos anteriores foram preservados. Tente preparar novamente.',
   pipeline_design_provider_failed: 'O executor não conseguiu concluir a preparação. Os documentos anteriores foram preservados. Confira o executor configurado e tente novamente.',
-  pipeline_design_timeout: 'A preparação excedeu 3 minutos. Os documentos anteriores foram preservados. Reduza o pedido ou tente novamente.',
+  pipeline_design_timeout: 'A preparação foi interrompida por tempo esgotado. Os documentos anteriores foram preservados. Tente novamente.',
   pipeline_source_drift: 'A pasta original mudou depois da criação do snapshot. Resolva o conflito e execute Code novamente.',
   pipeline_code_apply_conflict: 'O patch mudou ou encontrou conflitos durante a aplicação. Revise a pasta e a prévia antes de tentar novamente.',
   agent_not_found: 'O agente não foi encontrado. Atualize o catálogo.',

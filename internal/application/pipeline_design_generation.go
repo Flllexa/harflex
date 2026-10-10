@@ -103,7 +103,8 @@ func (s *Service) PreparePipelineDesign(in PreparePipelineDesignInput) (Pipeline
 		}
 		return pipelineDesignDTO(admittedWorkspace), nil
 	}
-	ctx, cancel := context.WithTimeout(s.ctx, pipelineDesignTimeout)
+	// Preparing a document has no time limit: a complex SPEC takes as long as it takes, and the person can cancel it.
+	ctx, cancel := context.WithCancel(s.ctx)
 	owner := &pipelineDesignOwner{pipelineID: workspace.PipelineID, cancel: cancel, done: make(chan struct{})}
 	s.mu.Lock()
 	if s.designOwners == nil {

@@ -8,6 +8,8 @@ import type { Delegation } from '../../lib/backend'
 import { delegationBudgetText } from '../../lib/delegationBudget'
 import type { AppMode } from '../../state/appMode'
 import { requestOf, splitContinuation } from './continuation'
+import { splitPipelineChoice, type PipelineChoice } from './pipelineChoice'
+import { PipelineChoiceCard } from './PipelineChoiceCard'
 import { t, useT } from '../../i18n'
 
 const failureCopy: Record<string, string> = {
@@ -77,6 +79,8 @@ type Props = {
   onNewWork: (recoveryPrompt?: string) => void
   /** Continues a conversation that cannot be resumed: opens a new one that carries its context and sends the message. */
   onContinue?: (text: string) => void
+  /** The person's answer to "how do you want to carry this" when the agent offered a pipeline. */
+  onPipelineChoice?: (choice: PipelineChoice) => void
   viewMode: AppMode
   cancelPending?: boolean
   delegationParentId?: string
@@ -99,7 +103,7 @@ type Props = {
 
 const composerMaxHeight = 200
 
-export function ConversationPane({ state, loadingHistory, permissionControl, viewMode, cancelPending = false, delegationParentId, delegation, queuedTask, onPrepareDelegatedTask, onOpenParent, onDraft, onPrompt, onResolve, onCancel, onRetry, onNewWork, onContinue, backendLabel, modelBar, switchModel, projectControl }: Props) {
+export function ConversationPane({ state, loadingHistory, permissionControl, viewMode, cancelPending = false, delegationParentId, delegation, queuedTask, onPrepareDelegatedTask, onOpenParent, onDraft, onPrompt, onResolve, onCancel, onRetry, onNewWork, onContinue, onPipelineChoice, backendLabel, modelBar, switchModel, projectControl }: Props) {
   const t = useT()
   const draft = state.draft
   const running = state.activeRun === 'running'
@@ -154,14 +158,20 @@ export function ConversationPane({ state, loadingHistory, permissionControl, vie
     {state.messages.length === 0
       ? <div className="empty-state"><p>{viewMode === 'casual' ? t('Nova conversa') : t('Nenhuma conversa iniciada')}</p>{viewMode !== 'casual' && <span className="muted">{t('O trabalho começa com uma conversa.')}</span>}</div>
       : <ol ref={log} className="conversation-log" aria-label={t('Conversa')} onScroll={trackScroll}>
-        {state.messages.map(item => <li key={item.id} className={`turn turn-${item.kind}`}>
-          {item.kind === 'tool' ? <ToolCallCard call={item.call} /> : <>
-            <span className="turn-author">{item.kind === 'user' ? t('Você') : t('Agente')}</span>
-            {item.kind === 'assistant'
-              ? <div className="turn-text turn-markdown"><Markdown text={item.text} />{item.streaming && <span className="assistant-streaming-dots" aria-hidden="true"><i /><i /><i /></span>}</div>
-              : <UserText text={item.text} />}
-          </>}
-        </li>)}
+        {state.messages.map((item, index) => {
+          const reply = item.kind === 'assistant' ? splitPipelineChoice(item.text) : undefined
+          // The choice is open only while nothing came after it: once the person answers, the answer is in the conversation.
+          const asking = !!reply?.ask && !!onPipelineChoice && index === state.messages.length - 1 && !(item.kind === 'assistant' && item.streaming) && !state.readOnly
+          return <li key={item.id} className={`turn turn-${item.kind}`}>
+            {item.kind === 'tool' ? <ToolCallCard call={item.call} /> : <>
+              <span className="turn-author">{item.kind === 'user' ? t('Você') : t('Agente')}</span>
+              {item.kind === 'assistant'
+                ? <div className="turn-text turn-markdown"><Markdown text={reply?.text ?? item.text} />{item.streaming && <span className="assistant-streaming-dots" aria-hidden="true"><i /><i /><i /></span>}</div>
+                : <UserText text={item.text} />}
+              {asking && <PipelineChoiceCard viewMode={viewMode} disabled={loadingHistory || state.calling || runIsLive(state)} onChoose={onPipelineChoice!} />}
+            </>}
+          </li>
+        })}
       </ol>}
     {state.pendingApprovals.length > 0 && <div className="approval-stack">{state.pendingApprovals.map(approval => <ApprovalCard key={approval.approvalId} approval={approval} disabled={state.readOnly || state.calling || state.connectionState === 'degraded'} onResolve={allow => onResolve(approval.approvalId, allow)} />)}</div>}
     <div className="composer-meta">

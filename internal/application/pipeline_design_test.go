@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -148,8 +149,9 @@ func TestPipelineDesignManualChangesInvalidateDependenciesAndPublishExactApprove
 }
 
 type blockingDesignProvider struct {
-	entered chan struct{}
-	once    sync.Once
+	entered     chan struct{}
+	once        sync.Once
+	hadDeadline atomic.Bool
 }
 
 func (*blockingDesignProvider) ID() string { return "design-blocking" }
@@ -157,6 +159,9 @@ func (*blockingDesignProvider) Capabilities() agentcore.Capabilities {
 	return agentcore.Capabilities{Streaming: true}
 }
 func (p *blockingDesignProvider) Stream(ctx context.Context, _ agentcore.ChatRequest) (<-chan agentcore.StreamEvent, <-chan error) {
+	if _, limited := ctx.Deadline(); limited {
+		p.hadDeadline.Store(true)
+	}
 	p.once.Do(func() { close(p.entered) })
 	events, errs := make(chan agentcore.StreamEvent), make(chan error, 1)
 	go func() { defer close(events); defer close(errs); <-ctx.Done(); errs <- ctx.Err() }()
@@ -184,6 +189,10 @@ func TestPipelineDesignCancellationKeepsExistingDocuments(t *testing.T) {
 	running, err := s.OpenPipelineDesign(pipeline.ID)
 	if err != nil || running.ActiveAttemptID == "" {
 		t.Fatalf("missing running attempt: %+v %v", running, err)
+	}
+	// Preparing a document has no time limit: only the person's cancellation ends it.
+	if provider.hadDeadline.Load() {
+		t.Fatal("document preparation was given a deadline")
 	}
 	cancelled, err := s.CancelPipelineDesign(CancelPipelineDesignInput{PipelineID: pipeline.ID, AttemptID: running.ActiveAttemptID})
 	if err != nil || cancelled.State == "running" || cancelled.Documents["discovery"].Content != design.Documents["discovery"].Content || cancelled.Documents["spec"].Content != "" {

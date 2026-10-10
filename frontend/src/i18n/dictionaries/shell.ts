@@ -188,6 +188,12 @@ export const en: Record<string, string> = {
   'Abrir a página da versão {version} para baixar': 'Open the page of version {version} to download it',
   'Baixar {version}': 'Download {version}',
   'Baixar a versão': 'Download the version',
+  'Como você quer tocar isso?': 'How do you want to carry this?',
+  'Uma pipeline divide o trabalho em Discovery, SPEC, Plan, Code, QA e PRs, e você aprova cada fase.': 'A pipeline splits the work into Discovery, SPEC, Plan, Code, QA and PRs, and you approve each phase.',
+  'Abrir a pipeline e fazer tudo por aqui, no Casual': 'Open the pipeline and do everything here, in Casual',
+  'Abrir a pipeline': 'Open the pipeline',
+  'Abrir a pipeline e ir para o modo Profissional': 'Open the pipeline and switch to Professional mode',
+  'Só resolver aqui na conversa, sem pipeline': 'Just solve it here in the chat, without a pipeline',
 }
 export const es: Record<string, string> = {
   'Fechar navegação': 'Cerrar navegación',
@@ -379,4 +385,10 @@ export const es: Record<string, string> = {
   'Abrir a página da versão {version} para baixar': 'Abrir la página de la versión {version} para descargarla',
   'Baixar {version}': 'Descargar {version}',
   'Baixar a versão': 'Descargar la versión',
+  'Como você quer tocar isso?': '¿Cómo quieres llevar esto?',
+  'Uma pipeline divide o trabalho em Discovery, SPEC, Plan, Code, QA e PRs, e você aprova cada fase.': 'Una pipeline divide el trabajo en Discovery, SPEC, Plan, Code, QA y PR, y tú apruebas cada fase.',
+  'Abrir a pipeline e fazer tudo por aqui, no Casual': 'Abrir la pipeline y hacerlo todo aquí, en Casual',
+  'Abrir a pipeline': 'Abrir la pipeline',
+  'Abrir a pipeline e ir para o modo Profissional': 'Abrir la pipeline e ir al modo Profesional',
+  'Só resolver aqui na conversa, sem pipeline': 'Solo resolverlo aquí en la conversación, sin pipeline',
 }
