@@ -21,7 +21,7 @@ const publisherRole = "publisher"
 const pullRequestOutputTokens = 16384
 
 var ErrPipelineCodeNotApplied = errors.New("the approved Code patch has not been applied to the project yet")
-var ErrPipelinePRsBackendUnsupported = errors.New("pull requests need an API backend: the MCP tools belong to the Harflex tool loop")
+var ErrPipelinePRsBackendUnsupported = errors.New("pull requests need an API backend, or a CLI that continues its conversation and reaches Harflex tools over MCP (Claude Code)")
 
 type FinishPipelinePRsInput struct {
 	PipelineID string `json:"pipelineId"`
@@ -80,7 +80,7 @@ Faça nesta ordem:
 2. Crie uma branch chamada harflex/<resumo-curto-em-kebab-case> a partir da branch atual. Se o nome já existir, acrescente um sufixo curto.
 3. Faça commit somente das mudanças deste trabalho, com mensagem curta no imperativo (por exemplo "feat: export invoices as CSV"). Não inclua arquivos que não pertençam ao trabalho nem segredos.
 4. Envie a branch ao remoto com git push -u. Se o push falhar por falta de credencial ou de permissão, diga isso e pare.
-5. Abra o pull request pelas ferramentas MCP do GitHub ou do Bitbucket, escolhendo o servidor pelo remoto origin. Título curto. Descrição com o que mudou, como foi verificado (os critérios do QA acima), riscos e pontos de atenção. Se não houver ferramenta MCP para o remoto, entregue o link que o git mostrou ao enviar a branch e diga que o PR precisa ser aberto por lá.
+5. Abra o pull request pelas ferramentas MCP do GitHub ou do Bitbucket que você tiver, escolhendo o servidor pelo remoto origin. Se nenhuma ferramenta MCP estiver disponível, use a CLI da plataforma (como gh), se estiver instalada e autenticada. Título curto. Descrição com o que mudou, como foi verificado (os critérios do QA acima), riscos e pontos de atenção. Se não houver ferramenta MCP para o remoto, entregue o link que o git mostrou ao enviar a branch e diga que o PR precisa ser aberto por lá.
 6. Se o trabalho exigir mais de um pull request, abra um de cada vez.
 
 Regras: não use push forçado, não altere nem apague a branch principal, não apague branches, não faça merge e não aprove o próprio pull request.
@@ -94,7 +94,14 @@ Termine com um relatório curto em Markdown: cada pull request com link, branch,
 // createPipelinePRSession opens the conversation in which the agent publishes the pipeline. It is an ordinary chat
 // in the project folder, with shell, file and MCP tools, linked to the pipeline so the bar and the page can follow it.
 func (s *Service) createPipelinePRSession(in CreatePipelineSessionInput) (PipelineSessionDTO, error) {
-	if _, external := s.external[in.BackendID]; external || strings.TrimSpace(in.BackendID) == "" {
+	if strings.TrimSpace(in.BackendID) == "" {
+		return PipelineSessionDTO{}, ErrPipelinePRsBackendUnsupported
+	}
+	// An API backend runs the conversation in the Harflex tool loop. A CLI runs it with its own terminal and files and
+	// reaches Harflex's tools over MCP; the review watch writes to the same conversation again and again, so the CLI
+	// has to continue it (Claude Code does; Codex takes one message per conversation).
+	adapter, external := s.external[in.BackendID]
+	if external && (!documentCLI(in.BackendID) || !adapter.Capabilities().Resumable || !adapter.Detect().Available) {
 		return PipelineSessionDTO{}, ErrPipelinePRsBackendUnsupported
 	}
 	run, err := s.loadPipeline(in.PipelineID)
@@ -119,7 +126,20 @@ func (s *Service) createPipelinePRSession(in CreatePipelineSessionInput) (Pipeli
 	// The conversation uses the profile's own model, like any chat, unless the person picked another one from the
 	// catalog. The pick is bound to the conversation, which keeps it however long the person's approvals take.
 	var modelSelection *catalog.ModelSelection
-	if in.Selection != nil {
+	if in.Selection != nil && external {
+		// The CLI's own model, confirmed against its catalog like in any chat.
+		if in.Selection.Executor != "cli" || in.Selection.BackendID != in.BackendID {
+			return PipelineSessionDTO{}, ErrInvalidInput
+		}
+		workspace, err := s.store.GetWorkspace(s.ctx, run.WorkspaceID)
+		if err != nil {
+			return PipelineSessionDTO{}, ErrWorkspaceNotFound
+		}
+		modelSelection, err = s.prepareCLIModelSelectionContext(s.ctx, CreateSessionInput{BackendID: in.BackendID, ModelID: in.Selection.ModelID, ReasoningEffort: in.Selection.ReasoningEffort, CatalogRevision: in.Selection.CatalogRevision}, workspace)
+		if err != nil {
+			return PipelineSessionDTO{}, err
+		}
+	} else if in.Selection != nil {
 		if in.Selection.Executor != "api" {
 			return PipelineSessionDTO{}, ErrInvalidInput
 		}

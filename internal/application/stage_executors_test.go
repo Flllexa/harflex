@@ -101,7 +101,6 @@ func TestStageExecutorRefusesWhatThePhaseCannotRunOn(t *testing.T) {
 		"a model that is too long":       {SaveStageExecutorInput{WorkspaceID: workspace.ID, Stage: "spec", BackendID: "alpha", ModelID: long}, ErrInvalidInput},
 		"a project that does not exist":  {SaveStageExecutorInput{WorkspaceID: "workspace-gone", Stage: "spec", BackendID: "alpha"}, ErrWorkspaceNotFound},
 		"a provider that does not exist": {SaveStageExecutorInput{WorkspaceID: workspace.ID, Stage: "spec", BackendID: "gone"}, ErrBackendNotFound},
-		"Claude Code for pull requests":  {SaveStageExecutorInput{WorkspaceID: workspace.ID, Stage: "prs", BackendID: "claude", ModelID: "sonnet"}, ErrStageExecutorUnsupported},
 		"a CLI other than Codex":         {SaveStageExecutorInput{WorkspaceID: workspace.ID, Stage: "spec", BackendID: "opencode"}, ErrStageExecutorUnsupported},
 		"Codex for the pull requests":    {SaveStageExecutorInput{WorkspaceID: workspace.ID, Stage: "prs", BackendID: "codex", ModelID: "gpt"}, ErrStageExecutorUnsupported},
 		"a generic server for SPEC":      {SaveStageExecutorInput{WorkspaceID: workspace.ID, Stage: "spec", BackendID: "local"}, ErrStageExecutorUnsupported},
@@ -112,7 +111,7 @@ func TestStageExecutorRefusesWhatThePhaseCannotRunOn(t *testing.T) {
 			t.Fatalf("%s: got %v, want %v", name, err, test.want)
 		}
 	}
-	// What each phase can take is accepted: an API profile anywhere, Codex and Claude Code in every phase but the pull requests.
+	// What each phase can take is accepted: an API profile anywhere, Codex in every phase but the pull requests, and Claude Code in all of them.
 	for _, in := range []SaveStageExecutorInput{
 		{WorkspaceID: workspace.ID, Stage: "discovery", BackendID: "codex", ModelID: "gpt-5-codex"},
 		{WorkspaceID: workspace.ID, Stage: "spec", BackendID: "alpha"},
@@ -120,6 +119,7 @@ func TestStageExecutorRefusesWhatThePhaseCannotRunOn(t *testing.T) {
 		{WorkspaceID: workspace.ID, Stage: "code", BackendID: "codex", ModelID: "gpt-5-codex"},
 		{WorkspaceID: workspace.ID, Stage: "eval", BackendID: "alpha", ModelID: "alpha-model"},
 		{WorkspaceID: workspace.ID, Stage: "prs", BackendID: "alpha", ModelID: "alpha-model"},
+		{WorkspaceID: workspace.ID, Stage: "prs", BackendID: "claude", ModelID: "opus"}, // resumes its conversation, and reaches the tools over MCP
 		{WorkspaceID: workspace.ID, Stage: "prs", BackendID: "local"}, // the pull requests need no catalog
 	} {
 		if _, err := s.SaveStageExecutor(in); err != nil {

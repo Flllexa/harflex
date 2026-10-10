@@ -37,6 +37,7 @@ type Service struct {
 	external           map[string]ExternalBackend
 	executionCacheRoot string
 	mu                 sync.RWMutex
+	workChatMu         sync.Mutex // one pass at a time gives each work its chat, so none gets two
 	// profileGate serializes catalog/credential changes with credential resolution.
 	// Never hold mu with profileGate; finish external calls and release profileGate
 	// before acquiring mu for lifecycle or session state.

@@ -72,7 +72,7 @@ export function commandKinds(command: string): Kind[] {
 const journalTypes = /^(message\.(user|assistant)|tool\.(called|completed|failed|denied|skipped)|approval\.|run\.)/
 
 // The session's journal without streamed output, kept to the first request so a later reminder does not clear the list.
-function useRunJournal(backend: Backend, sessionId?: string) {
+export function useRunJournal(backend: Backend, sessionId?: string) {
   const [events, setEvents] = useState<AgentEvent[]>([])
   useEffect(() => {
     setEvents([])

@@ -599,6 +599,34 @@ it('shows each session the QA loop starts in the activity panel, without leaving
   await waitFor(() => expect(onFollowSession).toHaveBeenCalledWith('coder-2'))
 })
 
+it('shows the Coder at work, with its plan, instead of the start screen, when Code is opened while it runs', async () => {
+  const { backend, page } = codeStageFixture()
+  let sequence = 0
+  const event = (type: string, data: unknown) => ({ id: `e${++sequence}`, streamId: 'coder-1', sequence, type, data, createdAt: '2026-10-09T10:00:00Z' })
+  const journal = [event('message.user', { content: 'Implemente' }),
+    event('message.assistant', { content: '', toolCalls: [{ id: 'plan', name: 'update_plan', arguments: { plan: [{ step: 'Ler o projeto', status: 'completed' }, { step: 'Escrever o formulário', status: 'in_progress' }] } }] })]
+  backend.getPipelineStageActivity = async (pipelineId, stage) => ({ pipelineId, workspaceId: 'workspace-1', stage, status: 'running', phase: '', sessionId: 'coder-1', modelId: 'api-model', updatedAt: '2026-10-09T10:00:00Z' })
+  backend.listEvents = async () => journal
+  render(page())
+  expect(await screen.findByRole('list', { name: 'Plano do Coder' })).toBeInTheDocument()
+  expect(screen.getByText('O Coder está trabalhando')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Executar Coder' })).not.toBeInTheDocument()
+})
+
+it('verifies the code by itself when the Coder finishes while the bench is open, so nobody has to find Check code', async () => {
+  const { backend, run, page } = codeStageFixture()
+  let reads = 0
+  const activity = (status: string) => ({ pipelineId: run.id, workspaceId: 'workspace-1', stage: 'code' as const, status, phase: '', sessionId: 'coder-1', modelId: 'api-model', updatedAt: '2026-10-09T10:00:00Z' })
+  backend.getPipelineStageActivity = async () => activity(++reads <= 2 ? 'running' : 'completed')
+  backend.listEvents = async () => []
+  const verify = vi.fn(async () => ({ ...run, stageStatus: { ...run.stageStatus, code: 'waiting_user' as const } }))
+  backend.completePipelineCode = verify
+  render(page())
+  expect(await screen.findByText('O Coder está trabalhando')).toBeInTheDocument()
+  await waitFor(() => expect(verify).toHaveBeenCalledTimes(1), { timeout: 8000 })
+  expect(verify).toHaveBeenCalledWith(run.id)
+})
+
 it('falls back to the default of Settings when the executor chosen for the phase cannot run it, and the person can still pick', async () => {
   const { backend, choice, page } = codeStageFixture()
   backend.listStageExecutors = async () => [choice('code', 'gone', 'large-model')]

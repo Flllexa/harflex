@@ -10,6 +10,8 @@ type Props = {
   onPipelineChange: (run: Pipeline) => void
   /** The executor and model choice that starts the Coder, shown while Code has nothing to review. */
   runControls?: ReactNode
+  /** The Coder's run as it happens; while it is on, it takes the place of the start controls. */
+  live?: ReactNode
 }
 
 const fileIcon = { added: FilePlus2, removed: FileMinus2, modified: FileCode2 }
@@ -23,7 +25,7 @@ function ChangeBar({ file }: { file: DiffFile }) {
 }
 
 /** Code's own bench: the change spotlighted file by file, and the decision that sends it to QA. */
-export function CodeBench({ backend, run, onPipelineChange, runControls }: Props) {
+export function CodeBench({ backend, run, onPipelineChange, runControls, live }: Props) {
   const t = useT()
   const artifact = run.artifacts.code
   const files = useMemo(() => artifact ? parseUnifiedDiff(artifact.content) : [], [artifact?.content])
@@ -49,7 +51,8 @@ export function CodeBench({ backend, run, onPipelineChange, runControls }: Props
   }
 
   return <div className="code-bench">
-    {active && runControls && <div className="bench-slab code-bench-start">{runControls}</div>}
+    {active && live}
+    {active && !live && runControls && <div className="bench-slab code-bench-start">{runControls}</div>}
     {files.length > 0 && <section className="code-bench-desk" aria-label={t('Mudanças do Code')}>
       <aside className="code-bench-files" aria-label={t('Arquivos alterados')}>
         <div className="code-bench-files-head"><strong>{files.length} {files.length === 1 ? t('arquivo') : t('arquivos')}</strong><span><b className="is-add">+{totals.added}</b> <b className="is-remove">−{totals.removed}</b></span></div>

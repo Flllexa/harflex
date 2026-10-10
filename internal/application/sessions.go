@@ -478,6 +478,9 @@ func (s *Service) makeRunnerAt(record *catalog.SessionRecord, workspace catalog.
 		}
 		if record.Mode == "" {
 			instructions = strings.TrimSpace(harflexChatInstructions + "\n\n" + instructions)
+			if note := s.coordinatorInstructions(record.ID); note != "" {
+				instructions = strings.TrimSpace(note + "\n\n" + instructions)
+			}
 		}
 		if record.BackendID == "claude" && (record.Mode == "" || record.Mode == "sdd_code") {
 			instructions = strings.TrimSpace(instructions + "\n\n" + claudePlanInstructions)
@@ -656,7 +659,7 @@ func (s *Service) makeRunnerAt(record *catalog.SessionRecord, workspace catalog.
 				toolItems = append(toolItems, tools.NewShellTool(tools.ShellConfig{CWD: toolRoot, DefaultTimeout: 10 * time.Minute}), tools.NewPlanTool())
 			} else if record.Mode == "" {
 				toolItems = append(toolItems, tools.NewWriteTool(guard), tools.NewEditTool(guard), tools.NewShellTool(tools.ShellConfig{CWD: workspace.Path}), tools.NewPlanTool())
-				toolItems = append(toolItems, s.harflexTools(workspace.ID)...)
+				toolItems = append(toolItems, s.harflexTools(workspace.ID, record.ID)...)
 				if pipelineID := s.pullRequestPipelineFor(record.ID, workspace.ID); pipelineID != "" {
 					toolItems = append(toolItems, s.pullRequestTools(pipelineID, record.ID)...)
 				}
@@ -695,6 +698,9 @@ func (s *Service) makeRunnerAt(record *catalog.SessionRecord, workspace catalog.
 		}
 		if record.Mode == "" {
 			instructions = strings.TrimSpace(harflexChatInstructions + "\n\n" + instructions)
+			if note := s.coordinatorInstructions(record.ID); note != "" {
+				instructions = strings.TrimSpace(note + "\n\n" + instructions)
+			}
 		}
 		if instructions != "" {
 			history.messages = append([]agentcore.Message{{Role: agentcore.RoleSystem, Content: instructions}}, history.messages...)

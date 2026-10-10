@@ -5,6 +5,7 @@ import { IonPicker } from '../../components/IonPicker'
 import { AuthoringWorkbench } from './AuthoringWorkbench'
 import { PipelineRoleModelPicker } from './PipelineRoleModelPicker'
 import { PipelineExecutionReview } from './PipelineExecutionReview'
+import { CodeLiveRun, codeIsRunning, useAutoVerifyCode, useCodeRun } from './CodeLiveRun'
 import { PipelineQALab, type RoleDefaults } from './PipelineQALab'
 import { PipelineBench } from './bench/PipelineBench'
 import { CodeBench } from './bench/CodeBench'
@@ -285,7 +286,9 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
   const benchMode = !documentView && !!run && run.kind === 'ai_authoring' && !recoverLegacyCodeReview && (run.currentStage === 'code' || run.currentStage === 'eval' || run.currentStage === 'prs' || (run.currentStage === '' && run.stageStatus.code === 'completed'))
   // Outside the benches, the screen shows the documents asked for in the bar, or the current stage.
   useEffect(() => { if (!benchMode) onShownStage?.(documentView ? viewStage : run?.currentStage || undefined) }, [benchMode, documentView, viewStage, run?.currentStage, onShownStage])
-  const codeBenchView = run && <CodeBench backend={backend} run={run} onPipelineChange={onSelectPipeline} runControls={run.currentStage === 'code' && !fixing && run.stageStatus.code !== 'waiting_user' ? <PipelineRoleControls run={run} backend={backend} backends={backends} workspaceId={workspaceId} settingsStatus={settingsStatus} defaultModelBackendId={roleModelBackendId} defaultModelId={roleModelId} phaseConfigured={phaseModelApplies} phaseNote={phaseNote} choicesReady={choicesReady} selectedBackendId={selectedBackendId} selectedBackend={selectedBackend} pending={pending} onSettings={onSettings}
+  const codeRun = useCodeRun(backend, run)
+  useAutoVerifyCode(backend, run, codeRun, updated => { onSelectPipeline(updated); setNotice(t('Code salvo para revisão. Aprove a versão para liberar o QA.')) })
+  const codeBenchView = run && <CodeBench backend={backend} run={run} onPipelineChange={onSelectPipeline} live={codeIsRunning(codeRun) ? <CodeLiveRun backend={backend} activity={codeRun!} onOpenSession={sessionId => void onOpenSession?.(sessionId)} /> : undefined} runControls={run.currentStage === 'code' && !fixing && run.stageStatus.code !== 'waiting_user' ? <PipelineRoleControls run={run} backend={backend} backends={backends} workspaceId={workspaceId} settingsStatus={settingsStatus} defaultModelBackendId={roleModelBackendId} defaultModelId={roleModelId} phaseConfigured={phaseModelApplies} phaseNote={phaseNote} choicesReady={choicesReady} selectedBackendId={selectedBackendId} selectedBackend={selectedBackend} pending={pending} onSettings={onSettings}
                 onBackendChange={value => { setBackendChoice(value); setError(undefined) }} onStart={startRole} onComplete={completeRole} /> : undefined} />
   const qaBenchView = !run ? null : run.currentStage === 'eval' || fixing || run.artifacts.eval
     ? <PipelineQALab key={run.id} resumable={resumable} backend={backend} backends={backends} run={run} workspaceId={workspaceId} roleDefaults={roleDefaults} onPipelineChange={onSelectPipeline} onOpenSession={sessionId => onOpenSession?.(sessionId)} onLoopChange={setQALoop} onSettings={onSettings} onRoleChosen={saveRoleChoice} />
@@ -390,6 +393,9 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
       if (created.workspaceId !== targetWorkspace) { setError(t('O pipeline retornou para outro projeto. Atualize a lista antes de continuar.')); return }
       setItems(current => [created, ...current]); onSelectPipeline(created); setDiscovery(''); createIntent.current = undefined; setCreateOpen(false)
       if (created.preparationExperience === 'conversational') setAutoPrepare({ pipelineId: created.id, requestId: crypto.randomUUID() })
+      // The work gets a chat of its own: it shows in the Casual list and coordinates the work from there. Best effort: without a
+      // usable provider the work is still there, and the chat is made the next time one is.
+      void backend.ensureWorkChats(targetWorkspace).catch(() => undefined)
     } catch (failure) { if (stillCurrent()) setError(errorMessage(failure)) }
     finally { if (stillCurrent()) setPending(false) }
   }

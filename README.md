@@ -22,6 +22,10 @@ The screenshots below are of the app itself, using a demo project (`make screens
 
 ![Code workbench with the per-file diff](docs/screenshots/03-code.png)
 
+**Code running:** open the Code stage while the Coder works and you see the plan it declared, the step it is on and what it does in each step. You can leave and come back at any time.
+
+![Code bench with the Coder's plan and the steps it is working on](docs/screenshots/03b-code-running.png)
+
 **QA running:** QA actually runs the installation, the build, the tests, the E2E suite, and the app running, in a lab of its own, and shows each command as it runs.
 
 ![QA lab running one command at a time](docs/screenshots/04-qa-running.png)

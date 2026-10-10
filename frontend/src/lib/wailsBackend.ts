@@ -134,6 +134,8 @@ export const wailsBackend: Backend = {
     return page
   },
   listPipelines: async workspaceId => parse.pipelines(await Service.ListPipelines(workspaceId)),
+  listWorkCoordinators: async workspaceId => parse.workCoordinators(await Service.ListWorkCoordinators(workspaceId)),
+  ensureWorkChats: async workspaceId => parse.ensureWorkChats(await Service.EnsureWorkChats(workspaceId)),
   getPipeline: async pipelineId => parse.pipeline(await Service.GetPipeline(pipelineId)),
   getPipelineStageActivity: async (pipelineId, stage) => parse.pipelineStageActivity(await Service.GetPipelineStageActivity(pipelineId,stage)),
   savePipelineArtifact: async (pipelineId, stage, content) => parse.pipeline(await Service.SavePipelineArtifact({ pipelineId, stage, content })),

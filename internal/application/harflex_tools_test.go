@@ -36,7 +36,7 @@ func TestHarflexToolsCreateAndReadPipelinesOfTheirOwnProjectOnly(t *testing.T) {
 	}
 	var events []string
 	s.emit = func(name string, _ any) { events = append(events, name) }
-	items := s.harflexTools(workspace.ID)
+	items := s.harflexTools(workspace.ID, "")
 
 	created, err := harflexToolNamed(t, items, harflexCreatePipelineTool).Execute(t.Context(), json.RawMessage(`{"discovery":"# Baixa parcial\n\nPermitir baixar parte de uma parcela, com testes."}`), nil)
 	if err != nil {
@@ -63,7 +63,7 @@ func TestHarflexToolsCreateAndReadPipelinesOfTheirOwnProjectOnly(t *testing.T) {
 	}
 
 	var failure *agentcore.ToolFailure
-	_, err = harflexToolNamed(t, s.harflexTools(other.ID), harflexGetPipelineTool).Execute(t.Context(), json.RawMessage(`{"pipelineId":"`+result.Pipeline.ID+`"}`), nil)
+	_, err = harflexToolNamed(t, s.harflexTools(other.ID, ""), harflexGetPipelineTool).Execute(t.Context(), json.RawMessage(`{"pipelineId":"`+result.Pipeline.ID+`"}`), nil)
 	if !errors.As(err, &failure) || failure.Code != "not_found" {
 		t.Fatalf("another project's pipeline stays hidden: %v", err)
 	}

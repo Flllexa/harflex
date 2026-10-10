@@ -81,7 +81,8 @@ func (s *Service) SaveStageExecutor(in SaveStageExecutorInput) (StageExecutorDTO
 		return StageExecutorDTO{}, ErrWorkspaceNotFound
 	}
 	if _, external := s.external[in.BackendID]; external {
-		if !documentCLI(in.BackendID) || sdd.Stage(in.Stage) == sdd.PRs {
+		// The pull requests return to their conversation again and again, so only a CLI that resumes it (Claude Code) can run them.
+		if !documentCLI(in.BackendID) || (sdd.Stage(in.Stage) == sdd.PRs && in.BackendID != "claude") {
 			return StageExecutorDTO{}, ErrStageExecutorUnsupported
 		}
 	} else {

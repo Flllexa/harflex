@@ -8,9 +8,14 @@ function statusNames(): Record<string, string> { return { active: t('em andament
 
 /** Where a work item is: its current stage and how it stands, or that it finished. */
 export function workProgress(run: Pipeline) {
-  if (!run.currentStage) return t('Concluído')
-  const status = statusNames()[run.stageStatus[run.currentStage] ?? ''] ?? run.stageStatus[run.currentStage]
-  return `${stageNames[run.currentStage] ?? run.currentStage}${status ? ` · ${status}` : ''}`
+  return workProgressOf(run.currentStage, run.stageStatus)
+}
+
+/** The same, from a stage and the statuses of the phases (what a chat coordinator reports). */
+export function workProgressOf(currentStage: string, stageStatus: Record<string, string>) {
+  if (!currentStage) return t('Concluído')
+  const status = statusNames()[stageStatus[currentStage] ?? ''] ?? stageStatus[currentStage]
+  return `${stageNames[currentStage] ?? currentStage}${status ? ` · ${status}` : ''}`
 }
 
 /** The project's SDD work, newest first, read again when a work item is created or the open one changes. */

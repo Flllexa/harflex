@@ -54,8 +54,9 @@ export function PipelinePRsPanel({ backend, backends, run, workspaceId, defaultB
   const [skipping, setSkipping] = useState(false)
   const [reason, setReason] = useState('')
   const [openError, setOpenError] = useState('')
-  // The agent needs the Harflex tool loop (shell, files, MCP), so only API profiles qualify.
-  const eligible = useMemo(() => backends.filter(item => item.available && item.kind === 'api'), [backends])
+  // The agent needs the Harflex tool loop (shell, files, MCP) and a conversation it can return to: API profiles qualify, and so does
+  // Claude Code, which reaches the same tools over MCP and resumes its conversation. Codex takes one message per conversation.
+  const eligible = useMemo(() => backends.filter(item => item.available && (item.kind === 'api' || item.id === 'claude')), [backends])
   const configuredId = configured && eligible.some(item => item.id === configured.backendId) ? configured.backendId : ''
   const backendId = eligible.some(item => item.id === choice) ? choice : configuredId || eligible.find(item => item.id === defaultBackendId)?.id || eligible[0]?.id || ''
   // The project may have chosen a model for this phase: then the conversation is bound to it, confirmed against the catalog.
@@ -130,7 +131,7 @@ export function PipelinePRsPanel({ backend, backends, run, workspaceId, defaultB
       <li className={full ? 'is-done' : 'is-pending'}>{full ? <Check aria-hidden="true" /> : <CircleAlert aria-hidden="true" />}<span>{full ? t('Acesso total: a IA não pede aprovação.') : t('Hoje a IA pede a sua aprovação para cada comando e chamada MCP. Escolha Acesso total para ela abrir o PR sem interrupções.')}</span></li>
     </ul>
     {permissionControl && <div className="pipeline-prs-permissions"><span className="muted">{t('Permissões do projeto')}</span>{permissionControl}</div>}
-    {eligible.length === 0 ? <div className="authoring-provider-empty" role="alert"><strong>{t('Os PRs precisam de um provedor API')}</strong><p>{t('O terminal e as ferramentas MCP rodam no Harflex, que só as oferece a perfis de API. Configure um perfil em Configurações.')}</p>{onSettings && <button type="button" className="touch-target secondary-button" onClick={onSettings}>{t('Configurar provedor')}</button>}</div> : <>
+    {eligible.length === 0 ? <div className="authoring-provider-empty" role="alert"><strong>{t('Os PRs precisam de um provedor API ou do Claude Code')}</strong><p>{t('O terminal e as ferramentas MCP rodam no Harflex, que as oferece a perfis de API e ao Claude Code. Configure um perfil ou instale o Claude Code em Configurações.')}</p>{onSettings && <button type="button" className="touch-target secondary-button" onClick={onSettings}>{t('Configurar provedor')}</button>}</div> : <>
       <IonPicker id="pipeline-prs-backend" label={t('Executor da fase')} value={backendId} onChange={setChoice} options={eligible.map(item => ({ value: item.id, label: item.name }))} disabled={pending || working} />
       {configuredModel && backendOption ? <>
         <PipelineRoleModelPicker backend={backend} workspaceId={workspaceId} stage="prs" backendOption={backendOption} defaultModelBackendId={configured!.backendId} defaultModelId={configuredModel} phaseConfigured disabled={pending || working} onSelectionChange={setSelection} />

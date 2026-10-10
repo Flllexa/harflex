@@ -143,3 +143,35 @@
 .qa-run-row.is-upcoming, .qa-run-row.is-waiting { opacity: .55; }
 .qa-run-row.is-upcoming .qa-run-status, .qa-run-row.is-waiting .qa-run-status { color: var(--muted); }
 @media (max-width: 640px) { .qa-live-run .qa-run-head { grid-template-columns: 22px minmax(0, 1fr) auto; } }
+
+/* The Coder's run as it happens: the plan it declared and what it does in each step. */
+.code-live { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); border: 1px solid color-mix(in srgb, var(--bench-accent) 45%, var(--border)); border-radius: 14px; background: var(--ion-void); }
+.code-live-head { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.code-live-head > div { flex: 1; min-width: 220px; }
+.code-live-head p { margin: 2px 0 0; font-size: 13px; overflow-wrap: anywhere; }
+.code-live-head .secondary-button { display: inline-flex; align-items: center; gap: 6px; }
+.code-live-head .secondary-button svg { width: 16px; height: 16px; }
+.code-live-badge { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; flex: none; color: var(--bench-accent); background: color-mix(in srgb, var(--bench-accent) 14%, var(--forge)); }
+.code-live-badge svg { width: 18px; height: 18px; }
+.code-live-plan { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.code-live-step { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: var(--space-3); padding: 12px var(--space-4); border-top: 1px solid var(--border); }
+.code-live-step:first-child { border-top: 0; }
+.code-live-step-mark { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; color: var(--muted); }
+.code-live-step-mark svg { width: 15px; height: 15px; }
+.code-live-step.is-completed .code-live-step-mark { color: var(--mint); background: color-mix(in srgb, var(--mint) 14%, transparent); }
+.code-live-step.is-in_progress { background: color-mix(in srgb, var(--bench-accent) 6%, transparent); box-shadow: inset 3px 0 0 var(--bench-accent); }
+.code-live-step.is-in_progress .code-live-step-mark { color: var(--bench-accent); }
+.code-live-step.is-pending { opacity: .6; }
+.code-live-step-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 13px; }
+.code-live-step-body > .muted { font-size: 12px; }
+.code-live-actions { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.code-live-action { display: grid; grid-template-columns: 16px 14px minmax(0, 1fr); align-items: start; gap: 8px; font-size: 12px; }
+.code-live-action-status { display: grid; place-items: center; color: var(--muted); }
+.code-live-action-status svg, .code-live-action-kind { width: 14px; height: 14px; }
+.code-live-action-kind { color: var(--muted); margin-top: 1px; }
+.code-live-action.is-running .code-live-action-status, .code-live-action.is-approval .code-live-action-status { color: var(--bench-accent); }
+.code-live-action.is-done .code-live-action-status { color: var(--mint); }
+.code-live-action.is-failed .code-live-action-status { color: var(--danger); }
+.code-live-action-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.code-live-action-text code { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.code-live-empty { margin: 0; font-size: 13px; }

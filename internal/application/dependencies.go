@@ -113,6 +113,9 @@ type Store interface {
 	ListPipelineSessions(context.Context, string, string) ([]catalog.PipelineSession, error)
 	GetPipelineIDForSession(context.Context, string) (string, error)
 	GetPipelineIDForPRSession(context.Context, string) (string, error)
+	SetPipelineCoordinator(ctx context.Context, pipelineID, sessionID string) error
+	GetPipelineIDForCoordinator(context.Context, string) (string, error)
+	ListWorkCoordinators(ctx context.Context, workspaceID string) ([]catalog.WorkCoordinator, error)
 	SavePipelinePullRequest(context.Context, catalog.PipelinePullRequest) (catalog.PipelinePullRequest, error)
 	GetPipelinePullRequest(context.Context, string) (catalog.PipelinePullRequest, error)
 	ListPipelinePullRequests(context.Context, string) ([]catalog.PipelinePullRequest, error)

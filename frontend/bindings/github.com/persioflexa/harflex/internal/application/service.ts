@@ -177,6 +177,15 @@ export function EditPipelineDesignDocument($in: $models.EditPipelineDesignDocume
     return $Call.ByID(419015364, $in);
 }
 
+/**
+ * EnsureWorkChats gives every work of a project that has no chat one, with the default backend of the settings: that
+ * chat is the work's main conversation. Safe to call again; it only creates what is missing. Without a usable
+ * backend the works stay as they are.
+ */
+export function EnsureWorkChats(workspaceID: string): $CancellablePromise<$models.EnsureWorkChatsResult> {
+    return $Call.ByID(552047589, workspaceID);
+}
+
 export function ExportAudit($in: $models.ExportAuditInput): $CancellablePromise<string> {
     return $Call.ByID(3971937618, $in);
 }
@@ -405,6 +414,13 @@ export function ListSkills(workspaceID: string): $CancellablePromise<$models.Ski
  */
 export function ListStageExecutors(workspaceID: string): $CancellablePromise<$models.StageExecutorDTO[] | null> {
     return $Call.ByID(54221193, workspaceID);
+}
+
+/**
+ * ListWorkCoordinators returns the works of a project that have a chat coordinating them, newest first.
+ */
+export function ListWorkCoordinators(workspaceID: string): $CancellablePromise<$models.WorkCoordinatorDTO[] | null> {
+    return $Call.ByID(3825289291, workspaceID);
 }
 
 export function ListWorkflowRuns(workspaceID: string): $CancellablePromise<$models.WorkflowRunDTO[] | null> {

@@ -101,6 +101,10 @@ func (s *Service) GetPipelineForSession(in GetPipelineForSessionInput) (Pipeline
 		pipelineID, err = s.store.GetPipelineIDForPRSession(s.ctx, in.SessionID)
 	}
 	if errors.Is(err, sql.ErrNoRows) {
+		// A chat that coordinates the work (the one that created it, or the one opened for it).
+		pipelineID, err = s.store.GetPipelineIDForCoordinator(s.ctx, in.SessionID)
+	}
+	if errors.Is(err, sql.ErrNoRows) {
 		return PipelineDTO{}, ErrPipelineNotFound
 	}
 	if err != nil {

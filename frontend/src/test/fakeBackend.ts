@@ -140,6 +140,8 @@ export function createFakeBackend() {
     getAuthoringCodeCopyPreparations: async input => ({ pipelineId: input.pipelineId, attemptCount: 0, maxAttemptCount: 3, attempts: [] }),
     getAuthoringCodeRunPatch: async () => { throw new Error('Synthetic authoring Code patch unavailable') },
     listPipelines: async () => [],
+    listWorkCoordinators: async () => [],
+    ensureWorkChats: async () => ({ coordinators: [], created: 0 }),
     getPipelineStageActivity: async (pipelineId, stage) => ({ pipelineId, workspaceId: 'workspace-1', stage, status: 'pending', phase: '', sessionId: '', modelId: '', updatedAt: sessionMetadata.updatedAt }),
     getPipeline: async () => { throw new Error('Synthetic pipeline unavailable') },
     savePipelineArtifact: async () => { throw new Error('Synthetic pipeline unavailable') },

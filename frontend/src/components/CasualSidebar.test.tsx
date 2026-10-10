@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { Backend, Pipeline, Session, Workspace } from '../lib/backend'
+import type { Backend, Session, Workspace } from '../lib/backend'
 import { createFakeBackend, sessionMetadata } from '../test/fakeBackend'
 import { CasualSidebar } from './CasualSidebar'
 
@@ -311,24 +311,32 @@ describe('CasualSidebar', () => {
     expect(backend.revealWorkspace).toHaveBeenCalledWith('workspace-1')
   })
 
-  it('lists the project work with its stage, newest first, and opens it on Pipelines', async () => {
+  it('shows the work a chat coordinates as that chat, with the work stage, and no separate work list', async () => {
     const user = userEvent.setup()
     const onOpenPipeline = vi.fn()
-    const run = (id: string, title: string, currentStage: Pipeline['currentStage'], status: string, updatedAt: string): Pipeline => ({ id, workspaceId: workspace.id, kind: 'ai_authoring', title, objective: title, currentStage,
-      stageStatus: currentStage ? { [currentStage]: status } as Pipeline['stageStatus'] : {}, revision: 1, artifacts: {}, createdAt: updatedAt, updatedAt })
     renderSidebar({ onOpenPipeline }, backend => {
-      backend.listPipelines = async () => [
-        run('old', 'Exportar faturas', '', '', '2026-10-01T10:00:00Z'),
-        run('todo', 'Crie um TODO com html', 'eval', 'waiting_user', '2026-10-08T10:00:00Z'),
-        { ...run('other', 'Outro projeto', 'code', 'active', '2026-10-09T10:00:00Z'), workspaceId: 'workspace-2' },
-      ]
+      backend.listSessions = async () => [session]
+      backend.openSession = async () => session
+      backend.listEvents = async () => []
+      backend.ensureWorkChats = async () => ({ coordinators: [{ sessionId: session.id, pipelineId: 'todo', title: 'Crie um TODO com html', currentStage: 'eval', stageStatus: { eval: 'waiting_user' }, updatedAt: '2026-10-08T10:00:00Z' }], created: 0 })
     })
-    const list = await screen.findByRole('list', { name: 'Trabalhos do projeto' })
-    const items = within(list).getAllByRole('button')
-    expect(items.map(item => item.textContent)).toEqual([expect.stringContaining('Crie um TODO com html'), expect.stringContaining('Exportar faturas')])
-    expect(items[0]).toHaveTextContent('QA · aguardando você')
-    expect(items[1]).toHaveTextContent('Concluído')
-    await user.click(items[0])
-    expect(onOpenPipeline).toHaveBeenCalledWith('todo', workspace.id)
+    const row = await screen.findByRole('button', { name: /Crie um TODO com html/ })
+    expect(row).toHaveTextContent('QA · aguardando você')
+    expect(screen.queryByRole('list', { name: 'Trabalhos do projeto' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Trabalhos')).not.toBeInTheDocument()
+    await user.click(row)
+    expect(onOpenPipeline).not.toHaveBeenCalled()
+  })
+
+  it('reads the chats again after giving the works that had none their chat', async () => {
+    const listed = vi.fn(async () => [session])
+    renderSidebar({}, backend => {
+      backend.listSessions = listed
+      backend.openSession = async () => session
+      backend.listEvents = async () => []
+      backend.ensureWorkChats = async () => ({ coordinators: [{ sessionId: session.id, pipelineId: 'todo', title: 'Crie um TODO com html', currentStage: 'code', stageStatus: { code: 'active' }, updatedAt: '2026-10-08T10:00:00Z' }], created: 1 })
+    })
+    await screen.findByRole('button', { name: /Crie um TODO com html/ })
+    await waitFor(() => expect(listed.mock.calls.length).toBeGreaterThanOrEqual(2))
   })
 })

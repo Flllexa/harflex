@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Activity, ChevronDown, ChevronRight, FolderOpen, FolderSearch, ListTree, MessageSquare, Pin, PinOff, Plus, RefreshCw, Search, SlidersHorizontal, X } from 'lucide-react'
-import type { AgentEvent, Backend, ChatProject } from '../lib/backend'
+import { Activity, ChevronDown, ChevronRight, FolderOpen, FolderSearch, MessageSquare, Pin, PinOff, Plus, RefreshCw, Search, SlidersHorizontal, X } from 'lucide-react'
+import type { AgentEvent, Backend, ChatProject, WorkCoordinator } from '../lib/backend'
 import type { Session, Workspace } from '../lib/backend'
 import { destinations, type Destination } from './Sidebar'
 import { requestOf } from '../features/workbench/continuation'
-import { useRecentWork, workProgress } from '../features/pipelines/RecentWork'
+import { workProgressOf } from '../features/pipelines/RecentWork'
 import { localeTag, t, useT } from '../i18n'
 
 type ChatSummary = { session: Session; title: string; lastUserRequest: string }
@@ -90,7 +90,8 @@ function sessionState(session: Session) {
 
 export function CasualSidebar({ backend, workspace, activeSessionId, activeSessionUpdatedAt, historyHasUserMessage, selected, busy, loadingHistory, recoveryPrompt, mobileOpen, onOpenSession, onOpenPipeline, pipelineRevision, onOpenProject, onSelectDestination, onNewChat, onProjects, onToggleMode, onClose }: Props) {
   const t = useT()
-  const work = useRecentWork(backend, workspace?.id, pipelineRevision)
+  // The chats that coordinate a work of this project, keyed by chat: their rows show the work's stage.
+  const [coordinators, setCoordinators] = useState<Record<string, WorkCoordinator>>({})
   const [chats, setChats] = useState<ChatSummary[]>([])
   const [totalSessions, setTotalSessions] = useState(0)
   const [loadState, setLoadState] = useState<LoadState>('loading')
@@ -121,6 +122,19 @@ export function CasualSidebar({ backend, workspace, activeSessionId, activeSessi
     try { await backend.setSessionPinned(sessionId, value) } finally { void loadProjects() }
   }
   function reveal(workspaceId: string) { if (backend) void backend.revealWorkspace(workspaceId).catch(() => undefined) }
+
+  // Every work has a chat as its main conversation: the ones that have none yet get one, and the list then shows them.
+  const [workChatsRevision, setWorkChatsRevision] = useState(0)
+  useEffect(() => {
+    if (!backend || !workspace) { setCoordinators({}); return }
+    let live = true
+    const read = (items: WorkCoordinator[]) => setCoordinators(Object.fromEntries(items.map(item => [item.sessionId, item])))
+    backend.ensureWorkChats(workspace.id).then(
+      result => { if (!live) return; read(result.coordinators); if (result.created > 0) setWorkChatsRevision(value => value + 1) },
+      () => { backend.listWorkCoordinators(workspace.id).then(items => { if (live) read(items) }, () => { if (live) setCoordinators({}) }) },
+    )
+    return () => { live = false }
+  }, [backend, workspace?.id, pipelineRevision])
 
   const loadHistory = useCallback(async () => {
     const request = ++generation.current
@@ -153,7 +167,7 @@ export function CasualSidebar({ backend, workspace, activeSessionId, activeSessi
   useEffect(() => {
     void loadHistory()
     return () => { generation.current++ }
-  }, [loadHistory, activeSessionId, activeSessionUpdatedAt, historyHasUserMessage])
+  }, [loadHistory, activeSessionId, activeSessionUpdatedAt, historyHasUserMessage, workChatsRevision])
   useEffect(() => { setOpenedChatId(undefined) }, [workspace?.id])
 
   const filtered = chats.filter(chat => chat.title.toLocaleLowerCase('pt-BR').includes(search.trim().toLocaleLowerCase('pt-BR')))
@@ -213,21 +227,6 @@ export function CasualSidebar({ backend, workspace, activeSessionId, activeSessi
       </ul>
     </section>}
 
-    {workspace && work.runs.length > 0 && <section className="casual-group" aria-labelledby="casual-work-title">
-      <h2 id="casual-work-title" className="casual-group-label"><ListTree aria-hidden="true" />{t('Trabalhos')}</h2>
-      <ul className="casual-chat-list" aria-label={t('Trabalhos do projeto')}>
-        {work.runs.slice(0, 5).map(run => <li key={run.id} className="casual-chat-row">
-          <button type="button" className="touch-target casual-chat-item casual-work-item" disabled={busy || loadingHistory}
-            aria-current={selected === 'Pipelines' && pipelineRevision?.startsWith(`${run.id}:`) ? 'true' : undefined}
-            onClick={() => { onOpenPipeline?.(run.id, run.workspaceId); if (mobileOpen) onClose() }}>
-            <span className="casual-chat-title">{run.title || t('Trabalho sem título')}</span>
-            <span className="casual-chat-meta"><span>{workProgress(run)}</span><time dateTime={run.updatedAt}>{new Date(run.updatedAt).toLocaleDateString(localeTag())}</time></span>
-          </button>
-        </li>)}
-      </ul>
-      {work.runs.length > 5 && <button type="button" className="touch-target text-button casual-load-more" onClick={() => onSelectDestination('Pipelines')}>{t('Ver todos os {count} trabalhos', { count: work.runs.length })}</button>}
-    </section>}
-
     <section className="casual-group casual-history" aria-label={t('Projeto atual')}>
       <div className="casual-group-heading">
         <div className="casual-group-title"><FolderOpen aria-hidden="true" /><div><strong>{workspace ? basename(workspace.path) : t('Nenhum projeto aberto')}</strong><span className="muted">{workspace ? t('Projeto aberto') : t('Escolha uma pasta para começar')}</span></div></div>
@@ -245,8 +244,8 @@ export function CasualSidebar({ backend, workspace, activeSessionId, activeSessi
                     {/* The open chat stays reachable while it runs: clicking it only goes back to it. */}
                     <button type="button" className="touch-target casual-chat-item" aria-current={chat.session.id === (activeSessionId ?? openedChatId) ? 'true' : undefined} disabled={chat.session.id !== activeSessionId && busy}
                       onClick={() => { if (chat.session.id === activeSessionId && busy) { onSelectDestination('Conversas'); if (mobileOpen) onClose(); return } setOpenedChatId(chat.session.id); onOpenSession(chat.session.id, chat.session.workspaceId) }}>
-                      <span className="casual-chat-title">{chat.title}</span>
-                      <span className="casual-chat-meta"><span>{t(sessionState(chat.session))}</span><time dateTime={chat.session.updatedAt}>{new Date(chat.session.updatedAt).toLocaleDateString(localeTag())}</time></span>
+                      <span className="casual-chat-title">{coordinators[chat.session.id]?.title || chat.title}</span>
+                      <span className="casual-chat-meta"><span>{coordinators[chat.session.id] ? workProgressOf(coordinators[chat.session.id].currentStage, coordinators[chat.session.id].stageStatus) : t(sessionState(chat.session))}</span><time dateTime={chat.session.updatedAt}>{new Date(chat.session.updatedAt).toLocaleDateString(localeTag())}</time></span>
                     </button>
                     <button type="button" className={`casual-pin${pinnedIds.has(chat.session.id) ? ' is-on' : ''}`} aria-label={pinnedIds.has(chat.session.id) ? t('Desafixar conversa') : t('Fixar conversa')} title={pinnedIds.has(chat.session.id) ? t('Desafixar') : t('Fixar')}
                       onClick={() => void togglePin(chat.session.id, !pinnedIds.has(chat.session.id))}>{pinnedIds.has(chat.session.id) ? <PinOff aria-hidden="true" /> : <Pin aria-hidden="true" />}</button>

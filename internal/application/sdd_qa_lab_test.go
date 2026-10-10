@@ -2,7 +2,9 @@ package application
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -12,7 +14,9 @@ import (
 	"time"
 
 	"github.com/persioflexa/harflex/internal/agentcore"
+	"github.com/persioflexa/harflex/internal/externalagent"
 	"github.com/persioflexa/harflex/internal/providers/openai"
+	"github.com/persioflexa/harflex/internal/tools"
 )
 
 // qaLabProvider plays the Coder and the QA: each role first calls one tool, then answers.
@@ -505,5 +509,112 @@ func TestPullRequestWatchChecksTheRecordedPRInItsConversationAndStopsWhenMerged(
 	}
 	if last := listed[0].Timeline[len(listed[0].Timeline)-1]; last.Kind != "merged" || !strings.Contains(last.Summary, "mergeado") {
 		t.Fatalf("timeline: %+v", listed[0].Timeline)
+	}
+}
+
+// prCLIStub is a CLI agent for the PR stage: only its ability to continue a conversation matters.
+type prCLIStub struct {
+	id        string
+	resumable bool
+}
+
+func (c *prCLIStub) ID() string { return c.id }
+func (c *prCLIStub) Detect() externalagent.Detection {
+	return externalagent.Detection{Available: true, Path: "/private/" + c.id}
+}
+func (c *prCLIStub) Capabilities() agentcore.Capabilities {
+	return agentcore.Capabilities{Streaming: true, Resumable: c.resumable}
+}
+func (c *prCLIStub) Run(context.Context, externalagent.Request) (<-chan externalagent.Event, <-chan error) {
+	events, errs := make(chan externalagent.Event), make(chan error)
+	close(events)
+	close(errs)
+	return events, errs
+}
+
+func TestPullRequestConversationRunsOnACLIThatContinuesConversations(t *testing.T) {
+	_, db, vault := setup(t)
+	provider := &qaLabProvider{passFirst: true}
+	s := NewService(t.Context(), Dependencies{Store: db, Secrets: vault, External: map[string]ExternalBackend{}, ProviderFactory: func(openai.Config) (agentcore.Provider, error) { return provider, nil }, ExecutionCacheRoot: t.TempDir()})
+	workspace, err := s.OpenWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SaveProviderProfile(profileInput()); err != nil {
+		t.Fatal(err)
+	}
+	run, err := s.CreatePipeline(CreatePipelineInput{WorkspaceID: workspace.ID, Title: "Exportar", Objective: "CSV"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, stage := range []string{"discovery", "spec", "plan"} {
+		if _, err := s.SavePipelineArtifact(SavePipelineArtifactInput{PipelineID: run.ID, Stage: stage, Content: stage + " critérios e contexto"}); err != nil {
+			t.Fatal(err)
+		}
+		if run, err = s.AdvancePipeline(run.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	coder, err := s.CreatePipelineSession(CreatePipelineSessionInput{PipelineID: run.ID, BackendID: "local", Role: "coder", ConfirmWorkspaceCopy: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Prompt(PromptInput{SessionID: coder.Session.ID, Text: coder.Prompt}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CompletePipelineCode(run.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.decideLatest(run.ID, "code", "approve", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.StartPipelineQA(StartPipelineQAInput{PipelineID: run.ID, Evaluator: PipelineRoleChoice{BackendID: "local"}}); err != nil {
+		t.Fatal(err)
+	}
+	if state := waitQALoop(t, s, run.ID); state.Phase != "done" {
+		t.Fatalf("QA: %+v", state)
+	}
+	if err := s.decideLatest(run.ID, "eval", "approve", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ApplyPipelineCode(run.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	s.external["codex"] = &prCLIStub{id: "codex", resumable: false}
+	s.external["claude"] = &prCLIStub{id: "claude", resumable: true}
+	// Codex takes one message per conversation, and the review watch writes to this one again and again.
+	if _, err := s.CreatePipelineSession(CreatePipelineSessionInput{PipelineID: run.ID, BackendID: "codex", Role: "publisher"}); !errors.Is(err, ErrPipelinePRsBackendUnsupported) {
+		t.Fatalf("a CLI that cannot continue a conversation was accepted: %v", err)
+	}
+	publisher, err := s.CreatePipelineSession(CreatePipelineSessionInput{PipelineID: run.ID, BackendID: "claude", Role: "publisher"})
+	if err != nil || publisher.Session.BackendID != "claude" || publisher.Role != "publisher" {
+		t.Fatalf("Claude Code should run the PR conversation: %+v %v", publisher, err)
+	}
+	names := func(items []tools.Tool) []string {
+		var out []string
+		for _, item := range items {
+			out = append(out, item.Spec().Name)
+		}
+		return out
+	}
+	// Without Full access nothing asks for approval on the MCP route, so only the tools that record the PRs go over it.
+	if got := names(s.platformPullRequestTools(publisher.Session.ID, workspace.ID)); strings.Join(got, ",") != "harflex_register_pull_request,harflex_pull_request_status" {
+		t.Fatalf("tools without Full access: %v", got)
+	}
+	httpServer := basicServer(t, "Basic "+base64.StdEncoding.EncodeToString([]byte("ana@example.com:token")), okTool, "bitbucketPullRequest")
+	saved, err := s.SaveMCPServer(SaveMCPServerInput{WorkspaceID: workspace.ID, Name: "Bitbucket", Transport: "http", URL: httpServer.URL, AuthScheme: "basic", Token: "ana@example.com:token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ConnectMCPServer(saved.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetWorkspaceProfile(SetWorkspaceProfileInput{WorkspaceID: workspace.ID, Profile: "full_access", ConfirmFullAccess: true}); err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Join(names(s.platformPullRequestTools(publisher.Session.ID, workspace.ID)), ",")
+	if !strings.Contains(got, "harflex_register_pull_request") || !strings.Contains(got, "bitbucketPullRequest") {
+		t.Fatalf("with Full access the CLI should also get the connected MCP tools: %s", got)
 	}
 }

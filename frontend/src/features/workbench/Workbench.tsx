@@ -7,6 +7,7 @@ import { preferredFirst } from '../../lib/backendOrder'
 import { cliCatalogProblem, codedError, errorCode, errorMessage, type Agent, type AgentEvent, type Backend, type BackendOption, type Delegation, type ModelCatalogResult, type Pipeline, type PipelineRole, type PipelineStage, type PipelineRoleModelSelection, type RunResult, type Session, type Workspace, type WorkspaceSummary, type WorktreeList, type WorktreeSavePlan } from '../../lib/backend'
 import { checkReplayOutcome, replayErrorMessage, replaySession, type ReplayExpectation } from '../../lib/replay'
 import { useRecentWork, workProgress } from '../pipelines/RecentWork'
+import { useVerifyCoderWhenDone } from './useVerifyCoderWhenDone'
 import { createSessionStore, runIsLive, sessionReadOnly, type SessionState } from '../../state/session'
 import { saveChatDraft, takeChatDraft } from '../../state/chatDrafts'
 import { ProviderDialog } from '../settings/ProviderDialog'
@@ -148,6 +149,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
   useEffect(() => { setInitialDiscoverySeed(current => current?.workspaceId === state.workspace?.id ? current : undefined) },[state.workspace?.id])
   const selectedRef = useRef(selected)
   selectedRef.current = selected
+  useVerifyCoderWhenDone({ backend, session: state.session, activeRun: state.activeRun, outcome: state.outcome?.status, pipeline: sessionPipeline, onVerified: updated => { setCurrentPipeline(updated); onOpenPipeline?.(updated.id, updated.workspaceId) } })
   const busy = startingSession || state.calling || runIsLive(state) || loadingHistory || cancelPending
   const executionBusy = runIsLive(state) || state.calling && !loadingHistory || cancelPending
   const userChat = !state.session?.purpose || state.session.purpose === 'chat'

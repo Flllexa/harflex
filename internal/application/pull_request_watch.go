@@ -287,14 +287,14 @@ func (s *Service) pullRequestTools(pipelineID, sessionID string) []tools.Tool {
 			Name:        "harflex_register_pull_request",
 			Description: "Record in Harflex a pull request you just opened for this pipeline, so the person sees it on the PRs screen and can turn on the review watch. Call it once per pull request, right after opening it.",
 			Schema:      json.RawMessage(`{"type":"object","properties":{"url":{"type":"string","minLength":8},"title":{"type":"string"},"branch":{"type":"string"}},"required":["url"],"additionalProperties":false}`),
-		}, run: func(s *Service, pipelineID string, args json.RawMessage) (any, error) {
+		}, run: func(s *Service, pipelineID, _ string, args json.RawMessage) (any, error) {
 			return s.registerPullRequest(pipelineID, sessionID, args)
 		}},
 		harflexTool{service: s, workspaceID: pipelineID, risk: security.ReadOnly, spec: agentcore.ToolSpec{
 			Name:        "harflex_pull_request_status",
 			Description: "Report the outcome of a review check of a pull request recorded in Harflex: its state (open, merged or closed), how many review comments you handled and a short summary.",
 			Schema:      json.RawMessage(`{"type":"object","properties":{"url":{"type":"string","minLength":8},"state":{"type":"string","enum":["open","merged","closed"]},"handledComments":{"type":"integer","minimum":0},"summary":{"type":"string"}},"required":["url","state"],"additionalProperties":false}`),
-		}, run: func(s *Service, pipelineID string, args json.RawMessage) (any, error) {
+		}, run: func(s *Service, pipelineID, _ string, args json.RawMessage) (any, error) {
 			return s.reportPullRequest(pipelineID, args)
 		}},
 	}

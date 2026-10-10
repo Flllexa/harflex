@@ -26,7 +26,8 @@ const (
 	maxPipelineDocumentText   = 12000
 )
 
-func (s *Service) harflexTools(workspaceID string) []tools.Tool {
+// sessionID is the conversation the tools serve: a pipeline it creates is coordinated by it.
+func (s *Service) harflexTools(workspaceID, sessionID string) []tools.Tool {
 	return []tools.Tool{
 		harflexTool{service: s, workspaceID: workspaceID, risk: security.Write, spec: agentcore.ToolSpec{
 			Name: harflexCreatePipelineTool,
@@ -34,26 +35,27 @@ func (s *Service) harflexTools(workspaceID string) []tools.Tool {
 				"Call it only after agreeing with the person on the problem, goal, scope and acceptance criteria. The discovery is Markdown that starts with \"# <short title>\" " +
 				"and holds the context, the goal, what is in and out of scope, the acceptance criteria and open questions. The person then follows and approves each phase on the Pipelines screen.",
 			Schema: json.RawMessage(`{"type":"object","properties":{"discovery":{"type":"string","minLength":20,"description":"Markdown discovery document starting with '# <short title>'."}},"required":["discovery"],"additionalProperties":false}`),
-		}, run: harflexCreatePipeline},
+		}, run: harflexCreatePipeline, sessionID: sessionID},
 		harflexTool{service: s, workspaceID: workspaceID, risk: security.ReadOnly, spec: agentcore.ToolSpec{
 			Name:        harflexListPipelinesTool,
 			Description: "List the SDD pipelines of this conversation's Harflex project, newest first, with their current phase and the status of each phase.",
 			Schema:      json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
-		}, run: harflexListPipelines},
+		}, run: harflexListPipelines, sessionID: sessionID},
 		harflexTool{service: s, workspaceID: workspaceID, risk: security.ReadOnly, spec: agentcore.ToolSpec{
 			Name:        harflexGetPipelineTool,
 			Description: "Read one SDD pipeline of this project: its phases, their status and, when asked, the text of its phase documents (Discovery, SPEC, Plan…).",
 			Schema:      json.RawMessage(`{"type":"object","properties":{"pipelineId":{"type":"string","minLength":1},"includeDocuments":{"type":"boolean","default":false}},"required":["pipelineId"],"additionalProperties":false}`),
-		}, run: harflexGetPipeline},
+		}, run: harflexGetPipeline, sessionID: sessionID},
 	}
 }
 
 type harflexTool struct {
 	service     *Service
 	workspaceID string
+	sessionID   string
 	risk        security.Risk
 	spec        agentcore.ToolSpec
-	run         func(*Service, string, json.RawMessage) (any, error)
+	run         func(*Service, string, string, json.RawMessage) (any, error)
 }
 
 func (t harflexTool) Spec() agentcore.ToolSpec { return t.spec }
@@ -63,7 +65,7 @@ func (t harflexTool) Execute(ctx context.Context, args json.RawMessage, _ agentc
 	if err := ctx.Err(); err != nil {
 		return agentcore.ToolExecutionResult{}, err
 	}
-	value, err := t.run(t.service, t.workspaceID, args)
+	value, err := t.run(t.service, t.workspaceID, t.sessionID, args)
 	if err != nil {
 		return agentcore.ToolExecutionResult{}, harflexToolFailure(err)
 	}
@@ -106,7 +108,7 @@ func pipelineSummary(p PipelineDTO) harflexPipelineSummary {
 	return harflexPipelineSummary{ID: p.ID, Title: p.Title, CurrentPhase: p.CurrentStage, PhaseStatus: p.StageStatus, UpdatedAt: p.UpdatedAt}
 }
 
-func harflexCreatePipeline(s *Service, workspaceID string, args json.RawMessage) (any, error) {
+func harflexCreatePipeline(s *Service, workspaceID, sessionID string, args json.RawMessage) (any, error) {
 	var in struct {
 		Discovery string `json:"discovery"`
 	}
@@ -121,6 +123,12 @@ func harflexCreatePipeline(s *Service, workspaceID string, args json.RawMessage)
 	if err != nil {
 		return nil, err
 	}
+	// The conversation that created the work coordinates it from now on.
+	if sessionID != "" {
+		if err := s.store.SetPipelineCoordinator(s.ctx, created.ID, sessionID); err != nil {
+			return nil, safe("link work coordinator", err)
+		}
+	}
 	s.mu.RLock()
 	emit := s.emit
 	s.mu.RUnlock()
@@ -131,7 +139,7 @@ func harflexCreatePipeline(s *Service, workspaceID string, args json.RawMessage)
 		"next": "The pipeline is on the Pipelines screen; the person follows and approves each phase there, starting with Discovery."}, nil
 }
 
-func harflexListPipelines(s *Service, workspaceID string, _ json.RawMessage) (any, error) {
+func harflexListPipelines(s *Service, workspaceID, _ string, _ json.RawMessage) (any, error) {
 	found, err := s.ListPipelines(workspaceID)
 	if err != nil {
 		return nil, err
@@ -143,7 +151,7 @@ func harflexListPipelines(s *Service, workspaceID string, _ json.RawMessage) (an
 	return map[string]any{"pipelines": items}, nil
 }
 
-func harflexGetPipeline(s *Service, workspaceID string, args json.RawMessage) (any, error) {
+func harflexGetPipeline(s *Service, workspaceID, _ string, args json.RawMessage) (any, error) {
 	var in struct {
 		PipelineID       string `json:"pipelineId"`
 		IncludeDocuments bool   `json:"includeDocuments"`
@@ -190,8 +198,36 @@ func (s *Service) platformMCPEndpoint(sessionID, workspaceID string) (string, st
 	}
 	token, ok := s.platformMCPTokens[sessionID]
 	if !ok {
-		token, _ = s.platformMCP.Register(s.harflexTools(workspaceID))
+		token, _ = s.platformMCP.Register(append(s.harflexTools(workspaceID, sessionID), s.platformPullRequestTools(sessionID, workspaceID)...))
 		s.platformMCPTokens[sessionID] = token
 	}
 	return s.platformMCP.URL(), token, nil
+}
+
+// platformPullRequestTools are what the pull request conversation of a CLI agent gets over MCP, where an API agent has
+// them in its own tool loop: the tools that record its pull requests and, with Full access (nothing asks for approval
+// on this route), the tools of the MCP servers connected in Harflex, such as GitHub or Bitbucket.
+func (s *Service) platformPullRequestTools(sessionID, workspaceID string) []tools.Tool {
+	pipelineID := s.pullRequestPipelineFor(sessionID, workspaceID)
+	if pipelineID == "" {
+		return nil
+	}
+	items := s.pullRequestTools(pipelineID, sessionID)
+	workspace, err := s.store.GetWorkspace(s.ctx, workspaceID)
+	if err != nil || security.Profile(workspace.Profile) != security.FullAccess {
+		return items
+	}
+	servers, err := s.store.ListMCPServers(s.ctx, workspaceID)
+	if err != nil {
+		return items
+	}
+	for _, server := range servers {
+		if !server.Enabled {
+			continue
+		}
+		for _, tool := range server.Tools {
+			items = append(items, mcpTool{service: s, server: server, tool: tool})
+		}
+	}
+	return items
 }

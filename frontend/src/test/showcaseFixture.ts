@@ -2,7 +2,7 @@ import type { AgentEvent, Backend, Pipeline, PullRequest, Session } from '../lib
 
 // Demonstration data for the README screenshots: one project, one SDD work item at the stage the view asks for,
 // a chat that created it and the live QA run. Nothing here talks to a real agent.
-export type ShowcaseView = 'chat' | 'code' | 'qa-running' | 'qa-report' | 'prs'
+export type ShowcaseView = 'chat' | 'code' | 'code-running' | 'qa-running' | 'qa-report' | 'prs'
 
 const at = (minutes: number) => new Date(Date.UTC(2026, 9, 8, 14, minutes)).toISOString()
 const workspaceId = 'workspace-1'
@@ -139,6 +139,7 @@ function pipelineFor(view: ShowcaseView): Pipeline {
   const code = base.artifacts.code!
   const approved = [{ stage: 'code' as const, version: code.version, content: code.content, contentDigest: code.contentDigest!, sourceSessionId: code.sourceSessionId ?? '', decision: 'approve' as const, actor: 'local_user', feedback: '', createdAt: at(40) }]
   if (view !== 'code') base.executionReviews = approved
+  if (view === 'code-running') return { ...base, stageStatus: { ...base.stageStatus, code: 'active' }, executionReviews: undefined, artifacts: { discovery: base.artifacts.discovery, spec: base.artifacts.spec, plan: base.artifacts.plan } }
   if (view === 'qa-running') return { ...base, currentStage: 'eval', stageStatus: { ...base.stageStatus, code: 'completed', eval: 'active' } }
   if (view === 'qa-report') return { ...base, currentStage: 'eval', stageStatus: { ...base.stageStatus, code: 'completed', eval: 'waiting_user' }, artifacts: { ...base.artifacts, eval: artifact('eval', JSON.stringify(report), 3) } }
   if (view === 'prs') return { ...base, currentStage: 'prs', stageStatus: { ...base.stageStatus, code: 'completed', eval: 'completed', prs: 'active' },
@@ -164,6 +165,27 @@ function qaJournal(): AgentEvent[] {
     push('tool.called', { toolCallId: id, name: 'bash' })
     if (state === 'done') push('tool.completed', { toolCallId: id, name: 'bash', content: { text: 'ok' } })
   }
+  return events
+}
+
+function coderJournal(): AgentEvent[] {
+  const events: AgentEvent[] = []
+  const push = (type: string, data: unknown) => events.push({ id: `coder-${events.length + 1}`, streamId: 'coder-session', sequence: events.length + 1, type, data, createdAt: at(20 + events.length) })
+  const plan = (steps: [string, string][]) => ({ id: `plan-${events.length}`, name: 'update_plan', arguments: { plan: steps.map(([step, status]) => ({ step, status })) } })
+  const call = (id: string, name: string, args: Record<string, string>, state: 'done' | 'running') => {
+    push('message.assistant', { role: 'assistant', content: '', toolCalls: [{ id, name, arguments: args }] })
+    push('tool.called', { toolCallId: id, name })
+    if (state === 'done') push('tool.completed', { toolCallId: id, name, content: { text: 'ok' } })
+  }
+  push('run.started', {})
+  push('message.user', { role: 'user', content: 'Implement this work only in the isolated root of this run.' })
+  call('c1', 'ls', { path: '.' }, 'done')
+  push('message.assistant', { role: 'assistant', content: '', toolCalls: [plan([['Read the project and the SPEC', 'in_progress'], ['Build the page and the form', 'pending'], ['Save tasks in localStorage', 'pending'], ['Write the unit tests', 'pending']])] })
+  call('c2', 'read', { path: 'package.json' }, 'done')
+  push('message.assistant', { role: 'assistant', content: '', toolCalls: [plan([['Read the project and the SPEC', 'completed'], ['Build the page and the form', 'in_progress'], ['Save tasks in localStorage', 'pending'], ['Write the unit tests', 'pending']])] })
+  call('c3', 'write', { path: 'index.html' }, 'done')
+  call('c4', 'write', { path: 'styles.css' }, 'done')
+  call('c5', 'write', { path: 'app.js' }, 'running')
   return events
 }
 
@@ -219,6 +241,9 @@ export function installShowcase(backend: Backend, view: ShowcaseView) {
     { workspaceId, stage: 'prs' as const, backendId: 'openrouter', modelId: 'anthropic/claude-opus-5.5', updatedAt: checkedAt },
   ]
   backend.listPipelines = async () => [pipeline]
+  const coordinators = [{ sessionId: chatSession.id, pipelineId: pipeline.id, title: pipeline.title, currentStage: pipeline.currentStage, stageStatus: pipeline.stageStatus, updatedAt: at(40) }]
+  backend.listWorkCoordinators = async () => coordinators
+  backend.ensureWorkChats = async () => ({ coordinators, created: 0 })
   backend.getPipeline = async () => pipeline
   backend.getPipelineForSession = async () => pipeline
   backend.getPipelineQALoop = async pipelineId => view === 'qa-running'
@@ -229,6 +254,8 @@ export function installShowcase(backend: Backend, view: ShowcaseView) {
   const qa = qaJournal(), chat = chatJournal()
   backend.listSessions = async id => id === workspaceId ? [chatSession] : []
   backend.openSession = async () => chatSession
-  backend.listEvents = async (id, after = 0) => (id === 'qa-session' ? qa : id === chatSession.id ? chat : []).filter(event => event.sequence > after)
+  const coder = coderJournal()
+  backend.listEvents = async (id, after = 0) => (id === 'qa-session' ? qa : id === 'coder-session' ? coder : id === chatSession.id ? chat : []).filter(event => event.sequence > after)
+  backend.getPipelineStageActivity = async (pipelineId, stage) => ({ pipelineId, workspaceId, stage, status: view === 'code-running' && stage === 'code' ? 'running' : 'ready', phase: '', sessionId: view === 'code-running' && stage === 'code' ? 'coder-session' : '', modelId: view === 'code-running' && stage === 'code' ? 'opus' : '', updatedAt: at(46) })
   backend.decidePipelineExecutionArtifact = async () => pipeline
 }

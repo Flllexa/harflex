@@ -597,6 +597,14 @@ export interface EditPipelineDesignDocumentInput {
     "content": string;
 }
 
+/**
+ * EnsureWorkChatsResult is the works with a chat, and how many chats this pass created.
+ */
+export interface EnsureWorkChatsResult {
+    "coordinators": WorkCoordinatorDTO[] | null;
+    "created": number;
+}
+
 export interface EventDTO {
     "id": string;
     "streamId": string;
@@ -1498,6 +1506,18 @@ export interface TerminalDTO {
     "id": string;
     "shell": string;
     "path": string;
+}
+
+/**
+ * WorkCoordinatorDTO is an SDD work and the chat that coordinates it, as the Casual sidebar lists it.
+ */
+export interface WorkCoordinatorDTO {
+    "sessionId": string;
+    "pipelineId": string;
+    "title": string;
+    "currentStage": string;
+    "stageStatus": { [_ in string]?: string } | null;
+    "updatedAt": string;
 }
 
 export interface WorkflowDTO {

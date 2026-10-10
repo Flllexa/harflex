@@ -100,10 +100,18 @@ describe('the pull request panel', () => {
     expect(within(panel()).queryByText(/Hoje a IA pede a sua aprovação/)).not.toBeInTheDocument()
   })
 
-  it('offers an API profile only: the shell and MCP tools belong to the Harflex tool loop', () => {
+  it('offers an API profile or Claude Code, never Codex: the PRs return to their conversation, which Codex does not continue', () => {
     show(backendWith(), { backends: [{ id: 'codex', name: 'Codex CLI', kind: 'cli' as const, available: true }] })
-    expect(within(panel()).getByText('Os PRs precisam de um provedor API')).toBeInTheDocument()
+    expect(within(panel()).getByText('Os PRs precisam de um provedor API ou do Claude Code')).toBeInTheDocument()
     expect(within(panel()).getByRole('button', { name: 'Abrir PRs com a IA' })).toBeDisabled()
+  })
+
+  it('runs on Claude Code when that is the phase default and no API profile is set up', async () => {
+    const user = userEvent.setup()
+    const { onStart } = show(backendWith(), { backends: [{ id: 'codex', name: 'Codex CLI', kind: 'cli' as const, available: true }, { id: 'claude', name: 'Claude Code', kind: 'cli' as const, available: true }], defaultBackendId: 'claude' })
+    expect(within(panel()).queryByText('Os PRs precisam de um provedor API ou do Claude Code')).not.toBeInTheDocument()
+    await user.click(within(panel()).getByRole('button', { name: 'Abrir PRs com a IA' }))
+    expect(onStart).toHaveBeenCalledWith('claude')
   })
 
   it('follows the agent: working, then a finished report that can be concluded', async () => {

@@ -61,11 +61,12 @@ describe('what each phase can run on', () => {
     }
   })
 
-  it('gives the pull requests only the profiles whose tool loop it can use, a generic server included', () => {
+  it('gives the pull requests the profiles whose tool loop it can use, a generic server included, and Claude Code, which resumes its conversation', () => {
     expect(phaseCanUse('prs', api, profiles[0])).toBe(true)
     expect(phaseCanUse('prs', plain, profiles[2])).toBe(true)
     expect(phaseCanUse('prs', codex)).toBe(false)
-    expect(phaseCanUse('prs', claude)).toBe(false)
+    expect(phaseCanUse('prs', claude)).toBe(true)
+    expect(phaseCanUse('prs', { ...claude, available: false })).toBe(false)
   })
 })
 

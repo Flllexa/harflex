@@ -27,12 +27,14 @@ export const usableProfile = (profile: ProviderProfile) => !profile.endpointBloc
 
 /**
  * Who can work on a phase. The documents and Code/QA take an API profile with a catalog, or Codex when the Harflex can
- * hold it to its contract; the pull requests need the Harflex tool loop (terminal and MCP), which only API profiles have.
+ * hold it to its contract; the pull requests need the Harflex tool loop (terminal and MCP) and a conversation they return to: API
+ * profiles have it, and so does Claude Code, which reaches the tools over MCP and resumes.
  */
 export function phaseCanUse(stage: PipelineStage, option: BackendOption, profile?: ProviderProfile): boolean {
   if (!option.available) return false
   if (option.kind === 'api') return stage === 'prs' || (!!profile && usableProfile(profile))
-  return isDocumentCLI(option.id) && stage !== 'prs' && option.professionalAvailable === true
+  if (stage === 'prs') return option.id === 'claude'
+  return isDocumentCLI(option.id) && option.professionalAvailable === true
 }
 
 /** The list with the phase set to `value`, or back on the default when there is none, in pipeline order. */

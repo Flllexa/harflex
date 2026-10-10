@@ -58,6 +58,9 @@ const pullRequestEvent = z.object({ at: z.string(), kind: z.string(), summary: z
 const pullRequest = z.object({ id: z.string().min(1), pipelineId: z.string(), sessionId: z.string(), url: z.string(), title: z.string(), branch: z.string(), state: z.enum(['open', 'merged', 'closed']), watch: z.boolean(),
   lastCheckedAt: z.string().optional(), nextCheckAt: z.string().optional(), checking: z.boolean(), timeline: z.array(pullRequestEvent).nullish().transform(value => value ?? []) })
 export type PullRequest = z.infer<typeof pullRequest>
+const workCoordinator = z.object({ sessionId: z.string().min(1), pipelineId: z.string().min(1), title: z.string(), currentStage: z.union([pipelineStage, z.literal('')]), stageStatus: z.record(z.string(), z.string()), updatedAt: z.string() })
+export type WorkCoordinator = z.infer<typeof workCoordinator>
+
 const pipeline = z.object({ id: z.string().min(1), workspaceId: z.string().min(1), kind: z.enum(['legacy', 'ai_authoring']).optional(), preparationExperience: z.literal('conversational').optional(), derivedFromPipelineId: z.string().optional(), discoveryFrozenVersion: z.number().int().nonnegative().optional(), title: z.string(), objective: z.string(), currentStage: z.union([pipelineStage, z.literal('')]), stageStatus: z.record(z.string(), z.enum(['pending', 'active', 'completed', 'skipped', 'failed', 'paused', 'waiting_user'])), revision: z.number().int().positive(), artifacts: z.record(z.string(), pipelineArtifact), archivedArtifacts: z.array(pipelineArchivedArtifact).optional(), executionReviews: z.array(pipelineExecutionReview).optional(), codeAppliedAt: z.iso.datetime({ offset: true }).optional(), codePatchPending: z.boolean().optional(), codeReviewRecoveryStatus: z.enum(['available', 'snapshot_unavailable', 'already_applied', 'source_drift']).optional(), codeReviewRecoveryReason: z.string().optional(), createdAt: z.iso.datetime({ offset: true }), updatedAt: z.iso.datetime({ offset: true }) })
 const authoringPipeline = pipeline.refine(
   value => value.kind === 'ai_authoring'
@@ -451,6 +454,10 @@ export interface Backend {
   getAuthoringCodeCopyPreparations(input: GetAuthoringCodeCopyPreparationsInput): Promise<AuthoringCodeCopyPreparations>
   getAuthoringCodeRunPatch(input: GetAuthoringCodeRunPatchInput): Promise<AuthoringCodeRunPatchPage>
   listPipelines(workspaceId: string): Promise<Pipeline[]>
+  /** The works of a project that have a chat coordinating them. */
+  listWorkCoordinators(workspaceId: string): Promise<WorkCoordinator[]>
+  /** Gives every work of the project that has no chat one (its main conversation); safe to repeat. */
+  ensureWorkChats(workspaceId: string): Promise<{ coordinators: WorkCoordinator[]; created: number }>
   getPipelineStageActivity(pipelineId: string, stage: PipelineStage): Promise<PipelineStageActivity>
   getPipeline(pipelineId: string): Promise<Pipeline>
   savePipelineArtifact(pipelineId: string, stage: PipelineStage, content: string): Promise<Pipeline>
@@ -575,6 +582,8 @@ export const parse = {
   authoringCodeRunPatchPage: (value: unknown) => authoringCodeRunPatchPage.parse(value),
   brainstorms: (value: unknown) => z.array(brainstorm).parse(value ?? []),
   pipelines: (value: unknown) => z.array(pipeline).parse(value ?? []),
+  workCoordinators: (value: unknown) => z.array(workCoordinator).parse(value ?? []),
+  ensureWorkChats: (value: unknown) => z.object({ coordinators: z.array(workCoordinator).nullish().transform(items => items ?? []), created: z.number().int().nonnegative() }).parse(value),
   pipelineSession: (value: unknown) => pipelineSession.parse(value),
   pipelineCodeCopyPreview: (value: unknown) => pipelineCodeCopyPreview.parse(value),
   agent: (value: unknown) => agent.parse(value),
@@ -686,8 +695,8 @@ const errorMessages: Record<string, string> = {
   pipeline_qa_busy: 'O QA já está rodando para este pipeline.',
   pipeline_code_not_applied: 'Aplique o patch aprovado ao projeto antes de abrir os PRs: o agente trabalha na pasta do projeto.',
   pipeline_design_phase_executor_unusable: 'O provedor ou o modelo escolhido para uma das fases não está disponível agora. Abra "Provedor e modelo por fase", no alto desta página, e escolha outro ou volte ao padrão.',
-  stage_executor_unsupported: 'Esta fase não pode usar esse executor. Escolha um perfil de API; o Codex serve às fases de documento, Code e QA, não aos PRs.',
-  pipeline_prs_backend_unsupported: 'Os PRs precisam de um provedor API, porque as ferramentas MCP e o terminal rodam no Harflex. Escolha um perfil de API.',
+  stage_executor_unsupported: 'Esta fase não pode usar esse executor. Escolha um perfil de API ou o Claude Code; o Codex serve às fases de documento, Code e QA, não aos PRs.',
+  pipeline_prs_backend_unsupported: 'Os PRs precisam de um provedor API ou do Claude Code, porque as ferramentas MCP e o terminal rodam no Harflex e a conversa dos PRs é retomada. Escolha um perfil de API ou o Claude Code.',
   sdd_cli_read_isolation_unavailable: 'O Codex CLI pode ler arquivos fora do projeto, mesmo em modo somente leitura. Para proteger outros arquivos locais, use um provedor API no Professional SDD; o Codex CLI permanece no modo Casual.',
   pipeline_design_model_required: 'Escolha o provedor e o modelo padrão em Configurações ou personalize o modelo deste documento em Modelos.',
   pipeline_design_spec_stale: 'Atualize a SPEC com o Discovery atual antes de preparar o Plan.',

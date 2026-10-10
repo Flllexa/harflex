@@ -31,7 +31,7 @@ async function shootBench(page: Page, name: string, bench: string, focus?: strin
 test('chat: an agent creates the SDD work from a conversation', async ({ page }) => {
   await openProject(page, 'chat')
   await page.getByRole('button', { name: 'Casual', exact: true }).click()
-  await page.getByRole('button', { name: /Create a to-do list/ }).first().click()
+  await page.getByRole('button', { name: /To-do list with localStorage/ }).first().click()
   await expect(page.getByText('Done! I created the work item')).toBeVisible()
   await page.waitForTimeout(400)
   await page.screenshot({ path: out('01-chat') })
@@ -56,6 +56,13 @@ test('code: the change file by file', async ({ page }) => {
   await openProject(page, 'code')
   await openPipelines(page)
   await shootBench(page, '03-code', 'Bench Code')
+})
+
+test('code running: the plan the Coder declared and what it does in each step', async ({ page }) => {
+  await openProject(page, 'code-running')
+  await openPipelines(page)
+  await expect(page.getByText('The Coder is working')).toBeVisible()
+  await shootBench(page, '03b-code-running', 'Bench Code', '.code-live')
 })
 
 test('qa running: each command as it happens', async ({ page }) => {
