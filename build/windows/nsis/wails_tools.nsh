@@ -14,7 +14,7 @@
     !define INFO_PRODUCTNAME "Harflex"
 !endif
 !ifndef INFO_PRODUCTVERSION
-    !define INFO_PRODUCTVERSION "0.2.3"
+    !define INFO_PRODUCTVERSION "0.2.4"
 !endif
 !ifndef INFO_COPYRIGHT
     !define INFO_COPYRIGHT "© 2026 persio.flexa"

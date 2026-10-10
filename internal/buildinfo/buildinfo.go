@@ -2,4 +2,4 @@
 // other files that hold the version, so a release tag, the installers and the running app always agree.
 package buildinfo
 
-const Version = "0.2.3"
+const Version = "0.2.4"

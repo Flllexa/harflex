@@ -11,7 +11,7 @@ info:
   description: "Local-first agentic development harness" # The application description
   copyright: "© 2026 persio.flexa" # Copyright text
   comments: "https://github.com/Flllexa/harflex" # Comments
-  version: "0.2.3" # The application version
+  version: "0.2.4" # The application version
   # cfBundleIconName: "appicon" # The macOS icon name in Assets.car icon bundles (optional)
   #                               # Should match the name of your .icon file without the extension
   #                               # If not set and Assets.car exists, defaults to "appicon"
