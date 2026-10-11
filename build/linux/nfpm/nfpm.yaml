@@ -6,7 +6,7 @@
 name: "harflex"
 arch: ${GOARCH}
 platform: "linux"
-version: "0.2.6"
+version: "0.2.7"
 section: "default"
 priority: "extra"
 maintainer: "persio.flexa"
