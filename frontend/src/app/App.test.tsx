@@ -336,10 +336,16 @@ describe('Harflex control room', () => {
     await user.type(await screen.findByLabelText('Caminho da pasta'), '/Users/dev/api-faturas')
     await user.click(screen.getByRole('button', { name: 'Abrir projeto' }))
     await user.click(within(screen.getByRole('navigation', { name: 'Navegação principal' })).getByRole('button', { name: 'Pipelines' }))
+    // The person closed the side panel earlier: starting the Coder opens it on Activity, to follow the run.
+    const panelToggle = screen.getByRole('button', { name: 'Painel lateral' })
+    if (panelToggle.getAttribute('aria-expanded') === 'true') await user.click(panelToggle)
+    expect(panelToggle).toHaveAttribute('aria-expanded', 'false')
     await user.click(await screen.findByRole('button', { name: 'Executar Coder' }))
     expect(createPipelineSession).toHaveBeenCalledWith('pipeline-1', 'local', 'coder', expect.objectContaining({ executor: 'api', profileId: 'local', modelId: 'api-model', catalogRevision: 'api-revision' }), false)
     await waitFor(() => expect(prompt).toHaveBeenCalledWith('session-1', 'Implementar CSV'))
     expect(screen.getByRole('button', { name: 'Conversas' })).toHaveAttribute('aria-current', 'page')
+    expect(panelToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('tab', { name: 'Atividade' })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('creates an authoring pipeline from Discovery without manual stage advancement', async () => {

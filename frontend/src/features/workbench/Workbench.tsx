@@ -80,6 +80,8 @@ type WorkbenchProps = {
   onOpenPipeline?: (pipelineId: string, workspaceId: string) => void
   /** Switches between Casual and Professional (the person chose to follow a pipeline in the other one). */
   onRequestMode?: (mode: AppMode) => void
+  /** Opens the side panel on Activity, to follow a run that just started. */
+  onShowActivity?: () => void
   onNavigate?: (destination: Destination) => void
   onActivity?: (events: SessionState['events']) => void
   onPipeline?: (pipeline?: Pipeline) => void
@@ -120,7 +122,7 @@ function userMessageContent(event: AgentEvent): string | undefined {
   return typeof content === 'string' ? content : undefined
 }
 
-export function Workbench({ backend, restoreProject = true, selected, newWorkRequest = 0, newChatPrompt = '', viewMode = 'professional', historyOpenRequest, projectOpenRequest, stageViewRequest, onOpenPipeline, onRequestMode, onNavigate = () => undefined, onActivity = () => undefined, onPipeline = () => undefined, onShownStage, onContextChange }: WorkbenchProps) {
+export function Workbench({ backend, restoreProject = true, selected, newWorkRequest = 0, newChatPrompt = '', viewMode = 'professional', historyOpenRequest, projectOpenRequest, stageViewRequest, onOpenPipeline, onRequestMode, onShowActivity, onNavigate = () => undefined, onActivity = () => undefined, onPipeline = () => undefined, onShownStage, onContextChange }: WorkbenchProps) {
   const t = useT()
   const [store] = useState(createSessionStore)
   const [loadingHistory, setLoadingHistory] = useState(false)
@@ -660,6 +662,8 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     const linked = await backend.createPipelineSession(pipelineId, backendId, role, selection, confirmWorkspaceCopy)
     await activateSession(linked.session, workspace.id)
     onNavigate('Conversas')
+    // The Coder's plan and actions draw live in Activity: it opens so the person can follow the run from the start.
+    if (role === 'coder') onShowActivity?.()
     await sendPrompt(linked.prompt)
   }
   async function startAgent(agent: Agent, reason: string) {

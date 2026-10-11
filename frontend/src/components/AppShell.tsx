@@ -72,6 +72,8 @@ export function AppShell({ initialActivityOpen, workState = 'empty', backend, re
     previousMode.current = viewMode
   }, [viewMode])
 
+  // On a wide window the panel opens beside the work; on a narrow one it would cover it, so it stays closed there.
+  function showActivity() { setSidePanel('activity'); if (desktop) setActivityOpen(true) }
   function closeActivity() { restoreFocus.current = activityTrigger.current; setActivityOpen(false) }
   function closeSidebar() { restoreFocus.current = sidebarTrigger.current; setSidebarOpen(false) }
   const changeMode = useCallback((next: AppMode) => {
@@ -219,7 +221,7 @@ export function AppShell({ initialActivityOpen, workState = 'empty', backend, re
         </div>
         {viewMode === 'professional' && <PipelineBar pipeline={currentPipeline} activity={stageActivity} viewStage={selected === 'Pipelines' && shownStage ? shownStage : stageViewRequest?.pipelineId===currentPipeline?.id ? stageViewRequest?.stage : undefined} onViewStage={stage => { if (!workbenchContext.startingSession && currentPipeline) { setStageViewRequest({requestId:++stageViewSequence.current,pipelineId:currentPipeline.id,workspaceId:currentPipeline.workspaceId,stage}); setSelected('Pipelines') } }} />}
       </header>
-      {backend ? <Workbench backend={backend} restoreProject={restoreProject} selected={selected} newWorkRequest={newWorkRequest} newChatPrompt={newChatPrompt} viewMode={viewMode} historyOpenRequest={historyRequest} projectOpenRequest={projectRequest} stageViewRequest={stageViewRequest} onNavigate={selectDestination} onActivity={setActivityEvents} onPipeline={setCurrentPipeline} onShownStage={setShownStage} onOpenPipeline={openPipeline} onRequestMode={changeMode} onContextChange={reportWorkbenchContext} /> : <WorkArea selected={selected} workState={workState} />}
+      {backend ? <Workbench backend={backend} restoreProject={restoreProject} selected={selected} newWorkRequest={newWorkRequest} newChatPrompt={newChatPrompt} viewMode={viewMode} historyOpenRequest={historyRequest} projectOpenRequest={projectRequest} stageViewRequest={stageViewRequest} onNavigate={selectDestination} onActivity={setActivityEvents} onPipeline={setCurrentPipeline} onShownStage={setShownStage} onOpenPipeline={openPipeline} onRequestMode={changeMode} onShowActivity={showActivity} onContextChange={reportWorkbenchContext} /> : <WorkArea selected={selected} workState={workState} />}
     </div>
     {activityOpen && <div ref={activityContainer} className={`activity-container${!desktop ? ' is-overlay' : ''}`} role={!desktop ? 'dialog' : undefined} aria-modal={!desktop || undefined} aria-labelledby={!desktop ? 'activity-title' : undefined}>
       {desktop && <div className="side-panel-resizer" role="separator" aria-orientation="vertical" aria-label={t('Redimensionar painel lateral')} aria-controls="side-panel" tabIndex={0}
