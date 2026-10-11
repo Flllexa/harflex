@@ -34,7 +34,8 @@ export function useAppUpdate(backend?: Backend) {
   return { info, state, install }
 }
 
-/** Beside the logo when a newer version is published: one click downloads, installs and reopens the app. */
+/** Beside the logo when a newer version is published: one click downloads, installs and reopens the app. Only an icon,
+ *  so it fits the narrow sidebar; the version and what it does are in its name and tooltip. */
 export function UpdateButton({ backend }: { backend?: Backend }) {
   const t = useT()
   const { info, state, install } = useAppUpdate(backend)
@@ -44,22 +45,21 @@ export function UpdateButton({ backend }: { backend?: Backend }) {
   const download = () => void openExternal(info.pageUrl)
   const failure = state?.phase === 'failed' ? state.errorCode : ''
   const reason = failure === 'update_checksum' ? t('O arquivo baixado não confere com o publicado, então nada foi instalado.')
-    : failure === 'update_not_writable' ? t('O app está numa pasta que você não pode alterar. Baixe a versão e instale por cima.')
+    : failure === 'update_not_writable' ? t('Não há uma pasta de aplicativos em que você possa instalar. Tente de novo ou baixe a versão.')
     : failure === 'update_not_installable' ? t('Esta cópia do app não se atualiza sozinha. Baixe a versão e instale.')
     : t('Não foi possível atualizar agora.')
   const progress = !working ? '' : state.phase === 'downloading' ? t('Baixando {percent}%', { percent: state.percent })
     : state.phase === 'installing' ? t('Instalando…') : t('Reiniciando…')
+  const title = info.canInstall ? t('Atualizar para {version}: baixa, instala e reabre o app', { version: label }) : t('Abrir a página da versão {version} para baixar', { version: label })
 
   return <div className="update-slot">
     {working
-      ? <span className="update-pill is-working" role="status"><LoaderCircle className="qa-spin" aria-hidden="true" /><span className="update-pill-text">{progress}</span></span>
-      : info.canInstall
-        ? <button type="button" className="update-pill" onClick={() => void install()} title={t('Baixar e instalar a versão {version} e reabrir o app', { version: label })} aria-label={t('Atualizar para {version}', { version: label })}>
-          <ArrowUpCircle aria-hidden="true" /><span className="update-pill-text">{t('Atualizar')} {label}</span>
-        </button>
-        : <button type="button" className="update-pill" onClick={download} title={t('Abrir a página da versão {version} para baixar', { version: label })} aria-label={t('Baixar {version}', { version: label })}>
-          <ArrowUpCircle aria-hidden="true" /><span className="update-pill-text">{t('Baixar')} {label}</span>
-        </button>}
-    {failure && <div className="update-failure" role="alert"><span>{reason}</span><button type="button" className="text-button" onClick={download}>{t('Baixar a versão')}</button></div>}
+      ? <span className="update-icon is-working" role="status" aria-label={progress} title={progress} style={{ ['--done' as string]: `${state.phase === 'downloading' ? state.percent : 100}%` }}>
+        <LoaderCircle className="qa-spin" aria-hidden="true" />
+      </span>
+      : <button type="button" className={`update-icon${failure ? ' is-failed' : ''}`} onClick={info.canInstall ? () => void install() : download} title={title} aria-label={info.canInstall ? t('Atualizar para {version}', { version: label }) : t('Baixar {version}', { version: label })}>
+        <ArrowUpCircle aria-hidden="true" />
+      </button>}
+    {failure && <div className="update-failure" role="alert"><span>{reason}</span><div className="update-failure-actions">{info.canInstall && <button type="button" className="touch-target primary-button" onClick={() => void install()}>{t('Tentar de novo')}</button>}<button type="button" className="text-button" onClick={download}>{t('Baixar a versão')}</button></div></div>}
   </div>
 }

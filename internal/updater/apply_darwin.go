@@ -62,21 +62,81 @@ var verifyBundle = func(ctx context.Context, current, next string) error {
 // opener is what starts the app again once it is replaced.
 var opener = "/usr/bin/open"
 
-// Apply puts the app inside the downloaded .dmg in place of the running one, once this process has exited.
-func Apply(ctx context.Context, installer string) error {
+// installPlace says where the new app goes and which disk image to eject afterwards. An app run from its folder is
+// replaced there. One run from a mounted .dmg (read-only) or from a folder this user cannot write goes to /Applications,
+// or to ~/Applications, and the disk image it ran from is ejected, so the person ends up with one installed copy.
+func installPlace(bundle, home string, writable, readOnly func(string) bool) (target, eject string, ok bool) {
+	if strings.HasPrefix(bundle, "/Volumes/") && readOnly(bundle) {
+		parts := strings.SplitN(strings.TrimPrefix(bundle, "/Volumes/"), "/", 2)
+		eject = "/Volumes/" + parts[0]
+	} else if writable(filepath.Dir(bundle)) {
+		return bundle, "", true
+	}
+	for _, dir := range []string{"/Applications", filepath.Join(home, "Applications")} {
+		if dir == "Applications" || !writable(dir) {
+			continue
+		}
+		return filepath.Join(dir, filepath.Base(bundle)), eject, true
+	}
+	return "", "", false
+}
+
+func writableDir(dir string) bool {
+	if dir == "" {
+		return false
+	}
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		// ~/Applications may not exist yet: it can be made when its parent is writable.
+		return os.IsNotExist(err) && syscall.Access(filepath.Dir(dir), 2) == nil
+	}
+	return syscall.Access(dir, 2) == nil // W_OK
+}
+
+// mntReadOnly is MNT_RDONLY from <sys/mount.h>: the volume is mounted read-only, as a .dmg is.
+const mntReadOnly = 0x1
+
+func readOnlyVolume(path string) bool {
+	var st syscall.Statfs_t
+	return syscall.Statfs(path, &st) == nil && st.Flags&mntReadOnly != 0
+}
+
+func runningPlace() (bundle, target, eject string, err error) {
 	executable, err := os.Executable()
 	if err != nil {
-		return err
+		return "", "", "", err
 	}
 	if executable, err = filepath.EvalSymlinks(executable); err != nil {
-		return err
+		return "", "", "", err
 	}
 	bundle, ok := bundleOf(executable)
 	if !ok {
-		return ErrNotInstalled
+		return "", "", "", ErrNotInstalled
 	}
-	parent := filepath.Dir(bundle)
-	staging, err := os.MkdirTemp(parent, ".harflex-update-")
+	home, _ := os.UserHomeDir()
+	target, eject, ok = installPlace(bundle, home, writableDir, readOnlyVolume)
+	if !ok {
+		return "", "", "", ErrNotWritable
+	}
+	return bundle, target, eject, nil
+}
+
+// CanApply says whether this copy has a place to install the new app: its own folder, /Applications or ~/Applications.
+func CanApply() error {
+	_, _, _, err := runningPlace()
+	return err
+}
+
+// Apply installs the app inside the downloaded .dmg (in place of the running one, or in /Applications when it runs from a
+// disk image) once this process has exited, opens it, and ejects the disk image it ran from.
+func Apply(ctx context.Context, installer string) error {
+	bundle, target, eject, err := runningPlace()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		return ErrNotWritable
+	}
+	staging, err := os.MkdirTemp(filepath.Dir(target), ".harflex-update-")
 	if err != nil {
 		return ErrNotWritable
 	}
@@ -100,7 +160,7 @@ func Apply(ctx context.Context, installer string) error {
 		detach()
 		return errors.New("the installer does not hold one app")
 	}
-	next := filepath.Join(staging, filepath.Base(bundle))
+	next := filepath.Join(staging, filepath.Base(target))
 	out, err := exec.CommandContext(ctx, "ditto", apps[0], next).CombinedOutput()
 	detach()
 	if err != nil {
@@ -111,7 +171,7 @@ func Apply(ctx context.Context, installer string) error {
 	}
 
 	script := filepath.Join(staging, "swap.sh")
-	if err := os.WriteFile(script, []byte(swapScript(os.Getpid(), bundle, next, staging, opener)), 0o700); err != nil {
+	if err := os.WriteFile(script, []byte(swapScript(os.Getpid(), target, next, staging, opener, eject)), 0o700); err != nil {
 		return err
 	}
 	helper := exec.Command("/bin/sh", script)
@@ -126,38 +186,23 @@ func Apply(ctx context.Context, installer string) error {
 
 func shellQuote(value string) string { return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'" }
 
-// swapScript waits for the app to exit, moves the new bundle in (and the old one back if that fails), opens it, and cleans up.
-func swapScript(pid int, bundle, next, staging, open string) string {
-	return strings.Join([]string{
+// swapScript waits for the app to exit, puts the new bundle at target (setting aside the one there, and bringing it back if
+// the move fails), ejects the disk image the old app ran from, opens the new one, and cleans up.
+func swapScript(pid int, target, next, staging, open, eject string) string {
+	lines := []string{
 		"#!/bin/sh",
 		"i=0",
 		"while kill -0 " + strconv.Itoa(pid) + " 2>/dev/null && [ $i -lt 300 ]; do sleep 0.2; i=$((i+1)); done",
-		"old=" + shellQuote(bundle+".old"),
+		"target=" + shellQuote(target),
+		"old=" + shellQuote(target+".old"),
 		"rm -rf \"$old\"",
-		"if mv " + shellQuote(bundle) + " \"$old\"; then",
-		"  if mv " + shellQuote(next) + " " + shellQuote(bundle) + "; then rm -rf \"$old\"; else mv \"$old\" " + shellQuote(bundle) + "; fi",
-		"fi",
-		shellQuote(open) + " " + shellQuote(bundle),
-		"rm -rf " + shellQuote(staging),
-		"",
-	}, "\n")
-}
-
-// CanApply says whether this copy runs from an app bundle in a folder the user can write to.
-func CanApply() error {
-	executable, err := os.Executable()
-	if err != nil {
-		return err
+		"moved=0",
+		"if [ -e \"$target\" ]; then mv \"$target\" \"$old\" && moved=1; fi",
+		"if [ ! -e \"$target\" ] && mv " + shellQuote(next) + " \"$target\"; then rm -rf \"$old\"; elif [ $moved = 1 ]; then rm -rf \"$target\"; mv \"$old\" \"$target\"; fi",
 	}
-	if executable, err = filepath.EvalSymlinks(executable); err != nil {
-		return err
+	if eject != "" {
+		lines = append(lines, "hdiutil detach "+shellQuote(eject)+" -quiet >/dev/null 2>&1 || true")
 	}
-	bundle, ok := bundleOf(executable)
-	if !ok {
-		return ErrNotInstalled
-	}
-	if syscall.Access(filepath.Dir(bundle), 2) != nil { // W_OK
-		return ErrNotWritable
-	}
-	return nil
+	lines = append(lines, shellQuote(open)+" \"$target\"", "rm -rf "+shellQuote(staging), "")
+	return strings.Join(lines, "\n")
 }

@@ -53,12 +53,18 @@ h2 { font-size: 14px; font-weight: 650; }
 .brand-word { font-weight: 700; font-size: 22px; letter-spacing: -.02em; }
 .local-label { color: var(--mint); border: 1px solid var(--soft-mint); padding: 2px 8px; border-radius: var(--radius-control); font-size: 12px; }
 .sidebar-close { margin-left: auto; }
-.update-slot { position: relative; min-width: 0; }
-.update-pill { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 2px 10px; border: 1px solid var(--mint); border-radius: var(--radius-control); background: var(--soft-mint); color: var(--mint); font-size: 12px; font-weight: 650; white-space: nowrap; cursor: pointer; }
-.update-pill:hover:not(.is-working) { background: var(--mint); color: var(--ion-void); }
-.update-pill.is-working { cursor: default; font-weight: 500; }
-.update-pill svg { width: 14px; height: 14px; flex: none; }
-.update-failure { position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; width: 220px; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--forge); color: var(--paper); font-size: 12px; box-shadow: 0 8px 24px var(--shadow); }
+.update-slot { position: relative; flex: none; display: inline-flex; }
+.update-icon { --done: 0%; position: relative; display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: var(--soft-mint); color: var(--mint); cursor: pointer; animation: update-pulse 2.4s ease-in-out infinite; }
+.update-icon svg { width: 18px; height: 18px; }
+.update-icon:hover, .update-icon:focus-visible { background: var(--mint); color: var(--ion-void); animation: none; }
+.update-icon.is-working { cursor: default; animation: none; background: conic-gradient(var(--mint) var(--done), var(--soft-mint) 0); }
+.update-icon.is-working svg { width: 16px; height: 16px; padding: 2px; border-radius: 50%; background: var(--forge); box-sizing: content-box; }
+.update-icon.is-failed { background: var(--soft-danger); color: var(--danger); animation: none; }
+@keyframes update-pulse { 0%, 100% { box-shadow: 0 0 0 0 var(--soft-mint); } 50% { box-shadow: 0 0 0 5px transparent; } }
+@media (prefers-reduced-motion: reduce) { .update-icon { animation: none; } }
+.update-failure-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.update-failure-actions .primary-button { min-height: 32px; }
+.update-failure { position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; width: 240px; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--forge); color: var(--paper); font-size: 12px; box-shadow: 0 8px 24px var(--shadow); }
 .primary-button { display: flex; align-items: center; gap: 12px; background: var(--mint); color: var(--ion-void); font-weight: 650; border-radius: var(--radius-control); padding: 0 12px; }
 .primary-button:hover { background: var(--paper); }
 .sidebar-nav { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-4); }
@@ -793,8 +799,6 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: var
   .brand-word { font-size: 0; }
   .brand-word::first-letter { font-size: 24px; }
   .sidebar .local-label { display: none; }
-  .sidebar .update-pill-text { display: none; }
-  .sidebar .update-pill { padding: 6px; }
   .nav-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .nav-item, .new-work { justify-content: center; padding: 0; }
   .nav-group-label { display: none; }
@@ -856,8 +860,6 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: var
   .brand-word { font-size: 22px; }
   .brand-word::first-letter { font-size: inherit; }
   .sidebar .local-label { display: block; }
-  .sidebar .update-pill-text { display: inline; }
-  .sidebar .update-pill { padding: 2px 10px; }
   .nav-label { position: static; width: auto; height: auto; margin: 0; overflow: visible; clip-path: none; }
   .nav-item, .new-work { justify-content: flex-start; padding: 0 var(--space-3); }
   .nav-group-label { display: block; }

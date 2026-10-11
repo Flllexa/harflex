@@ -25,6 +25,8 @@ const backend = foundation ?? (scenario === 'approval-cancel' ? createApprovalRe
   : scenario === 'replay' || scenario === 'replay-outage' ? createReplayBackend(scenario === 'replay-outage') : fake.backend)
 if (scenario === 'conversational-design') installPipelineDesignFixture(backend, sessionStorage, undefined, new URLSearchParams(window.location.search).get('demo') === 'todo' ? showcaseDocuments : undefined)
 if (scenario === 'showcase') installShowcase(backend, (new URLSearchParams(window.location.search).get('view') ?? 'code') as ShowcaseView)
+// A newer release, for pictures and checks of the update button beside the logo.
+if (new URLSearchParams(window.location.search).get('update') === 'available') backend.checkForUpdate = async () => ({ currentVersion: '0.2.4', available: true, version: '0.2.5', pageUrl: 'https://github.com/Flllexa/harflex/releases/tag/v0.2.5', canInstall: true })
 if (scenario === 'approval-cancel') {
   const cancel = backend.cancel
   const prompt = backend.prompt

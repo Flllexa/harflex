@@ -12,6 +12,7 @@ function inline(text: string): ReactNode[] {
 
 // Raw HTML stays text; documents never execute markup from the provider.
 export function DesignMarkdown({ content }: { content: string }) {
+  const t = useT()
   const blocks: ReactNode[] = [], lines = content.replace(/\r\n/g, '\n').split('\n')
   for (let index = 0; index < lines.length;) {
     const line = lines[index]
@@ -21,15 +22,35 @@ export function DesignMarkdown({ content }: { content: string }) {
       while (index < lines.length && !/^\s*```/.test(lines[index])) code.push(lines[index++])
       index++; blocks.push(<pre key={index}><code>{code.join('\n')}</code></pre>); continue
     }
+    // A table: a row of cells over a separator row (| --- | --- |).
+    if (/^\s*\|/.test(line) && index + 1 < lines.length && /^\s*\|?\s*:?-{2,}/.test(lines[index + 1])) {
+      const row = (text: string) => text.trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map(cell => cell.trim())
+      const head = row(line), rows: string[][] = [], key = index
+      index += 2
+      while (index < lines.length && /^\s*\|/.test(lines[index])) rows.push(row(lines[index++]))
+      blocks.push(<div key={key} className="design-table" role="region" aria-label={t('Tabela')} tabIndex={0}><table><thead><tr>{head.map((cell, at) => <th key={at}>{inline(cell)}</th>)}</tr></thead><tbody>{rows.map((cells, at) => <tr key={at}>{head.map((_, column) => <td key={column}>{inline(cells[column] ?? '')}</td>)}</tr>)}</tbody></table></div>)
+      continue
+    }
     const heading = /^(#{1,6})\s+(.+)$/.exec(line)
     if (heading) { const text = inline(heading[2]), key = index++; blocks.push(heading[1].length <= 2 ? <h4 key={key}>{text}</h4> : <h5 key={key}>{text}</h5>); continue }
     if (/^\s*(?:[-*+]\s+|\d+[.)]\s+)\S/.test(line)) {
-      const ordered = /^\s*\d/.test(line), items: ReactNode[] = [], key = index
-      while (index < lines.length) { const item = (ordered ? /^\s*\d+[.)]\s+(.+)$/ : /^\s*[-*+]\s+(.+)$/).exec(lines[index]); if (!item) break; items.push(<li key={index}>{inline(item[1])}</li>); index++ }
+      const ordered = /^\s*\d/.test(line), items: ReactNode[] = [], key = index, indent = /^\s*/.exec(line)![0].length
+      while (index < lines.length) {
+        const item = (ordered ? /^(\s*)\d+[.)]\s+(.+)$/ : /^(\s*)[-*+]\s+(.+)$/).exec(lines[index])
+        if (!item || item[1].length > indent) break
+        const at = index++, children: ReactNode[] = []
+        // Indented items under this one (its options or details) stay inside it, so the outer numbering goes on.
+        while (index < lines.length && (/^\s+(?:[-*+]|\d+[.)])\s+\S/.test(lines[index]) && /^\s*/.exec(lines[index])![0].length > indent || !lines[index].trim() && index + 1 < lines.length && /^\s+(?:[-*+]|\d+[.)])\s+\S/.test(lines[index + 1]) && /^\s*/.exec(lines[index + 1])![0].length > indent)) {
+          const child = /^\s*(?:[-*+]|\d+[.)])\s+(.+)$/.exec(lines[index++])
+          if (child) children.push(<li key={index}>{inline(child[1])}</li>)
+        }
+        items.push(<li key={at}>{inline(item[2])}{children.length > 0 && <ul>{children}</ul>}</li>)
+        while (index < lines.length && !lines[index].trim() && index + 1 < lines.length && (ordered ? /^\s*\d+[.)]\s/ : /^\s*[-*+]\s/).test(lines[index + 1])) index++
+      }
       blocks.push(ordered ? <ol key={key}>{items}</ol> : <ul key={key}>{items}</ul>); continue
     }
     const paragraph: string[] = [line], key = index++
-    while (index < lines.length && lines[index].trim() && !/^(#{1,6}\s|\s*```|\s*[-*+]\s|\s*\d+[.)]\s)/.test(lines[index])) paragraph.push(lines[index++])
+    while (index < lines.length && lines[index].trim() && !/^(#{1,6}\s|\s*```|\s*[-*+]\s|\s*\d+[.)]\s|\s*\|)/.test(lines[index])) paragraph.push(lines[index++])
     blocks.push(<p key={key}>{inline(paragraph.join('\n'))}</p>)
   }
   return <div className="design-markdown">{blocks}</div>
