@@ -200,3 +200,10 @@
 .design-table th, .design-table td { padding: 8px 10px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); }
 .design-table th { background: var(--forge); font-weight: 650; white-space: nowrap; }
 .design-table tr:last-child td { border-bottom: 0; }
+.design-questions-keep-all { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px dashed var(--mint); border-radius: 999px; background: transparent; color: var(--mint); font-size: 12px; font-weight: 600; cursor: pointer; }
+.design-questions-keep-all:hover:not(:disabled) { background: var(--soft-mint); }
+.design-questions-keep-all:disabled { opacity: .55; cursor: not-allowed; }
+.design-questions-keep-all svg { width: 14px; height: 14px; }
+.design-question-state.is-waiting { color: var(--cyan); }
+.design-question-sent { margin: 0; padding: 8px 10px; border-radius: var(--radius-control); background: var(--soft-mint); font-size: 13px; line-height: 1.5; }
+.design-question-sent span { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--mint); font-weight: 600; margin-bottom: 2px; }

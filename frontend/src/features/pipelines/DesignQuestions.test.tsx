@@ -51,7 +51,7 @@ it('shows the decisions and questions of the documents as cards and sends the an
   await user.click(within(card('P1')).getByRole('button', { name: 'Produção e sandbox' }))
   expect(within(card('P1')).getByRole('button', { name: 'Produção e sandbox' })).toHaveAttribute('aria-pressed', 'true')
   expect(screen.getByText('3 de 3 respondidas. Confirme, mude ou responda; a IA ajusta os documentos.')).toBeInTheDocument()
-  expect(screen.getByText('2 para a IA ajustar')).toBeInTheDocument()
+  expect(screen.getByText('3 respostas para enviar')).toBeInTheDocument()
 
   await user.click(send)
   expect(onSend).toHaveBeenCalledTimes(1)
@@ -59,7 +59,7 @@ it('shows the decisions and questions of the documents as cards and sends the an
   expect(target).toBe('spec')
   expect(message).toContain('D2 (SPEC: Sem correlação): mudar a decisão para: Mandar para a DLQ com alarme')
   expect(message).toContain('P1 (SPEC: Destino?): Produção e sandbox')
-  expect(message).toContain('Decisões confirmadas, mantenha como estão: D1 (SPEC).')
+  expect(message).toContain('D1 (SPEC: Correlação): manter como está')
   // Sent answers start over: the AI rewrites the document with them.
   expect(screen.getByText('0 de 3 respondidas. Confirme, mude ou responda; a IA ajusta os documentos.')).toBeInTheDocument()
 })
@@ -97,4 +97,32 @@ it('draws Markdown tables in the documents instead of raw pipes', () => {
   expect(within(table).getByRole('cell', { name: 'Usar DynamoDB' })).toBeInTheDocument()
   expect(screen.queryByText(/\|---/)).not.toBeInTheDocument()
   expect(screen.getByText('Depois')).toBeInTheDocument()
+})
+
+it('counts the answers already sent, shows them on their cards, and says they were sent while the AI works', async () => {
+  const user = userEvent.setup()
+  const { backend } = createFakeBackend()
+  const sentText = 'Respostas às decisões e perguntas dos documentos:\n\n- P1 (SPEC: Destino?): Produção e sandbox\n- D1 (SPEC: Correlação): manter como está\n\nAtualize os documentos.'
+  const design = { ...designWith({ spec }), state: 'running', messages: [{ id: 'm1', role: 'user' as const, content: sentText, target: 'spec', attemptId: 'a1', createdAt: '2026-10-11T10:00:00Z' }] }
+  const { rerender } = render(<DesignQuestions backend={backend} design={design} disabled onSend={vi.fn()} />)
+  expect(screen.getByText('2 de 3 respondidas. Confirme, mude ou responda; a IA ajusta os documentos.')).toBeInTheDocument()
+  expect(within(card('P1')).getByText('Enviada')).toBeInTheDocument()
+  expect(within(card('P1')).getByText('Produção e sandbox', { selector: 'p *, p' })).toBeInTheDocument()
+  expect(screen.getByText('Respostas enviadas; a IA está ajustando os documentos')).toBeInTheDocument()
+  rerender(<DesignQuestions backend={backend} design={{ ...design, state: 'ready' }} disabled={false} onSend={vi.fn()} />)
+  expect(within(card('P1')).getByText('Respondida')).toBeInTheDocument()
+  expect(within(card('D1')).getByText('Mantida')).toBeInTheDocument()
+  // The person can still answer again; the new answer is what goes next.
+  await user.click(within(card('P1')).getByRole('button', { name: 'Só produção' }))
+  expect(screen.getByText('1 resposta para enviar')).toBeInTheDocument()
+})
+
+it('keeps every decision still open in one click', async () => {
+  const user = userEvent.setup(), onSend = vi.fn()
+  const { backend } = createFakeBackend()
+  render(<DesignQuestions backend={backend} design={designWith({ spec })} disabled={false} onSend={onSend} />)
+  await user.click(screen.getByRole('button', { name: 'Manter as 2 decisões ainda abertas' }))
+  expect(within(card('D1')).getByText('Mantida')).toBeInTheDocument()
+  expect(within(card('D2')).getByText('Mantida')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /Manter as/ })).not.toBeInTheDocument()
 })

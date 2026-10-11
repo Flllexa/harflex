@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { answered, answersRequest, designQuestions } from './designQuestionParser'
+import { answered, answersRequest, designQuestions, sentAnswers } from './designQuestionParser'
 
 const spec = `# SPEC
 
@@ -73,6 +73,50 @@ describe('answers sent to the AI', () => {
     expect(request).toContain('- P1 (SPEC: Destino: qual ambiente recebe primeiro?): Production e sandbox')
     expect(request).toContain('- P2 (SPEC: Backlog): decida você')
     expect(request).toContain('- P3 (SPEC: Quem aprova a publicação da agenda?): O time de operações')
-    expect(request).toContain('Decisões confirmadas, mantenha como estão: D1 (SPEC).')
+    expect(request).toContain('- D1 (SPEC: Correlação da consulta): manter como está')
+  })
+})
+
+describe('answers already sent', () => {
+  const items = designQuestions('spec', spec)
+  const [d1, d2, p1, p2] = items
+  const message = (id: string, content: string) => ({ id, role: 'user', content })
+  it('reads them back from the preparation conversation, the latest one winning', () => {
+    const first = answersRequest(items, { [p1.key]: { choice: 'option', option: 'Só platform-production' }, [d1.key]: { choice: 'keep' } })
+    const second = answersRequest(items, { [p1.key]: { choice: 'other', text: 'Production e sandbox juntos' } })
+    const found = sentAnswers(items, [message('m1', first), { id: 'a1', role: 'assistant', content: first }, message('m2', second)])
+    expect(found[p1.key]).toEqual({ text: 'Production e sandbox juntos', keep: false, messageId: 'm2' })
+    expect(found[d1.key]).toEqual({ text: 'manter como está', keep: true, messageId: 'm1' })
+    expect(found[d2.key]).toBeUndefined()
+    expect(found[p2.key]).toBeUndefined()
+  })
+  it('does not take a renumbered question for another, and still reads confirmations written by id only', () => {
+    const renumbered = designQuestions('spec', '## Perguntas em aberto\n\n1. P1 — Outra pergunta qualquer?')
+    expect(sentAnswers(renumbered, [message('m1', answersRequest(items, { [p1.key]: { choice: 'delegate' } }))])).toEqual({})
+    const older = 'Respostas às decisões e perguntas dos documentos:\n\n- P3 (SPEC: Quem aprova a publicação da agenda?): O time\n\nDecisões confirmadas, mantenha como estão: D1 (SPEC), D2 (SPEC).'
+    const found = sentAnswers(items, [message('m1', older)])
+    expect(found[d1.key]?.keep).toBe(true)
+    expect(found[d2.key]?.keep).toBe(true)
+    expect(found[items[4].key]?.text).toBe('O time')
+  })
+})
+
+describe('answers the AI already wrote into the document', () => {
+  const rewritten = designQuestions('spec', `## Decisões
+
+| # | Questão | Decisão | Justificativa |
+|---|---|---|---|
+| D4 | Uploader e infraestrutura da integração | A infra fica no template | Pedido da pessoa |
+| D15 | TTL do registro (resposta à P2) | 90 dias | Decisão da pessoa. Cobre atrasos. |
+| D16 | Alarme de ausência | 36 h fixas | Decisão da pessoa: os arquivos chegam todo dia. |
+| D17 | Outra coisa | Algo | Hipótese da IA |
+`)
+  it('keeps a changed decision answered when the AI extended its title, and counts the decisions made from the answers', () => {
+    const sent = 'Respostas às decisões e perguntas dos documentos:\n\n- D4 (SPEC: Uploader): mudar a decisão para: configurar no template'
+    const found = sentAnswers(rewritten, [{ id: 'm1', role: 'user', content: sent }])
+    expect(found[rewritten[0].key]).toMatchObject({ text: 'mudar a decisão para: configurar no template', keep: false })
+    expect(found[rewritten[1].key]?.keep).toBe(true)
+    expect(found[rewritten[2].key]?.keep).toBe(true)
+    expect(found[rewritten[3].key]).toBeUndefined()
   })
 })

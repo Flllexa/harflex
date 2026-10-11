@@ -129,25 +129,63 @@ export function answered(item: DesignQuestion, answer?: DesignAnswer): boolean {
 
 const stageNames: Record<PipelineDesignStage, string> = { discovery: 'Discovery', spec: 'SPEC', plan: 'Plan' }
 
-/** What the person decided, as a request to the AI. It is the AI's prompt, so it stays in Portuguese like the others. */
+export const answersHeader = 'Respostas às decisões e perguntas dos documentos:'
+const keepText = 'manter como está'
+const lineFor = (item: DesignQuestion) => `- ${item.id} (${stageNames[item.stage]}: ${item.title}): `
+
+/** What the person decided, as a request to the AI. It is the AI's prompt, so it stays in Portuguese like the others. Each
+ *  answer is one line naming the item and its document, so the answers can be read back from the conversation later. */
 export function answersRequest(items: DesignQuestion[], answers: Record<string, DesignAnswer>): string {
   const lines: string[] = []
-  const kept: string[] = []
   for (const item of items) {
     const answer = answers[item.key]
     if (!answered(item, answer)) continue
-    const label = `${item.id} (${stageNames[item.stage]}: ${item.title})`
-    switch (answer!.choice) {
-      case 'keep': kept.push(`${item.id} (${stageNames[item.stage]})`); break
-      case 'change': lines.push(`- ${label}: mudar a decisão para: ${answer!.text!.trim()}`); break
-      case 'option': lines.push(`- ${label}: ${answer!.option}${answer!.text?.trim() ? ` (${answer!.text.trim()})` : ''}`); break
-      case 'other': lines.push(`- ${label}: ${answer!.text!.trim()}`); break
-      case 'delegate': lines.push(`- ${label}: decida você, registre a decisão e a justificativa`); break
+    const text = answer!.choice === 'keep' ? keepText
+      : answer!.choice === 'change' ? `mudar a decisão para: ${answer!.text!.trim()}`
+        : answer!.choice === 'option' ? `${answer!.option}${answer!.text?.trim() ? ` (${answer!.text.trim()})` : ''}`
+          : answer!.choice === 'delegate' ? 'decida você, registre a decisão e a justificativa'
+            : answer!.text!.trim()
+    lines.push(`${lineFor(item)}${text.replace(/\s*\n\s*/g, ' ')}`)
+  }
+  return [answersHeader, lines.join('\n'), 'Atualize os documentos com essas respostas: ajuste as decisões, tire das perguntas em aberto o que foi respondido e mantenha como está o que foi marcado para manter.'].join('\n\n')
+}
+
+export type SentAnswer = { text: string; keep: boolean; messageId: string }
+
+// A decision the AI wrote from the person's answer: "(resposta à P1)" in its title or "Decisão da pessoa" as its rationale.
+const fromPerson = /resposta (?:à|a|da) P\d+|decis[aã]o da pessoa|answer to P\d+|the person'?s decision|respuesta a P\d+|decisi[oó]n de la persona/i
+
+/** The answer a line gives to an item, when the line names it: same id and document, and a title that is the item's or the
+ *  start of it (the AI often extends a decision's title when it rewrites it with the answer). */
+function answerOn(line: string, item: DesignQuestion): string | undefined {
+  const head = `- ${item.id} (${stageNames[item.stage]}: `
+  if (!line.startsWith(head)) return undefined
+  const rest = line.slice(head.length)
+  for (let at = rest.indexOf('): '); at >= 0; at = rest.indexOf('): ', at + 1)) {
+    const title = rest.slice(0, at).trim()
+    if (title && (item.title === title || item.title.startsWith(title) || title.startsWith(item.title))) return rest.slice(at + 3).trim()
+  }
+  return undefined
+}
+
+/**
+ * The answers the person already gave, read back from the preparation conversation (the latest answer to an item wins), and
+ * the decisions the AI wrote from their answers. An item counts only when its id, document and title still match, so a
+ * question the AI renumbered is not taken for another. Messages sent before titles were written ("Decisões confirmadas:
+ * D1 (SPEC)") still count by id.
+ */
+export function sentAnswers(items: DesignQuestion[], messages: { id: string; role: string; content: string }[]): Record<string, SentAnswer> {
+  const found: Record<string, SentAnswer> = {}
+  for (const item of items) if (item.kind === 'decision' && (fromPerson.test(item.title) || fromPerson.test(item.rationale))) found[item.key] = { text: '', keep: true, messageId: '' }
+  for (const message of messages) {
+    if (message.role !== 'user' || !message.content.startsWith(answersHeader)) continue
+    const lines = message.content.split('\n')
+    const confirmed = lines.find(line => line.startsWith('Decisões confirmadas, mantenha como estão:')) ?? ''
+    for (const item of items) {
+      const text = lines.map(line => answerOn(line, item)).find(value => value !== undefined)
+      if (text !== undefined) found[item.key] = { text, keep: text === keepText, messageId: message.id }
+      else if (item.kind === 'decision' && new RegExp(`(^|[:,]\\s*)${item.id} \\(${stageNames[item.stage]}\\)`).test(confirmed)) found[item.key] = { text: keepText, keep: true, messageId: message.id }
     }
   }
-  const parts = ['Respostas às decisões e perguntas dos documentos:']
-  if (lines.length) parts.push(lines.join('\n'))
-  if (kept.length) parts.push(`Decisões confirmadas, mantenha como estão: ${kept.join(', ')}.`)
-  parts.push('Atualize os documentos com essas respostas: ajuste as decisões, tire das perguntas em aberto o que foi respondido e mantenha o restante.')
-  return parts.join('\n\n')
+  return found
 }
