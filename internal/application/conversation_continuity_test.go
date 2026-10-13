@@ -72,7 +72,7 @@ func TestACodeConversationStaysOpenAfterARunUntilTheCodeIsVerified(t *testing.T)
 		t.Fatalf("a follow-up in the Coder conversation was refused: %+v %v", second, err)
 	}
 
-	verified, err := s.CompletePipelineCode(run.ID)
+	verified, err := coderSaidDone(t, s, run.ID).CompletePipelineCode(run.ID)
 	if err != nil || verified.StageStatus["code"] != "waiting_user" {
 		t.Fatalf("verifying the Code: %+v %v", verified, err)
 	}
@@ -103,7 +103,7 @@ func TestACodeConversationTakesAFollowUpAfterTheAppRestarts(t *testing.T) {
 	if second, err := restarted.Prompt(PromptInput{SessionID: coder.Session.ID, Text: "Ajuste o título para ficar em maiúsculas."}); err != nil || second.Status != RunCompleted {
 		t.Fatalf("a follow-up after the restart was refused: %+v %v", second, err)
 	}
-	verified, err := restarted.CompletePipelineCode(run.ID)
+	verified, err := coderSaidDone(t, restarted, run.ID).CompletePipelineCode(run.ID)
 	if err != nil || verified.StageStatus["code"] != "waiting_user" {
 		t.Fatalf("verifying after the restart: %+v %v", verified, err)
 	}
@@ -119,7 +119,7 @@ func TestAQAConversationCanStartButNotBeContinuedAfterItsVerdict(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "index.html"), []byte("<h1>TODO</h1>\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	waiting, err := s.CompletePipelineCode(run.ID)
+	waiting, err := coderSaidDone(t, s, run.ID).CompletePipelineCode(run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -12,6 +12,10 @@ type Props = {
   runControls?: ReactNode
   /** The Coder's run as it happens; while it is on, it takes the place of the start controls. */
   live?: ReactNode
+  /** The Coder's questions, or where it stopped without saying it finished, with the person's answer. */
+  talk?: ReactNode
+  /** The Coder said it finished this version: only then can it be approved. */
+  approvable?: boolean
 }
 
 const fileIcon = { added: FilePlus2, removed: FileMinus2, modified: FileCode2 }
@@ -25,7 +29,7 @@ function ChangeBar({ file }: { file: DiffFile }) {
 }
 
 /** Code's own bench: the change spotlighted file by file, and the decision that sends it to QA. */
-export function CodeBench({ backend, run, onPipelineChange, runControls, live }: Props) {
+export function CodeBench({ backend, run, onPipelineChange, runControls, live, talk, approvable = true }: Props) {
   const t = useT()
   const artifact = run.artifacts.code
   const files = useMemo(() => artifact ? parseUnifiedDiff(artifact.content) : [], [artifact?.content])
@@ -52,7 +56,10 @@ export function CodeBench({ backend, run, onPipelineChange, runControls, live }:
 
   return <div className="code-bench">
     {active && live}
-    {active && !live && runControls && <div className="bench-slab code-bench-start">{runControls}</div>}
+    {!live && talk}
+    {active && !live && runControls && (talk
+      ? <details className="bench-slab code-bench-restart"><summary>{t('Executar o Coder de novo, com outro executor ou modelo')}</summary>{runControls}</details>
+      : <div className="bench-slab code-bench-start">{runControls}</div>)}
     {files.length > 0 && <section className="code-bench-desk" aria-label={t('Mudanças do Code')}>
       <aside className="code-bench-files" aria-label={t('Arquivos alterados')}>
         <div className="code-bench-files-head"><strong>{files.length} {files.length === 1 ? t('arquivo') : t('arquivos')}</strong><span><b className="is-add">+{totals.added}</b> <b className="is-remove">−{totals.removed}</b></span></div>
@@ -76,7 +83,7 @@ export function CodeBench({ backend, run, onPipelineChange, runControls, live }:
       <div className="bench-actions-text"><strong>{t('Revise a mudança')}</strong><span className="muted">{t('Aprovar leva esta versão ao laboratório da QA. A decisão fica ligada a esta versão.')}</span></div>
       {asking ? <div className="bench-ask"><label className="field">{t('O que deve mudar no Code')}<textarea value={feedback} onChange={event => setFeedback(event.target.value)} rows={2} maxLength={8192} autoFocus /></label>
         <div className="pipeline-actions"><button type="button" className="touch-target secondary-button" onClick={() => setAsking(false)} disabled={pending}><Undo2 aria-hidden="true" />{t('Voltar')}</button><button type="button" className="touch-target secondary-button" onClick={() => void decide('request_revision')} disabled={pending || !feedback.trim()}><MessageSquareWarning aria-hidden="true" />{t('Pedir revisão do Code')}</button></div></div>
-        : <div className="pipeline-actions"><button type="button" className="touch-target secondary-button" onClick={() => setAsking(true)} disabled={pending}><MessageSquareWarning aria-hidden="true" />{t('Pedir revisão')}</button><button type="button" className="touch-target primary-button" onClick={() => void decide('approve')} disabled={pending}><Check aria-hidden="true" />{pending ? t('Registrando…') : t('Aprovar Code e iniciar QA')}</button></div>}
+        : <div className="pipeline-actions"><button type="button" className="touch-target secondary-button" onClick={() => setAsking(true)} disabled={pending}><MessageSquareWarning aria-hidden="true" />{t('Pedir revisão')}</button>{approvable && <button type="button" className="touch-target primary-button" onClick={() => void decide('approve')} disabled={pending}><Check aria-hidden="true" />{pending ? t('Registrando…') : t('Aprovar Code e iniciar QA')}</button>}</div>}
     </div>}
     {artifact && <details className="bench-history"><summary>{t('Proveniência e integridade')}</summary><ol><li><strong>{t('Versão {version}', { version: artifact.version })}</strong><span className="mono">{t('SHA-256 do artefato: {digest}', { digest: artifact.contentDigest || t('indisponível') })}</span><span className="mono">{t('Sessão de origem: {session}', { session: artifact.sourceSessionId || t('indisponível') })}</span></li></ol></details>}
     {reviews.length > 0 && <details className="bench-history"><summary>{t('Decisões anteriores do Code ({count})', { count: reviews.length })}</summary><ol>{reviews.map((review, index) => <li key={index}><strong>{review.decision === 'approve' ? t('Aprovado') : t('Revisão pedida')} · {t('versão {version}', { version: review.version })}</strong><span className="muted">{review.actor} · {new Date(review.createdAt).toLocaleString(localeTag())}</span>{review.feedback && <p>{review.feedback}</p>}</li>)}</ol></details>}

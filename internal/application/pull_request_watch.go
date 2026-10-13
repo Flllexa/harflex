@@ -12,16 +12,17 @@ import (
 	"github.com/persioflexa/harflex/internal/agentcore"
 	"github.com/persioflexa/harflex/internal/catalog"
 	"github.com/persioflexa/harflex/internal/id"
+	"github.com/persioflexa/harflex/internal/sdd"
 	"github.com/persioflexa/harflex/internal/security"
 	"github.com/persioflexa/harflex/internal/tools"
 )
 
-// The PRs conversation records each pull request it opens; the review watch then asks that same conversation, every
-// ten minutes, to read new review comments, fix them on the branch, push and answer them, until the PR is merged or
-// closed. The agent never merges or force-pushes, and the watch only runs with Acesso total, since nobody is there to
-// approve each command.
+// The PRs conversation records each pull request it opens, and the review watch starts on it by itself: every hour it
+// asks that same conversation to read the review and the checks, fix every finding on the branch, push and answer, until
+// the PR is approved or merged. When every PR of the work is approved or merged, the PRs stage is done. The agent never
+// merges or force-pushes, and the watch only runs with Acesso total, since nobody is there to approve each command.
 
-const pullRequestWatchInterval = 10 * time.Minute
+const pullRequestWatchInterval = time.Hour
 
 var ErrPullRequestNotFound = errors.New("pull request not found")
 
@@ -203,6 +204,7 @@ func (s *Service) startPullRequestCheck(pr catalog.PipelinePullRequest) error {
 		defer func() { s.finishPullRequestCheck(pr.ID); s.emitPullRequests(pr.PipelineID) }()
 		result, err := s.Prompt(PromptInput{SessionID: pr.SessionID, Text: pullRequestWatchPrompt(pr, since)})
 		if err == nil && result.Status == RunCompleted {
+			s.finishPullRequestsWhenDone(pr.PipelineID)
 			return
 		}
 		latest, readErr := s.store.GetPipelinePullRequest(s.ctx, pr.ID)
@@ -240,9 +242,11 @@ func pullRequestWatchPrompt(pr catalog.PipelinePullRequest, since time.Time) str
 	} else {
 		prompt.WriteString("Leia os comentários e revisões novos desde " + since.Format(time.RFC3339) + ".\n")
 	}
-	prompt.WriteString("Para cada apontamento que pede mudança: corrija no mesmo branch, rode os testes do projeto, faça commit e push, e responda o comentário dizendo o que mudou. " +
+	prompt.WriteString("Veja também a decisão da revisão (aprovado ou mudanças pedidas) e os checks de CI do PR. " +
+		"Corrija todos os apontamentos que pedem mudança e todas as falhas de CI: no mesmo branch, rode os testes do projeto, faça commit e push, e responda cada comentário dizendo o que mudou. " +
 		"Se discordar de um apontamento, responda explicando, sem mudar o código. Nunca faça merge, force push nem aprove o próprio PR.\n" +
-		"Ao terminar, chame harflex_pull_request_status com a URL do PR, o estado dele (open, merged ou closed), quantos apontamentos você tratou e um resumo curto do que fez. " +
+		"Ao terminar, chame harflex_pull_request_status com a URL do PR, o estado dele, quantos apontamentos você tratou e um resumo curto do que fez. " +
+		"O estado é merged se o PR foi mergeado, closed se foi fechado sem merge, approved se está aprovado na revisão sem mudanças pedidas pendentes e com os checks passando, e open nos demais casos. " +
 		"Se não houver nada novo, chame a ferramenta com handledComments 0.\n")
 	return prompt.String()
 }
@@ -285,15 +289,15 @@ func (s *Service) pullRequestTools(pipelineID, sessionID string) []tools.Tool {
 	return []tools.Tool{
 		harflexTool{service: s, workspaceID: pipelineID, risk: security.ReadOnly, spec: agentcore.ToolSpec{
 			Name:        "harflex_register_pull_request",
-			Description: "Record in Harflex a pull request you just opened for this pipeline, so the person sees it on the PRs screen and can turn on the review watch. Call it once per pull request, right after opening it.",
+			Description: "Record in Harflex a pull request you just opened for this pipeline, so the person sees it on the PRs screen and Harflex watches its review every hour. Call it once per pull request, right after opening it.",
 			Schema:      json.RawMessage(`{"type":"object","properties":{"url":{"type":"string","minLength":8},"title":{"type":"string"},"branch":{"type":"string"}},"required":["url"],"additionalProperties":false}`),
 		}, run: func(s *Service, pipelineID, _ string, args json.RawMessage) (any, error) {
 			return s.registerPullRequest(pipelineID, sessionID, args)
 		}},
 		harflexTool{service: s, workspaceID: pipelineID, risk: security.ReadOnly, spec: agentcore.ToolSpec{
 			Name:        "harflex_pull_request_status",
-			Description: "Report the outcome of a review check of a pull request recorded in Harflex: its state (open, merged or closed), how many review comments you handled and a short summary.",
-			Schema:      json.RawMessage(`{"type":"object","properties":{"url":{"type":"string","minLength":8},"state":{"type":"string","enum":["open","merged","closed"]},"handledComments":{"type":"integer","minimum":0},"summary":{"type":"string"}},"required":["url","state"],"additionalProperties":false}`),
+			Description: "Report the outcome of a review check of a pull request recorded in Harflex: its state (open, approved when the review approved it with no changes pending and checks passing, merged or closed), how many review comments you handled and a short summary.",
+			Schema:      json.RawMessage(`{"type":"object","properties":{"url":{"type":"string","minLength":8},"state":{"type":"string","enum":["open","approved","merged","closed"]},"handledComments":{"type":"integer","minimum":0},"summary":{"type":"string"}},"required":["url","state"],"additionalProperties":false}`),
 		}, run: func(s *Service, pipelineID, _ string, args json.RawMessage) (any, error) {
 			return s.reportPullRequest(pipelineID, args)
 		}},
@@ -325,13 +329,16 @@ func (s *Service) registerPullRequest(pipelineID, sessionID string, args json.Ra
 	}
 	if len(pr.Timeline) == 0 {
 		appendPullRequestEvent(&pr, "opened", "PR aberto: "+pr.Title)
+		// The watch starts with the PR; its first check comes an hour later, once reviewers had time to look.
+		pr.Watch, pr.LastCheckedAt = true, now
+		appendPullRequestEvent(&pr, "watch_on", "Vigia ligada: a cada hora a IA confere a revisão e os checks e corrige os apontamentos, até o PR ser aprovado ou mergeado")
 	}
 	saved, err := s.store.SavePipelinePullRequest(s.ctx, pr)
 	if err != nil {
 		return nil, err
 	}
 	s.emitPullRequests(pipelineID)
-	return map[string]any{"recorded": true, "id": saved.ID, "next": "The person can turn on the review watch for this pull request on the PRs screen."}, nil
+	return map[string]any{"recorded": true, "id": saved.ID, "watch": saved.Watch, "next": "Harflex watches this pull request: every hour it asks this conversation to read the review and the checks and fix the findings, until the PR is approved or merged."}, nil
 }
 
 func (s *Service) reportPullRequest(pipelineID string, args json.RawMessage) (any, error) {
@@ -341,7 +348,7 @@ func (s *Service) reportPullRequest(pipelineID string, args json.RawMessage) (an
 		HandledComments int    `json:"handledComments"`
 		Summary         string `json:"summary"`
 	}
-	if err := json.Unmarshal(args, &in); err != nil || !validPullRequestURL(in.URL) || (in.State != "open" && in.State != "merged" && in.State != "closed") || in.HandledComments < 0 || len(in.Summary) > 4000 {
+	if err := json.Unmarshal(args, &in); err != nil || !validPullRequestURL(in.URL) || (in.State != "open" && in.State != "approved" && in.State != "merged" && in.State != "closed") || in.HandledComments < 0 || len(in.Summary) > 4000 {
 		return nil, errHarflexArguments
 	}
 	found, err := s.store.ListPipelinePullRequests(s.ctx, pipelineID)
@@ -359,6 +366,9 @@ func (s *Service) reportPullRequest(pipelineID string, args json.RawMessage) (an
 			pr.Watch = false
 		case in.State == "closed":
 			appendPullRequestEvent(&pr, "closed", firstNonEmpty(in.Summary, "PR fechado; a vigia parou"))
+			pr.Watch = false
+		case in.State == "approved":
+			appendPullRequestEvent(&pr, "approved", firstNonEmpty(in.Summary, "PR aprovado na revisão; a vigia parou"))
 			pr.Watch = false
 		case in.HandledComments > 0:
 			appendPullRequestEvent(&pr, "fixed", firstNonEmpty(in.Summary, "Apontamentos corrigidos e respondidos"))
@@ -382,4 +392,30 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+// finishPullRequestsWhenDone ends the PRs stage once every pull request of the work is approved or merged: that is when
+// the work is finished. A closed PR, or one still under review, keeps the stage open.
+func (s *Service) finishPullRequestsWhenDone(pipelineID string) {
+	prs, err := s.store.ListPipelinePullRequests(s.ctx, pipelineID)
+	if err != nil || len(prs) == 0 {
+		return
+	}
+	for _, pr := range prs {
+		if pr.State != "approved" && pr.State != "merged" {
+			return
+		}
+	}
+	run, err := s.loadPipeline(pipelineID)
+	if err != nil || !pipelinePRsOpen(run) {
+		return
+	}
+	if _, err := s.FinishPipelinePRs(FinishPipelinePRsInput{PipelineID: pipelineID, Outcome: string(sdd.Completed), Reason: "Todos os PRs foram aprovados ou mergeados"}); err != nil {
+		last := prs[len(prs)-1]
+		appendPullRequestEvent(&last, "error", "Os PRs estão aprovados ou mergeados, mas a etapa não pôde ser concluída sozinha; conclua na tela de PRs")
+		last.UpdatedAt = time.Now().UTC()
+		_, _ = s.store.SavePipelinePullRequest(s.ctx, last)
+		return
+	}
+	s.emitPullRequests(pipelineID)
 }

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Check, Circle, CircleAlert, CircleDot } from 'lucide-react'
 import { t, useT } from '../i18n'
-import type { Pipeline, PipelineStage, PipelineStageActivity } from '../lib/backend'
+import type { CoderStatus, Pipeline, PipelineStage, PipelineStageActivity } from '../lib/backend'
 import './pipelineBar.css'
 
 const stageDefinitions = [['discovery', 'Discovery'], ['spec', 'SPEC'], ['plan', 'Plan'], ['code', 'Code'], ['eval', 'QA'], ['prs', 'PRs']] as const
@@ -13,7 +13,12 @@ const afterRun: Partial<Record<PipelineStage, string>> = { code: 'verifique o c�
 const short: Partial<Record<PipelineStage, string>> = { code: 'verificar', eval: 'registrar', prs: 'concluir' }
 
 /** What the session behind the current stage is doing, in the words the bar has room for. */
-export function stageProgress(stage: PipelineStage, name: string, activity?: PipelineStageActivity): Progress | undefined {
+export function stageProgress(stage: PipelineStage, name: string, activity?: PipelineStageActivity, coder?: CoderStatus): Progress | undefined {
+  // A Coder run that ended asking, or without saying it finished, waits for the person's answer, not for a check.
+  if (stage === 'code' && activity?.status === 'completed' && coder?.sessionId === activity.sessionId) {
+    if (coder.state === 'questions') return { text: t('Coder perguntou · responder'), tone: 'ready', hint: t('{name}: o Coder fez perguntas. Responda na bancada Code para ele continuar.', { name }) }
+    if (coder.state === 'unfinished' || coder.state === 'stopped') return { text: t('Coder parou · responder'), tone: 'ready', hint: t('{name}: o Coder parou sem dizer que terminou. Responda ou peça para continuar na bancada Code.', { name }) }
+  }
   switch (activity?.status) {
     case 'running': case 'cancellation_pending': return { text: t('IA trabalhando'), tone: 'working', hint: t('{name}: a IA está executando esta etapa.', { name }) }
     case 'awaiting_approval': return { text: t('Aguardando autorização'), tone: 'ready', hint: t('{name}: a IA está esperando a sua autorização.', { name }) }
@@ -24,7 +29,7 @@ export function stageProgress(stage: PipelineStage, name: string, activity?: Pip
   return undefined
 }
 
-export function PipelineBar({ pipeline: currentPipeline, onViewStage, viewStage, activity }: { pipeline?: Pipeline; onViewStage?: (stage:PipelineStage) => void; viewStage?:PipelineStage; /** What the current stage's own session is doing. */ activity?: PipelineStageActivity }) {
+export function PipelineBar({ pipeline: currentPipeline, onViewStage, viewStage, activity, coder }: { pipeline?: Pipeline; onViewStage?: (stage:PipelineStage) => void; viewStage?:PipelineStage; /** What the current stage's own session is doing. */ activity?: PipelineStageActivity; /** Where the Coder stands, when Code is the stage. */ coder?: CoderStatus }) {
   const t = useT()
   const pipeline = useRef<HTMLElement>(null)
   const stages = useRef<HTMLOListElement>(null)
@@ -66,7 +71,7 @@ export function PipelineBar({ pipeline: currentPipeline, onViewStage, viewStage,
       {stageDefinitions.map(([stage, name]) => {
         const status = currentPipeline?.stageStatus[stage] ?? 'pending'
         const current = stage === currentPipeline?.currentStage
-        const progress = current && status === 'active' && activity?.stage === stage ? stageProgress(stage, name, activity) : undefined
+        const progress = current && status === 'active' && activity?.stage === stage ? stageProgress(stage, name, activity, coder) : undefined
         const Icon = status === 'completed' ? Check : progress?.tone === 'failed' ? CircleAlert : current ? CircleDot : Circle
         const tone = progress ? ` stage-${progress.tone}` : ''
         return <li key={name} ref={viewStage ? viewStage === stage ? currentStage : undefined : current ? currentStage : undefined} aria-current={current ? 'step' : undefined} className={`${status === 'completed' ? 'stage-completed' : status === 'failed' || progress?.tone === 'failed' ? 'stage-failed' : current ? 'stage-current' : 'stage-pending'}${tone}${viewStage===stage ? ' stage-viewed' : ''}`}>

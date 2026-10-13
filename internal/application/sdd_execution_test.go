@@ -186,7 +186,7 @@ func TestEvaluationRejectionReturnsToCodeWithoutARoundLimit(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		run, err = s.CompletePipelineCode(run.ID)
+		run, err = coderSaidDone(t, s, run.ID).CompletePipelineCode(run.ID)
 		if err != nil || run.CurrentStage != "code" || run.StageStatus["code"] != "waiting_user" {
 			t.Fatalf("code round %d: %+v %v", round, run, err)
 		}
@@ -277,7 +277,7 @@ func TestAuthoringPipelineExecutesAndEvaluatesApprovedPlan(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	run, err = s.CompletePipelineCode(run.ID)
+	run, err = coderSaidDone(t, s, run.ID).CompletePipelineCode(run.ID)
 	if err != nil || run.Kind != "ai_authoring" || run.CurrentStage != "code" || run.StageStatus["code"] != "waiting_user" || run.Artifacts["code"].Author != "ai" || run.Artifacts["code"].SourceSessionID != coder.Session.ID ||
 		!strings.Contains(run.Artifacts["code"].Content, "# Harflex isolated Code provenance") || !strings.Contains(run.Artifacts["code"].Content, "file=\"main.js\" action=added") || !strings.Contains(run.Artifacts["code"].Content, "after=") {
 		t.Fatalf("authoring Code completion: %+v %v", run, err)
@@ -746,7 +746,7 @@ func TestPipelineIsolatedCodeEvidenceTracksNewFilesWithoutMutatingSource(t *test
 	if _, err := db.Append(t.Context(), coder.Session.ID, "agent_session", "run.completed", map[string]string{"reason": ""}); err != nil {
 		t.Fatal(err)
 	}
-	run, err = s.CompletePipelineCode(run.ID)
+	run, err = coderSaidDone(t, s, run.ID).CompletePipelineCode(run.ID)
 	if err != nil || run.CurrentStage != "code" || run.StageStatus["code"] != "waiting_user" || !strings.Contains(run.Artifacts["code"].Content, "arquivo novo") {
 		t.Fatalf("isolated new file missing from Code evidence: %+v %v", run, err)
 	}
@@ -811,7 +811,7 @@ func pipelineCodeReviewFixture(t *testing.T) (*Service, PipelineDTO) {
 	if _, err := db.Append(t.Context(), coder.Session.ID, "agent_session", "run.completed", map[string]string{"reason": ""}); err != nil {
 		t.Fatal(err)
 	}
-	updated, err := s.CompletePipelineCode(run.ID)
+	updated, err := coderSaidDone(t, s, run.ID).CompletePipelineCode(run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1109,7 +1109,7 @@ func TestPipelineEvaluationRejectsObjectiveAsCriteriaWhenSpecWasSkipped(t *testi
 	if _, err := db.Append(t.Context(), coder.Session.ID, "agent_session", "run.completed", map[string]string{"reason": ""}); err != nil {
 		t.Fatal(err)
 	}
-	run, err = s.CompletePipelineCode(run.ID)
+	run, err = coderSaidDone(t, s, run.ID).CompletePipelineCode(run.ID)
 	if err != nil || run.CurrentStage != "code" || run.StageStatus["code"] != "waiting_user" {
 		t.Fatalf("complete Code: %+v %v", run, err)
 	}
@@ -1298,7 +1298,7 @@ func TestPipelineUsesCoderEvidenceAndIndependentReadOnlyEvaluator(t *testing.T) 
 			t.Fatal(err)
 		}
 	}
-	run, err = s.CompletePipelineCode(run.ID)
+	run, err = coderSaidDone(t, s, run.ID).CompletePipelineCode(run.ID)
 	if err != nil || run.CurrentStage != "code" || run.StageStatus["code"] != "waiting_user" {
 		t.Fatalf("Code evidence bypassed its review gate: %+v %v", run, err)
 	}

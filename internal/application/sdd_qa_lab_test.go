@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/persioflexa/harflex/internal/agentcore"
+	"github.com/persioflexa/harflex/internal/catalog"
 	"github.com/persioflexa/harflex/internal/externalagent"
 	"github.com/persioflexa/harflex/internal/providers/openai"
 	"github.com/persioflexa/harflex/internal/tools"
@@ -148,7 +149,7 @@ func TestQALabRunsChecksInItsOwnCopyAndFixesInTheSameCodeCopyUntilItPasses(t *te
 	if result, err := s.Prompt(PromptInput{SessionID: coder.Session.ID, Text: coder.Prompt}); err != nil || result.Status != RunCompleted {
 		t.Fatalf("coder: %+v %v", result, err)
 	}
-	if _, err := s.CompletePipelineCode(run.ID); err != nil {
+	if _, err := coderSaidDone(t, s, run.ID).CompletePipelineCode(run.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.decideLatest(run.ID, "code", "approve", ""); err != nil {
@@ -250,7 +251,7 @@ func TestQALoopFixesANewFailureByItselfUntilQAPasses(t *testing.T) {
 	if result, err := s.Prompt(PromptInput{SessionID: coder.Session.ID, Text: coder.Prompt}); err != nil || result.Status != RunCompleted {
 		t.Fatalf("coder: %+v %v", result, err)
 	}
-	if _, err := s.CompletePipelineCode(run.ID); err != nil {
+	if _, err := coderSaidDone(t, s, run.ID).CompletePipelineCode(run.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.decideLatest(run.ID, "code", "approve", ""); err != nil {
@@ -312,7 +313,7 @@ func TestQALoopResumesFixesThatStoppedBeforeTheCoderRound(t *testing.T) {
 	if result, err := s.Prompt(PromptInput{SessionID: coder.Session.ID, Text: coder.Prompt}); err != nil || result.Status != RunCompleted {
 		t.Fatalf("coder: %+v %v", result, err)
 	}
-	if _, err := s.CompletePipelineCode(run.ID); err != nil {
+	if _, err := coderSaidDone(t, s, run.ID).CompletePipelineCode(run.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.decideLatest(run.ID, "code", "approve", ""); err != nil {
@@ -403,7 +404,7 @@ func TestQALabAsksForTheReportAgainWhenTheEvaluatorEndsInProse(t *testing.T) {
 	if _, err := s.Prompt(PromptInput{SessionID: coder.Session.ID, Text: coder.Prompt}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.CompletePipelineCode(run.ID); err != nil {
+	if _, err := coderSaidDone(t, s, run.ID).CompletePipelineCode(run.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.decideLatest(run.ID, "code", "approve", ""); err != nil {
@@ -448,7 +449,7 @@ func TestPullRequestWatchChecksTheRecordedPRInItsConversationAndStopsWhenMerged(
 	if _, err := s.Prompt(PromptInput{SessionID: coder.Session.ID, Text: coder.Prompt}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.CompletePipelineCode(run.ID); err != nil {
+	if _, err := coderSaidDone(t, s, run.ID).CompletePipelineCode(run.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.decideLatest(run.ID, "code", "approve", ""); err != nil {
@@ -477,15 +478,21 @@ func TestPullRequestWatchChecksTheRecordedPRInItsConversationAndStopsWhenMerged(
 	if _, err := register.Execute(t.Context(), json.RawMessage(`{"url":"https://github.com/acme/todo/pull/7","title":"Exportar CSV","branch":"harflex/exportar-csv"}`), nil); err != nil {
 		t.Fatal(err)
 	}
+	// The watch starts with the PR, and its first check comes an hour later.
 	listed, err := s.ListPipelinePullRequests(run.ID)
-	if err != nil || len(listed) != 1 || listed[0].State != "open" || listed[0].Watch || listed[0].Branch != "harflex/exportar-csv" {
+	if err != nil || len(listed) != 1 || listed[0].State != "open" || !listed[0].Watch || listed[0].Branch != "harflex/exportar-csv" ||
+		listed[0].NextCheckAt == nil || listed[0].NextCheckAt.Sub(time.Now()) < 59*time.Minute {
 		t.Fatalf("recorded PRs: %+v %v", listed, err)
 	}
-	if _, err := s.SetPullRequestWatch(SetPullRequestWatchInput{ID: listed[0].ID, Watch: true}); err != nil {
-		t.Fatal(err)
+	s.tickPullRequestWatch(time.Now().UTC())
+	if listed, _ = s.ListPipelinePullRequests(run.ID); listed[0].Timeline[len(listed[0].Timeline)-1].Kind != "watch_on" {
+		t.Fatalf("checked before the hour: %+v", listed[0].Timeline)
 	}
 	// Without Acesso total nobody could approve the agent's commands, so the watch says so instead of starting.
-	s.tickPullRequestWatch(time.Now().UTC())
+	s.prWatch.mu.Lock()
+	s.prWatch.lastTick = time.Time{}
+	s.prWatch.mu.Unlock()
+	s.tickPullRequestWatch(time.Now().UTC().Add(61 * time.Minute))
 	listed, _ = s.ListPipelinePullRequests(run.ID)
 	if len(provider.watched) != 0 || listed[0].Timeline[len(listed[0].Timeline)-1].Kind != "needs_access" {
 		t.Fatalf("watch without full access: %+v", listed[0].Timeline)
@@ -509,6 +516,60 @@ func TestPullRequestWatchChecksTheRecordedPRInItsConversationAndStopsWhenMerged(
 	}
 	if last := listed[0].Timeline[len(listed[0].Timeline)-1]; last.Kind != "merged" || !strings.Contains(last.Summary, "mergeado") {
 		t.Fatalf("timeline: %+v", listed[0].Timeline)
+	}
+	// Every PR of the work merged: the PRs stage ended by itself.
+	var finished PipelineDTO
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		if finished, _ = s.GetPipeline(run.ID); finished.StageStatus["prs"] == "completed" {
+			break
+		}
+	}
+	if finished.StageStatus["prs"] != "completed" {
+		t.Fatalf("the PRs stage did not end with every PR merged: %+v", finished.StageStatus)
+	}
+}
+
+func TestPullRequestsFinishOnlyWhenEveryPRIsApprovedOrMerged(t *testing.T) {
+	s, db, _ := setup(t)
+	workspace, err := s.OpenWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := s.CreatePipeline(CreatePipelineInput{WorkspaceID: workspace.ID, Title: "Exportar", Objective: "CSV"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SaveProviderProfile(profileInput()); err != nil {
+		t.Fatal(err)
+	}
+	chat, err := s.CreateDirectSession(CreateDirectSessionInput{WorkspaceID: workspace.ID, BackendID: "local", Reason: "PRs"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	report := harflexToolNamed(t, s.pullRequestTools(run.ID, chat.ID), "harflex_pull_request_status")
+	for _, url := range []string{"https://github.com/acme/todo/pull/7", "https://github.com/acme/api/pull/9"} {
+		if _, err := db.SavePipelinePullRequest(t.Context(), catalog.PipelinePullRequest{ID: url[len(url)-1:], PipelineID: run.ID, SessionID: chat.ID, URL: url, State: "open", Watch: true, CreatedAt: time.Now(), UpdatedAt: time.Now()}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := report.Execute(t.Context(), json.RawMessage(`{"url":"https://github.com/acme/todo/pull/7","state":"approved","handledComments":3,"summary":"Aprovado depois das correções"}`), nil); err != nil {
+		t.Fatal(err)
+	}
+	prs, _ := s.ListPipelinePullRequests(run.ID)
+	var approved PullRequestDTO
+	for _, pr := range prs {
+		if pr.URL == "https://github.com/acme/todo/pull/7" {
+			approved = pr
+		}
+	}
+	if approved.State != "approved" || approved.Watch || approved.Timeline[len(approved.Timeline)-1].Kind != "approved" {
+		t.Fatalf("an approved PR keeps being watched: %+v", approved)
+	}
+	// One PR is still under review: the stage stays open (this work is not even at PRs, so nothing may change at all).
+	before, _ := s.GetPipeline(run.ID)
+	s.finishPullRequestsWhenDone(run.ID)
+	if after, _ := s.GetPipeline(run.ID); after.Revision != before.Revision {
+		t.Fatalf("the stage moved with a PR still open: %+v", after.StageStatus)
 	}
 }
 
@@ -562,7 +623,7 @@ func TestPullRequestConversationRunsOnACLIThatContinuesConversations(t *testing.
 	if _, err := s.Prompt(PromptInput{SessionID: coder.Session.ID, Text: coder.Prompt}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.CompletePipelineCode(run.ID); err != nil {
+	if _, err := coderSaidDone(t, s, run.ID).CompletePipelineCode(run.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.decideLatest(run.ID, "code", "approve", ""); err != nil {

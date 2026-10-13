@@ -80,3 +80,13 @@ it('shows a pipeline saved before the pull request stage with it still pending',
   render(<PipelineBar pipeline={legacy} onViewStage={() => undefined} />)
   expect(within(stageItem('PRs')).getByText('Pendente')).toBeInTheDocument()
 })
+
+it('says the Coder is waiting for an answer, not for a check, when its run ended asking or unfinished', () => {
+  const ended = activity('completed')
+  const coder = (state: 'questions' | 'unfinished' | 'done') => ({ pipelineId: 'design-1', sessionId: 'session-1', state, summary: '', questions: [], message: '', canReply: true })
+  expect(stageProgress('code', 'Code', ended, coder('questions'))?.text).toBe('Coder perguntou · responder')
+  expect(stageProgress('code', 'Code', ended, coder('unfinished'))?.text).toBe('Coder parou · responder')
+  expect(stageProgress('code', 'Code', ended, coder('done'))?.text).toBe('Executado · verificar')
+  // Another session's status does not speak for this run.
+  expect(stageProgress('code', 'Code', ended, { ...coder('questions'), sessionId: 'older' })?.text).toBe('Executado · verificar')
+})

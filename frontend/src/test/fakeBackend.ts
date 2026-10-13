@@ -153,6 +153,8 @@ export function createFakeBackend() {
     skipPipelineStage: async () => { throw new Error('Synthetic pipeline unavailable') },
     previewPipelineCodeWorkspace: async () => ({ isGit: true, fileCount: 2, totalBytes: 128, excludedPaths: ['.git'], unsafePaths: [] }),
     createPipelineSession: async () => { throw new Error('Synthetic pipeline unavailable') },
+    getPipelineCoderStatus: async pipelineId => ({ pipelineId, sessionId: '', state: 'none' as const, summary: '', questions: [], message: '', canReply: false }),
+    replyToPipelineCoder: async () => { throw new Error('Synthetic pipeline unavailable') },
     getPipelineForSession: async () => { throw Object.assign(new Error('No linked pipeline'), { cause: { code: 'pipeline_not_found' } }) },
     completePipelineCode: async () => { throw new Error('Synthetic pipeline unavailable') },
     completePipelineEvaluation: async () => { throw new Error('Synthetic pipeline unavailable') },

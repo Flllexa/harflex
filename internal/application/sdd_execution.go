@@ -171,6 +171,7 @@ func pipelinePrompt(run catalog.PipelineRun, role, backendID string, criteria *c
 		} else {
 			prompt.WriteString("Implemente este trabalho somente na raiz isolada desta execução. O projeto original permanece intocado até uma aplicação explícita após o QA aprovado. Você pode ler e editar arquivos dentro da cópia; shell, rede e MCP estão indisponíveis. Registre verificações pendentes em vez de alegar que foram executadas. Não declare sucesso sem evidência.\n")
 		}
+		prompt.WriteString(coderStatusInstructions)
 		latestFeedback := make(map[sdd.Stage]catalog.PipelineExecutionReview)
 		for _, review := range run.ExecutionReviews {
 			if review.Decision == "request_revision" && (review.Stage == sdd.Code || review.Stage == sdd.Eval) {
@@ -543,7 +544,14 @@ func separateExecutionRoot(sourceRoot, executionRoot string) bool {
 	return !contains(sourceRoot, executionRoot) && !contains(executionRoot, sourceRoot)
 }
 
+// CompletePipelineCode verifies the Coder's change and offers it for review, once the Coder said it finished.
 func (s *Service) CompletePipelineCode(pipelineID string) (PipelineDTO, error) {
+	return s.completePipelineCode(pipelineID, true)
+}
+
+// completePipelineCode records the change of the latest Coder run. The QA fix loop takes a round that changed files
+// even without the closing status, because it checks the result itself right after.
+func (s *Service) completePipelineCode(pipelineID string, requireDone bool) (PipelineDTO, error) {
 	if err := s.beginCall(); err != nil {
 		return PipelineDTO{}, err
 	}
@@ -577,6 +585,16 @@ func (s *Service) CompletePipelineCode(pipelineID string) (PipelineDTO, error) {
 	}
 	if !completed {
 		return PipelineDTO{}, sdd.ErrEvidenceRequired
+	}
+	// The change goes to review only when the Coder says it finished the plan, not whenever a run stops.
+	if requireDone {
+		_, text, err := s.coderTurn(link.SessionID)
+		if err != nil {
+			return PipelineDTO{}, safe("read coder evidence", err)
+		}
+		if state, _, _, _ := coderReport(text); state != "done" {
+			return PipelineDTO{}, ErrPipelineCodeNotFinished
+		}
 	}
 	executionRoot, err := s.executionRootForSession(link.SessionID)
 	if err != nil {

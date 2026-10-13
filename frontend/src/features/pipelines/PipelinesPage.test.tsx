@@ -556,7 +556,7 @@ function codeStageFixture(overrides: { stage?: 'code' | 'eval' | 'prs' } = {}) {
   const onStartRole = vi.fn(async () => undefined)
   const choice = (executorStage: 'code' | 'eval' | 'prs', backendId: string, modelId: string) => ({ workspaceId: 'workspace-1', stage: executorStage, backendId, modelId, updatedAt: date })
   const page = (extra: Partial<ComponentProps<typeof PipelinesPage>> = {}) => <PipelinesPage {...extra} backend={backend} backends={[{ id: 'api', name: 'API', kind: 'api', available: true }, { id: 'other', name: 'Outra API', kind: 'api', available: true }]}
-    preferredBackendId="api" preferredModelBackendId="api" preferredModelId="api-model" settingsStatus="ready" workspaceId="workspace-1" selectedPipeline={run} onSelectPipeline={() => undefined} onProjects={() => undefined} onStartRole={onStartRole} />
+    preferredBackendId="api" preferredModelBackendId="api" preferredModelId="api-model" settingsStatus="ready" workspaceId="workspace-1" selectedPipeline={extra.selectedPipeline ?? run} onSelectPipeline={() => undefined} onProjects={() => undefined} onStartRole={onStartRole} />
   return { backend, run, onStartRole, choice, page }
 }
 
@@ -976,4 +976,64 @@ it('tells the stage bar which screen is showing, also when the work moves on by 
   await waitFor(() => expect(shown).toHaveBeenLastCalledWith('eval'))
   view.rerender(page(atQA, 'spec'))
   await waitFor(() => expect(shown).toHaveBeenLastCalledWith('spec'))
+})
+
+const coderStatus = (state: 'none' | 'working' | 'done' | 'questions' | 'unfinished' | 'stopped', extra: Partial<{ questions: string[]; message: string; canReply: boolean }> = {}) =>
+  ({ pipelineId: 'authoring-phase-choice', sessionId: 'coder-1', state, summary: '', questions: [], message: '', canReply: true, ...extra })
+
+it('shows the Coder\'s questions in Code, sends the answers to it, and checks the code only once it says it finished', { timeout: 15000 }, async () => {
+  const user = userEvent.setup()
+  const { backend, run, page } = codeStageFixture()
+  let status = coderStatus('questions', { questions: ['Qual TTL do registro?', 'Qual bucket de sandbox?'], message: 'Li o plano. Antes de seguir preciso de duas respostas.' })
+  backend.getPipelineCoderStatus = vi.fn(async () => status)
+  const onReplyCoder = vi.fn(async () => undefined)
+  const view = render(page({ onReplyCoder }))
+  const talk = await screen.findByRole('region', { name: 'O Coder tem perguntas' })
+  expect(within(talk).getByText('Qual TTL do registro?')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Verificar código' })).not.toBeInTheDocument()
+  const send = within(talk).getByRole('button', { name: 'Responder ao Coder' })
+  expect(send).toBeDisabled()
+  await user.type(within(talk).getByLabelText('Resposta à pergunta 1'), '90 dias')
+  await user.type(within(talk).getByLabelText('Algo mais para o Coder (opcional)'), 'Use o padrão do template.')
+  await user.click(send)
+  expect(onReplyCoder).toHaveBeenCalledWith(run.id, '1. Qual TTL do registro?\n   90 dias\nUse o padrão do template.', { backendId: 'api' })
+
+  // It said it finished: the conversation card goes away and the code can be checked.
+  status = coderStatus('done')
+  view.rerender(page({ onReplyCoder, selectedPipeline: { ...run, revision: run.revision + 1 } }))
+  await waitFor(() => expect(screen.queryByRole('region', { name: 'O Coder tem perguntas' })).not.toBeInTheDocument(), { timeout: 7000 })
+  expect(await screen.findByRole('button', { name: 'Verificar código' })).toBeInTheDocument()
+})
+
+it('asks a Coder that stopped partway to go on, instead of offering its unfinished change', async () => {
+  const user = userEvent.setup()
+  const { backend, run, page } = codeStageFixture()
+  backend.getPipelineCoderStatus = vi.fn(async () => coderStatus('unfinished', { message: 'Criei NEXT_ACTIONS.md com 8 confirmações pendentes.' }))
+  const onReplyCoder = vi.fn(async () => undefined)
+  render(page({ onReplyCoder }))
+  const talk = await screen.findByRole('region', { name: 'O Coder parou sem dizer que terminou' })
+  expect(within(talk).getByText(/NEXT_ACTIONS\.md/)).toBeInTheDocument()
+  await user.click(within(talk).getByRole('button', { name: 'Pedir para continuar' }))
+  expect(onReplyCoder).toHaveBeenCalledWith(run.id, expect.stringContaining('Continue implementando o plano até o fim'), { backendId: 'api' })
+  // Starting over with another executor stays at hand, folded.
+  expect(screen.getByText('Executar o Coder de novo, com outro executor ou modelo')).toBeInTheDocument()
+})
+
+it('does not offer to approve a version the Coder did not say it finished, and sends the answer back as a revision', async () => {
+  const user = userEvent.setup()
+  const { backend, run: base, page } = codeStageFixture()
+  const code = { stage: 'code' as const, version: 1, content: 'diff --git a/NEXT_ACTIONS.md b/NEXT_ACTIONS.md\nnew file mode 100644\n--- /dev/null\n+++ b/NEXT_ACTIONS.md\n@@ -0,0 +1 @@\n+# Pendências\n', author: 'ai' as const, sourceSessionId: 'coder-1', contentDigest: 'a'.repeat(64), updatedAt: base.updatedAt }
+  const run: Pipeline = { ...base, stageStatus: { ...base.stageStatus, code: 'waiting_user' }, artifacts: { ...base.artifacts, code } }
+  backend.getPipeline = async () => run
+  backend.listPipelines = async () => [run]
+  backend.getPipelineCoderStatus = vi.fn(async () => coderStatus('unfinished', { message: 'Só escrevi as pendências.', canReply: false }))
+  const decide = vi.fn(async () => ({ ...run, stageStatus: { ...run.stageStatus, code: 'active' as const } }))
+  backend.decidePipelineExecutionArtifact = decide
+  render(page({ selectedPipeline: run }))
+  const talk = await screen.findByRole('region', { name: 'O Coder parou sem dizer que terminou' })
+  expect(screen.queryByRole('button', { name: 'Aprovar Code e iniciar QA' })).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Pedir revisão' })).toBeInTheDocument()
+  await user.type(within(talk).getByLabelText('Sua resposta ao Coder'), 'Implemente o código, não só as pendências.')
+  await user.click(within(talk).getByRole('button', { name: 'Pedir revisão com esta resposta' }))
+  expect(decide).toHaveBeenCalledWith(expect.objectContaining({ decision: 'request_revision', feedback: 'Implemente o código, não só as pendências.', stage: 'code' }))
 })

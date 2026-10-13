@@ -55,11 +55,13 @@ export type PipelineRoleChoice = { backendId: string; selection?: PipelineRoleMo
 export type FixPipelineFindingsInput = { pipelineId: string; findings: string[]; improvements: string[]; note: string; coder: PipelineRoleChoice; evaluator: PipelineRoleChoice }
 export type ResumePipelineFixesInput = { pipelineId: string; coder: PipelineRoleChoice; evaluator: PipelineRoleChoice }
 const pullRequestEvent = z.object({ at: z.string(), kind: z.string(), summary: z.string() })
-const pullRequest = z.object({ id: z.string().min(1), pipelineId: z.string(), sessionId: z.string(), url: z.string(), title: z.string(), branch: z.string(), state: z.enum(['open', 'merged', 'closed']), watch: z.boolean(),
+const pullRequest = z.object({ id: z.string().min(1), pipelineId: z.string(), sessionId: z.string(), url: z.string(), title: z.string(), branch: z.string(), state: z.enum(['open', 'approved', 'merged', 'closed']), watch: z.boolean(),
   lastCheckedAt: z.string().optional(), nextCheckAt: z.string().optional(), checking: z.boolean(), timeline: z.array(pullRequestEvent).nullish().transform(value => value ?? []) })
 export type PullRequest = z.infer<typeof pullRequest>
 const workCoordinator = z.object({ sessionId: z.string().min(1), pipelineId: z.string().min(1), title: z.string(), currentStage: z.union([pipelineStage, z.literal('')]), stageStatus: z.record(z.string(), z.string()), previousSessionIds: z.array(z.string()).nullish().transform(items => items ?? []), updatedAt: z.string() })
 export type WorkCoordinator = z.infer<typeof workCoordinator>
+const coderStatus = z.object({ pipelineId: z.string(), sessionId: z.string(), state: z.enum(['none', 'working', 'done', 'questions', 'unfinished', 'stopped']), summary: z.string(), questions: z.array(z.string()).nullish().transform(items => items ?? []), message: z.string(), canReply: z.boolean() })
+export type CoderStatus = z.infer<typeof coderStatus>
 const updateInfo = z.object({ currentVersion: z.string(), available: z.boolean(), version: z.string(), pageUrl: z.string(), canInstall: z.boolean() })
 export type UpdateInfo = z.infer<typeof updateInfo>
 const updateState = z.object({ phase: z.enum(['downloading', 'installing', 'restarting', 'failed']), percent: z.number().min(0).max(100), errorCode: z.string() })
@@ -476,6 +478,10 @@ export interface Backend {
   skipPipelineStage(pipelineId: string, reason: string): Promise<Pipeline>
   previewPipelineCodeWorkspace(workspaceId: string): Promise<PipelineCodeCopyPreview>
   createPipelineSession(pipelineId: string, backendId: string, role: PipelineRole, selection?: PipelineRoleModelSelection, confirmWorkspaceCopy?: boolean): Promise<PipelineSession>
+  /** Where the Coder of a work stands: working, done (it said it finished), asking, or stopped partway. */
+  getPipelineCoderStatus(pipelineId: string): Promise<CoderStatus>
+  /** Prepares the person's answer for the Coder: the session to send it in and the prompt to send (a new round in the same copy when the old conversation cannot take it). */
+  replyToPipelineCoder(input: { pipelineId: string; text: string; coder?: { backendId: string; selection?: PipelineRoleModelSelection } }): Promise<PipelineSession>
   getPipelineForSession(sessionId: string, workspaceId: string): Promise<Pipeline>
   completePipelineCode(pipelineId: string): Promise<Pipeline>
   completePipelineEvaluation(pipelineId: string): Promise<Pipeline>
@@ -593,6 +599,7 @@ export const parse = {
   authoringCodeRunPatchPage: (value: unknown) => authoringCodeRunPatchPage.parse(value),
   brainstorms: (value: unknown) => z.array(brainstorm).parse(value ?? []),
   pipelines: (value: unknown) => z.array(pipeline).parse(value ?? []),
+  coderStatus: (value: unknown) => coderStatus.parse(value),
   updateInfo: (value: unknown) => updateInfo.parse(value),
   updateState: (value: unknown) => updateState.safeParse(value).data,
   workCoordinators: (value: unknown) => z.array(workCoordinator).parse(value ?? []),
@@ -706,6 +713,7 @@ const errorMessages: Record<string, string> = {
   pull_request_watch_needs_full_access: 'A vigia corrige e faz push sozinha, então precisa de Acesso total no projeto.',
   pull_request_not_found: 'Este pull request não está registrado neste pipeline.',
   pipeline_qa_busy: 'O QA já está rodando para este pipeline.',
+  pipeline_code_not_finished: 'O Coder ainda não disse que terminou. Responda às perguntas dele ou peça para continuar; a revisão abre quando ele concluir.',
   pipeline_code_not_applied: 'Aplique o patch aprovado ao projeto antes de abrir os PRs: o agente trabalha na pasta do projeto.',
   pipeline_design_phase_executor_unusable: 'O provedor ou o modelo escolhido para uma das fases não está disponível agora. Abra "Provedor e modelo por fase", no alto desta página, e escolha outro ou volte ao padrão.',
   stage_executor_unsupported: 'Esta fase não pode usar esse executor. Escolha um perfil de API ou o Claude Code; o Codex serve às fases de documento, Code e QA, não aos PRs.',

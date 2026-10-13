@@ -124,7 +124,7 @@ func hostCLICompletesCodeEvalAndApply(t *testing.T, backendID string) {
 	if content, err := os.ReadFile(filepath.Join(snapshot.Root, "index.html")); err != nil || string(content) != codeText {
 		t.Fatalf("isolated HTML=%q %v", content, err)
 	}
-	if run, err = s.CompletePipelineCode(run.ID); err != nil {
+	if run, err = coderSaidDone(t, s, run.ID).CompletePipelineCode(run.ID); err != nil {
 		t.Fatal(err)
 	}
 	run = decidePipelineStageReviewForTest(t, s, run, "code", "approve", "")

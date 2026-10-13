@@ -348,6 +348,31 @@ describe('Harflex control room', () => {
     expect(screen.getByRole('tab', { name: 'Atividade' })).toHaveAttribute('aria-selected', 'true')
   })
 
+  it('answers the Coder from the Code bench: the answer goes to its conversation and the run shows in Activity', async () => {
+    const user = userEvent.setup()
+    const { backend } = createFakeBackend()
+    const run = { id: 'pipeline-1', workspaceId: 'workspace-1', kind: 'ai_authoring' as const, title: 'Exportar faturas', objective: 'Adicionar CSV', currentStage: 'code', stageStatus: { discovery: 'completed', spec: 'completed', plan: 'completed', code: 'active', eval: 'pending' }, revision: 4, artifacts: {}, createdAt: '2026-09-25T10:00:00Z', updatedAt: '2026-09-25T10:00:00Z' }
+    const session = { id: 'coder-1', workspaceId: 'workspace-1', backendId: 'local', status: 'ready', resumable: true, createdAt: '2026-09-25T10:00:00Z', updatedAt: '2026-09-25T10:00:00Z' }
+    const replyToPipelineCoder = vi.fn(async () => ({ session, prompt: 'Respostas da pessoa:\n1. Qual TTL?\n   90 dias', role: 'coder' }))
+    const prompt = vi.spyOn(backend, 'prompt')
+    Object.assign(backend, {
+      listPipelines: async () => [run], getPipeline: async () => run, replyToPipelineCoder,
+      getPipelineCoderStatus: async () => ({ pipelineId: run.id, sessionId: 'coder-1', state: 'questions', summary: '', questions: ['Qual TTL?'], message: 'Preciso de uma resposta.', canReply: true }),
+    })
+    render(<App backend={backend} />)
+    await user.type(await screen.findByLabelText('Caminho da pasta'), '/Users/dev/api-faturas')
+    await user.click(screen.getByRole('button', { name: 'Abrir projeto' }))
+    await user.click(within(screen.getByRole('navigation', { name: 'Navegação principal' })).getByRole('button', { name: 'Pipelines' }))
+    const panelToggle = screen.getByRole('button', { name: 'Painel lateral' })
+    if (panelToggle.getAttribute('aria-expanded') === 'true') await user.click(panelToggle)
+    const talk = await screen.findByRole('region', { name: 'O Coder tem perguntas' })
+    await user.type(within(talk).getByLabelText('Resposta à pergunta 1'), '90 dias')
+    await user.click(within(talk).getByRole('button', { name: 'Responder ao Coder' }))
+    await waitFor(() => expect(replyToPipelineCoder).toHaveBeenCalledWith(expect.objectContaining({ pipelineId: 'pipeline-1', text: '1. Qual TTL?\n   90 dias' })))
+    await waitFor(() => expect(prompt).toHaveBeenCalledWith('coder-1', 'Respostas da pessoa:\n1. Qual TTL?\n   90 dias'))
+    expect(panelToggle).toHaveAttribute('aria-expanded', 'true')
+  })
+
   it('creates an authoring pipeline from Discovery without manual stage advancement', async () => {
     const user = userEvent.setup()
     const { backend } = createFakeBackend()

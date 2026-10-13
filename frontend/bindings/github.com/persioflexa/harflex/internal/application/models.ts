@@ -463,6 +463,28 @@ export interface ChatProjectDTO {
     "total": number;
 }
 
+/**
+ * CoderStatusDTO says where the Coder of a work stands, for the Code bench.
+ */
+export interface CoderStatusDTO {
+    "pipelineId": string;
+    "sessionId": string;
+
+    /**
+     * none, working, done, questions, unfinished, stopped
+     */
+    "state": string;
+    "summary": string;
+    "questions": string[] | null;
+    "message": string;
+
+    /**
+     * CanReply: the conversation takes another message. When it cannot (a CLI run that ended), an answer opens a new
+     * Coder round in the same private copy, with the questions and the answer.
+     */
+    "canReply": boolean;
+}
+
 export interface CreateAuthoringPipelineInput {
     "workspaceId": string;
     "requestId": string;
@@ -1117,6 +1139,15 @@ export interface ReopenPipelineCodeReviewInput {
     "artifactVersion": number;
     "artifactDigest": string;
     "pipelineRevision": number;
+}
+
+/**
+ * ReplyToPipelineCoderInput is the person's answer to the Coder, and who works on it when a new round is needed.
+ */
+export interface ReplyToPipelineCoderInput {
+    "pipelineId": string;
+    "text": string;
+    "coder": PipelineRoleChoice;
 }
 
 export interface RepositoryDTO {

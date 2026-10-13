@@ -132,6 +132,22 @@ describe('the pull request panel', () => {
     expect(onFinish).toHaveBeenCalledWith('completed')
   })
 
+  it('keeps the stage open while a PR is under review, and offers to conclude once every PR is approved or merged', async () => {
+    const at = new Date().toISOString()
+    const pr = (id: string, state: 'open' | 'approved' | 'merged') => ({ id, pipelineId: 'pipeline-prs', sessionId: 'session-prs', url: `https://github.com/acme/todo/pull/${id}`, title: `PR ${id}`, branch: 'harflex/csv', state, watch: state === 'open', checking: false, timeline: [{ at, kind: 'opened', summary: 'PR aberto' }] })
+    const reviewing = backendWith([github], 'completed')
+    reviewing.listPipelinePullRequests = async () => [pr('7', 'approved'), pr('9', 'open')]
+    show(reviewing)
+    expect(await within(panel()).findByText(/Os PRs estão em revisão\. A cada hora a IA confere/)).toBeInTheDocument()
+    expect(within(panel()).queryByRole('button', { name: 'Concluir PRs' })).not.toBeInTheDocument()
+    cleanup()
+    const done = backendWith([github], 'completed')
+    done.listPipelinePullRequests = async () => [pr('7', 'approved'), pr('9', 'merged')]
+    show(done)
+    expect(await within(panel()).findByText('Todos os PRs foram aprovados ou mergeados.')).toBeInTheDocument()
+    expect(within(panel()).getByRole('button', { name: 'Concluir PRs' })).toBeInTheDocument()
+  })
+
   it('follows the agent of a pipeline that finished before the stage existed, so it can be concluded', async () => {
     const user = userEvent.setup()
     const legacy = pipeline({ currentStage: '', stageStatus: { ...approved } })

@@ -259,7 +259,7 @@ func TestPipelineCoderPersistsSelectedAPIModelFromFreshCatalog(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	run, err = s.CompletePipelineCode(run.ID)
+	run, err = coderSaidDone(t, s, run.ID).CompletePipelineCode(run.ID)
 	if err != nil || run.CurrentStage != "code" || run.StageStatus["code"] != "waiting_user" {
 		t.Fatalf("API Code did not wait for human review: %+v %v", run, err)
 	}

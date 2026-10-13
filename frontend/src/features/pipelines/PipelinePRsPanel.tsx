@@ -75,6 +75,9 @@ export function PipelinePRsPanel({ backend, backends, run, workspaceId, defaultB
   const recorded = pullRequests.length > 0
   const watching = pullRequests.some(item => item.watch && item.state === 'open')
   const merged = pullRequests.some(item => item.state === 'merged')
+  // The work is finished when every PR is approved or merged; the stage then ends by itself.
+  const allDone = recorded && pullRequests.every(item => item.state === 'approved' || item.state === 'merged')
+  const reviewing = pullRequests.some(item => item.state === 'open')
   // The road from the approved patch to a merged PR; each step lights up as it happens.
   const pushed = recorded || finished
   const steps: { label: string; state: 'done' | 'now' | 'next' }[] = [
@@ -82,8 +85,8 @@ export function PipelinePRsPanel({ backend, backends, run, workspaceId, defaultB
     { label: t('Branch e commit'), state: pushed ? 'done' : applied && working ? 'now' : 'next' },
     { label: 'Push', state: pushed ? 'done' : 'next' },
     { label: t('PR aberto'), state: recorded ? 'done' : finished ? 'now' : 'next' },
-    { label: t('Em revisão'), state: merged ? 'done' : watching ? 'now' : 'next' },
-    { label: t('Mergeado'), state: merged ? 'done' : 'next' },
+    { label: t('Em revisão'), state: allDone ? 'done' : watching || reviewing ? 'now' : 'next' },
+    { label: t('Aprovado ou mergeado'), state: allDone ? 'done' : merged ? 'now' : 'next' },
   ]
   // A later step done means the earlier ones are too.
   const lastDone = steps.map(step => step.state).lastIndexOf('done')
@@ -138,13 +141,13 @@ export function PipelinePRsPanel({ backend, backends, run, workspaceId, defaultB
         <button type="button" className="touch-target text-button" onClick={() => setProfileModelOnly(true)} disabled={pending || working}>{t('Usar o modelo do perfil')}{profileModel ? ` (${profileModel})` : ''}</button>
       </> : profileModel && <p className="muted pipeline-prs-model">{t('Modelo:')} <span className="mono">{profileModel}</span>{t(', o configurado no perfil. Para usar outro neste projeto, escolha-o em Provedor e modelo por fase.')}</p>}
     </>}
-    {hasAgentRun && <p className={`pipeline-prs-status${finished ? ' is-done' : ''}`} role="status">{finished ? t('A IA terminou. Leia o relatório na conversa e conclua a etapa.') : working ? t('A IA está trabalhando nos PRs. Acompanhe na conversa.') : activity?.status === 'failed' ? t('A última execução parou por um erro. Veja a conversa ou comece outra.') : activity?.status === 'cancelled' ? t('A última execução foi cancelada. Você pode começar outra.') : t('Há uma conversa dos PRs. Abra para continuar.')}</p>}
+    {hasAgentRun && <p className={`pipeline-prs-status${finished ? ' is-done' : ''}`} role="status">{finished && reviewing ? t('Os PRs estão em revisão. A cada hora a IA confere a revisão e os checks e corrige os apontamentos; a etapa termina sozinha quando todos forem aprovados ou mergeados.') : finished && allDone ? t('Todos os PRs foram aprovados ou mergeados.') : finished ? t('A IA terminou. Leia o relatório na conversa e conclua a etapa.') : working ? t('A IA está trabalhando nos PRs. Acompanhe na conversa.') : activity?.status === 'failed' ? t('A última execução parou por um erro. Veja a conversa ou comece outra.') : activity?.status === 'cancelled' ? t('A última execução foi cancelada. Você pode começar outra.') : t('Há uma conversa dos PRs. Abra para continuar.')}</p>}
     {openError && <p className="form-error" role="alert">{openError}</p>}
     {configured && !configuredId && eligible.length > 0 && <p className="project-warning" role="status">{t('O executor escolhido para PRs ({name}) não está disponível agora; a fase parte do padrão. Ajuste em "Provedor e modelo por fase".', { name: configuredName })}</p>}
     <div className="pipeline-actions">
       {hasAgentRun && onOpenSession && <button type="button" className="touch-target secondary-button" onClick={() => void openConversation()} disabled={pending}><MessageSquare aria-hidden="true" />{t('Abrir a conversa dos PRs')}</button>}
       <button type="button" className="touch-target primary-button" onClick={() => void approveAndOpen()} disabled={pending || working || applying || !backendId || (!!configuredModel && !selection)}><GitPullRequest aria-hidden="true" />{applying ? t('Aplicando o patch…') : hasAgentRun ? t('Pedir outra rodada à IA') : applied ? t('Abrir PRs com a IA') : t('Aprovar e abrir os PRs')}</button>
-      {finished && <button type="button" className="touch-target primary-button" onClick={() => onFinish('completed')} disabled={pending}><Check aria-hidden="true" />{t('Concluir PRs')}</button>}
+      {finished && !reviewing && <button type="button" className="touch-target primary-button" onClick={() => onFinish('completed')} disabled={pending}><Check aria-hidden="true" />{t('Concluir PRs')}</button>}
     </div>
     <PullRequestCards backend={backend} pipelineId={run.id} permissionProfile={permissionProfile} permissionControl={permissionControl} />
     {!skipping ? <button type="button" className="touch-target text-button pipeline-skip" onClick={() => setSkipping(true)} disabled={pending || working}>{t('Pular os PRs')}</button> : <div className="pipeline-skip-confirm">

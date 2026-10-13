@@ -89,6 +89,7 @@ var errorCodes = []struct {
 	{ErrPipelineCodeSnapshotUnavailable, "pipeline_code_snapshot_unavailable"},
 	{ErrPipelineCodeSessionClosed, "pipeline_code_session_closed"},
 	{ErrPipelineCodeNotApplied, "pipeline_code_not_applied"},
+	{ErrPipelineCodeNotFinished, "pipeline_code_not_finished"},
 	{ErrPullRequestWatchNeedsFullAccess, "pull_request_watch_needs_full_access"},
 	{ErrPullRequestNotFound, "pull_request_not_found"},
 	{ErrPipelineQABusy, "pipeline_qa_busy"},

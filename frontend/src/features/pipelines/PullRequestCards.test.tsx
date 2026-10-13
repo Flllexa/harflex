@@ -22,7 +22,7 @@ it('turns the review watch on and shows what it will do', async () => {
   expect(toggle).toHaveAttribute('aria-checked', 'false')
   await userEvent.click(toggle)
   expect(backend.setPullRequestWatch).toHaveBeenCalledWith('pr-1', true)
-  expect(await screen.findByText(/A cada 10 minutos a IA confere comentários novos/)).toBeInTheDocument()
+  expect(await screen.findByText(/A cada hora a IA confere a revisão e os checks/)).toBeInTheDocument()
   expect(screen.getByText('Vigia da revisão ligada')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Conferir agora' })).toBeEnabled()
 })
@@ -49,4 +49,13 @@ it('shows a merged PR without the watch and refreshes when the backend says some
   await waitFor(() => expect(screen.queryByRole('switch', { name: 'Vigiar revisão' })).not.toBeInTheDocument())
   expect(screen.getByText('Mergeado')).toBeInTheDocument()
   expect(screen.getByText('Corrigi os apontamentos e o PR foi mergeado')).toBeInTheDocument()
+})
+
+it('shows a PR approved by the review, with the watch over', async () => {
+  const { backend } = createFakeBackend()
+  backend.listPipelinePullRequests = async () => [pr({ state: 'approved', watch: false, timeline: [...pr().timeline, { at, kind: 'approved', summary: 'Aprovado depois de corrigir 3 apontamentos' }] })]
+  render(<PullRequestCards backend={backend} pipelineId="pipe" permissionProfile="full_access" />)
+  expect(await screen.findByText('Aprovado')).toBeInTheDocument()
+  expect(screen.getByText('Aprovado depois de corrigir 3 apontamentos')).toBeInTheDocument()
+  expect(screen.queryByRole('switch', { name: 'Vigiar revisão' })).not.toBeInTheDocument()
 })

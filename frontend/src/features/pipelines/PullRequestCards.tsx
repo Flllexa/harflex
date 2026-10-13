@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { CircleAlert, CircleCheck, CircleDot, Eye, EyeOff, GitMerge, GitPullRequest, GitPullRequestClosed, LoaderCircle, MessageSquareReply, RefreshCw, ShieldAlert, Wrench } from 'lucide-react'
+import { BadgeCheck, CircleAlert, CircleCheck, CircleDot, Eye, EyeOff, GitMerge, GitPullRequest, GitPullRequestClosed, LoaderCircle, MessageSquareReply, RefreshCw, ShieldAlert, Wrench } from 'lucide-react'
 import { errorMessage, type Backend, type PullRequest } from '../../lib/backend'
 import { localeTag, useT } from '../../i18n'
 import { openExternal } from '../../lib/desktop'
@@ -13,8 +13,8 @@ type Props = {
   permissionControl?: ReactNode
 }
 
-const stateIcons = { open: GitPullRequest, merged: GitMerge, closed: GitPullRequestClosed }
-const eventIcons: Record<string, typeof CircleDot> = { opened: GitPullRequest, watch_on: Eye, watch_off: EyeOff, checking: RefreshCw, fixed: Wrench, quiet: CircleCheck, merged: GitMerge, closed: GitPullRequestClosed, needs_access: ShieldAlert, error: CircleAlert }
+const stateIcons = { open: GitPullRequest, approved: BadgeCheck, merged: GitMerge, closed: GitPullRequestClosed }
+const eventIcons: Record<string, typeof CircleDot> = { opened: GitPullRequest, watch_on: Eye, watch_off: EyeOff, checking: RefreshCw, fixed: Wrench, quiet: CircleCheck, approved: BadgeCheck, merged: GitMerge, closed: GitPullRequestClosed, needs_access: ShieldAlert, error: CircleAlert }
 const time = (value?: string) => value ? new Date(value).toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' }) : ''
 
 /** The pull requests of a pipeline, kept fresh by the backend's change event and a slow poll. */
@@ -36,7 +36,7 @@ export function usePullRequests(backend: Backend, pipelineId: string) {
 /** The pull requests the PRs conversation opened, each with its review watch and what it has done. */
 export function PullRequestCards({ backend, pipelineId, permissionProfile, permissionControl }: Props) {
   const t = useT()
-  const stateLabels = { open: t('Aberto'), merged: t('Mergeado'), closed: t('Fechado') }
+  const stateLabels = { open: t('Aberto'), approved: t('Aprovado'), merged: t('Mergeado'), closed: t('Fechado') }
   const { items, setItems, error, setError } = usePullRequests(backend, pipelineId)
   const [busy, setBusy] = useState<string>()
 
@@ -65,7 +65,7 @@ export function PullRequestCards({ backend, pipelineId, permissionProfile, permi
         </header>
         {open && pr.watch && <div className={`pr-watch-status${pr.checking ? ' is-checking' : ''}`}>
           {pr.checking ? <><LoaderCircle className="pr-spin" aria-hidden="true" /><span>{t('A IA está lendo os comentários e corrigindo o que for pedido…')}</span></>
-            : <><Eye aria-hidden="true" /><span>{pr.nextCheckAt ? t('A cada 10 minutos a IA confere comentários novos, corrige no mesmo branch, roda os testes, faz push e responde. Nunca faz merge. Próxima conferência às {time}.', { time: time(pr.nextCheckAt) }) : t('A cada 10 minutos a IA confere comentários novos, corrige no mesmo branch, roda os testes, faz push e responde. Nunca faz merge. Conferindo em instantes.')}</span></>}
+            : <><Eye aria-hidden="true" /><span>{pr.nextCheckAt ? t('A cada hora a IA confere a revisão e os checks, corrige os apontamentos no mesmo branch, roda os testes, faz push e responde, até o PR ser aprovado ou mergeado. Nunca faz merge. Próxima conferência às {time}.', { time: time(pr.nextCheckAt) }) : t('A cada hora a IA confere a revisão e os checks, corrige os apontamentos no mesmo branch, roda os testes, faz push e responde, até o PR ser aprovado ou mergeado. Nunca faz merge. Conferindo em instantes.')}</span></>}
           <button type="button" className="touch-target text-button" disabled={busy === pr.id || pr.checking || !full} onClick={() => void act(pr.id, () => backend.checkPullRequestNow(pr.id))}><MessageSquareReply aria-hidden="true" />{t('Conferir agora')}</button>
         </div>}
         {open && pr.watch && !full && <div className="pr-watch-access" role="alert"><ShieldAlert aria-hidden="true" /><p>{t('Para a IA corrigir e fazer push sozinha, o projeto precisa de Acesso total. Ative aqui:')}</p>{permissionControl}</div>}

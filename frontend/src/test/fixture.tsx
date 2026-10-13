@@ -25,6 +25,13 @@ const backend = foundation ?? (scenario === 'approval-cancel' ? createApprovalRe
   : scenario === 'replay' || scenario === 'replay-outage' ? createReplayBackend(scenario === 'replay-outage') : fake.backend)
 if (scenario === 'conversational-design') installPipelineDesignFixture(backend, sessionStorage, undefined, new URLSearchParams(window.location.search).get('demo') === 'todo' ? showcaseDocuments : undefined)
 if (scenario === 'showcase') installShowcase(backend, (new URLSearchParams(window.location.search).get('view') ?? 'code') as ShowcaseView)
+// The Coder stopped to ask, for pictures and checks of the Code bench conversation.
+if (new URLSearchParams(window.location.search).get('coder') === 'questions') {
+  backend.getPipelineStageActivity = async (pipelineId, stage) => ({ pipelineId, workspaceId: 'workspace-1', stage, status: 'completed', phase: '', sessionId: stage === 'code' ? 'coder-session' : '', modelId: 'opus', updatedAt: new Date().toISOString() })
+  backend.getPipelineCoderStatus = async pipelineId => ({ pipelineId, sessionId: 'coder-session', state: 'questions', summary: '', canReply: true,
+    message: 'I read the SPEC and the Plan and started on `app.js`. Two choices change how the list behaves, so I stopped before guessing.',
+    questions: ['Should done tasks move to the bottom of the list, or keep the order they were added?', 'Is there a limit on the number of tasks? If so, what should happen when it is reached?'] })
+}
 // A newer release, for pictures and checks of the update button beside the logo.
 if (new URLSearchParams(window.location.search).get('update') === 'available') backend.checkForUpdate = async () => ({ currentVersion: '0.2.4', available: true, version: '0.2.5', pageUrl: 'https://github.com/Flllexa/harflex/releases/tag/v0.2.5', canInstall: true })
 if (scenario === 'approval-cancel') {

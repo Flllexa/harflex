@@ -110,6 +110,9 @@ export function CloseTerminal(id: string): $CancellablePromise<void> {
     return $Call.ByID(2218649031, id);
 }
 
+/**
+ * CompletePipelineCode verifies the Coder's change and offers it for review, once the Coder said it finished.
+ */
 export function CompletePipelineCode(pipelineID: string): $CancellablePromise<$models.PipelineDTO> {
     return $Call.ByID(2422352353, pipelineID);
 }
@@ -271,6 +274,13 @@ export function GetParentDelegation(childSessionID: string): $CancellablePromise
 
 export function GetPipeline(id: string): $CancellablePromise<$models.PipelineDTO> {
     return $Call.ByID(1165862041, id);
+}
+
+/**
+ * GetPipelineCoderStatus reads the latest Coder conversation of a work: working, done, asking, or stopped partway.
+ */
+export function GetPipelineCoderStatus(pipelineID: string): $CancellablePromise<$models.CoderStatusDTO> {
+    return $Call.ByID(1918661544, pipelineID);
 }
 
 export function GetPipelineForSession($in: $models.GetPipelineForSessionInput): $CancellablePromise<$models.PipelineDTO> {
@@ -558,6 +568,15 @@ export function RemoveKnowledge($in: $models.KnowledgeDocumentInput): $Cancellab
 
 export function ReopenPipelineCodeReview($in: $models.ReopenPipelineCodeReviewInput): $CancellablePromise<$models.PipelineDTO> {
     return $Call.ByID(2404219947, $in);
+}
+
+/**
+ * ReplyToPipelineCoder prepares the person's answer for the Coder. The conversation that asked takes it when it can;
+ * otherwise a new Coder round opens in the same private copy, told what was asked and answered. The caller sends the
+ * returned prompt in the returned session, so the run shows like any other.
+ */
+export function ReplyToPipelineCoder($in: $models.ReplyToPipelineCoderInput): $CancellablePromise<$models.PipelineSessionDTO> {
+    return $Call.ByID(3621007145, $in);
 }
 
 export function RequestAuthoringStageRevision($in: $models.GenerateAuthoringStageInput): $CancellablePromise<$models.AuthoringStageDTO> {

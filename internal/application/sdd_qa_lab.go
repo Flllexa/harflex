@@ -438,7 +438,12 @@ func (s *Service) runQALoop(pipelineID string, coder *PipelineRoleChoice, evalua
 				s.qaLoopFailed(pipelineID, round, sessionID, "O Coder não terminou: "+err.Error())
 				return
 			}
-			if _, err := s.CompletePipelineCode(pipelineID); err != nil {
+			// A Coder that stopped to ask hands the loop back to the person with its questions.
+			if status, err := s.GetPipelineCoderStatus(pipelineID); err == nil && status.State == "questions" {
+				s.qaLoopFailed(pipelineID, round, sessionID, "O Coder precisa de respostas antes de continuar: "+strings.Join(status.Questions, " · "))
+				return
+			}
+			if _, err := s.completePipelineCode(pipelineID, false); err != nil {
 				s.qaLoopFailed(pipelineID, round, sessionID, "O Coder não deixou mudanças verificáveis: "+err.Error())
 				return
 			}

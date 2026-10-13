@@ -6,6 +6,7 @@ import { AuthoringWorkbench } from './AuthoringWorkbench'
 import { PipelineRoleModelPicker } from './PipelineRoleModelPicker'
 import { PipelineExecutionReview } from './PipelineExecutionReview'
 import { CodeLiveRun, codeIsRunning, useAutoVerifyCode, useCodeRun } from './CodeLiveRun'
+import { CoderTalk, coderNeedsPerson, useCoderStatus } from './CoderTalk'
 import { PipelineQALab, type RoleDefaults } from './PipelineQALab'
 import { PipelineBench } from './bench/PipelineBench'
 import { CodeBench } from './bench/CodeBench'
@@ -26,7 +27,7 @@ function unfinishedRunText(translate: ReturnType<typeof useT>): Record<PipelineR
 }
 
 export type PipelineCreationDraft = { discovery: string; open: boolean; newWorkRequest: number; intent?: { workspaceId: string; discovery: string; requestId: string } }
-type Props = { backend: Backend; backends: BackendOption[]; settingsStatus?: SettingsReadState; preferredBackendId?: string; preferredModelBackendId?: string; preferredModelId?: string; workspaceId?: string; selectedPipeline?: Pipeline; creationDraft?: PipelineCreationDraft; onCreationDraftChange?: (workspaceId: string, draft: PipelineCreationDraft) => void; newWorkRequest?: number; initialDiscovery?: string; initialDiscoveryRequestId?: string; onInitialDiscoveryConsumed?: (requestId: string) => void; viewStage?: PipelineStage; viewRequestId?: number; onSelectPipeline: (run?: Pipeline) => void; onProjects: () => void; onSettings?: () => void; onStartRole: (pipelineId: string, backendId: string, role: PipelineRole, selection: PipelineRoleModelSelection | undefined, confirmWorkspaceCopy: boolean) => Promise<void>; /** Opens an existing conversation, such as the one where the agent opens the pull requests. */ onOpenSession?: (sessionId: string, draft?: string) => Promise<void>; /** Shows a background run's conversation, such as the QA fix loop's, in the activity panel without leaving this screen. */ onFollowSession?: (sessionId: string) => void; /** The project's permission profile and the menu that changes it, offered next to the pull request step. */ permissionProfile?: string; permissionControl?: ReactNode; /** Opens MCP Servers, where GitHub or Bitbucket is connected for the PRs. */ onMCPServers?: () => void; /** The stage whose screen is showing, for the stage bar to mark. */ onShownStage?: (stage?: PipelineStage) => void }
+type Props = { backend: Backend; backends: BackendOption[]; settingsStatus?: SettingsReadState; preferredBackendId?: string; preferredModelBackendId?: string; preferredModelId?: string; workspaceId?: string; selectedPipeline?: Pipeline; creationDraft?: PipelineCreationDraft; onCreationDraftChange?: (workspaceId: string, draft: PipelineCreationDraft) => void; newWorkRequest?: number; initialDiscovery?: string; initialDiscoveryRequestId?: string; onInitialDiscoveryConsumed?: (requestId: string) => void; viewStage?: PipelineStage; viewRequestId?: number; onSelectPipeline: (run?: Pipeline) => void; onProjects: () => void; onSettings?: () => void; onStartRole: (pipelineId: string, backendId: string, role: PipelineRole, selection: PipelineRoleModelSelection | undefined, confirmWorkspaceCopy: boolean) => Promise<void>; /** Sends the person's answer to the Coder of a work and follows its run. */ onReplyCoder?: (pipelineId: string, text: string, coder?: { backendId: string }) => Promise<void>; /** Opens an existing conversation, such as the one where the agent opens the pull requests. */ onOpenSession?: (sessionId: string, draft?: string) => Promise<void>; /** Shows a background run's conversation, such as the QA fix loop's, in the activity panel without leaving this screen. */ onFollowSession?: (sessionId: string) => void; /** The project's permission profile and the menu that changes it, offered next to the pull request step. */ permissionProfile?: string; permissionControl?: ReactNode; /** Opens MCP Servers, where GitHub or Bitbucket is connected for the PRs. */ onMCPServers?: () => void; /** The stage whose screen is showing, for the stage bar to mark. */ onShownStage?: (stage?: PipelineStage) => void }
 const labels: Record<PipelineStage, string> = { discovery: 'Discovery', spec: 'Spec', plan: 'Plan', code: 'Code', eval: 'QA', prs: 'PRs' }
 const editable = new Set<PipelineStage>(['discovery', 'spec', 'plan'])
 
@@ -50,6 +51,8 @@ function PipelineRoleControls(props: {
   onBackendChange: (id: string) => void
   onStart: (role: PipelineRole, backendId: string, selection: PipelineRoleModelSelection, confirmWorkspaceCopy: boolean) => void
   onComplete: (role: PipelineRole) => void
+  /** Code is checked only once the Coder said it finished. */
+  canComplete?: boolean
   onSettings?: () => void
 }) {
   const t = useT()
@@ -58,7 +61,7 @@ function PipelineRoleControls(props: {
   return <PipelineRoleExecutionControls {...props} />
 }
 
-function PipelineRoleExecutionControls({ run, backend, backends, workspaceId, settingsStatus, defaultModelBackendId, defaultModelId, phaseConfigured, phaseNote, selectedBackendId, selectedBackend, pending, onBackendChange, onStart, onComplete, onSettings }: {
+function PipelineRoleExecutionControls({ run, backend, backends, workspaceId, settingsStatus, defaultModelBackendId, defaultModelId, phaseConfigured, phaseNote, selectedBackendId, selectedBackend, pending, onBackendChange, onStart, onComplete, canComplete = true, onSettings }: {
   run: Pipeline
   backend: Backend
   backends: BackendOption[]
@@ -74,6 +77,7 @@ function PipelineRoleExecutionControls({ run, backend, backends, workspaceId, se
   onBackendChange: (id: string) => void
   onStart: (role: PipelineRole, backendId: string, selection: PipelineRoleModelSelection, confirmWorkspaceCopy: boolean) => void
   onComplete: (role: PipelineRole) => void
+  canComplete?: boolean
   onSettings?: () => void
 }) {
   const t = useT()
@@ -130,7 +134,7 @@ function PipelineRoleExecutionControls({ run, backend, backends, workspaceId, se
     {isCode && copyPreviewState === 'loading' && <p className="muted" role="status">{t('Lendo a prévia da raiz que será copiada para Code…')}</p>}
     {isCode && copyPreviewState === 'error' && <div className="inline-error" role="alert"><p>{copyPreviewError || errorMessage({ cause: { code: 'pipeline_execution_snapshot_too_large' } })}</p><button type="button" className="touch-target secondary-button" onClick={() => { setCopyPreviewState('loading'); setCopyPreviewError(''); void backend.previewPipelineCodeWorkspace(workspaceId ?? '').then(result => { setCopyPreview(result); setCopyPreviewState('ready') }).catch(failure => { setCopyPreviewError(errorMessage(failure)); setCopyPreviewState('error') }) }}>{t('Atualizar prévia')}</button></div>}
     {isCode && copyPreviewState === 'ready' && copyPreview && <section className="authoring-copy-preview" aria-label={t('Prévia da cópia isolada')}><strong>{copyPreview.isGit ? t('Snapshot Git limpo') : t('Cópia local confirmada')}</strong><p className="muted">{t('{count} arquivos · {size} MB. A cópia fica privada e a raiz original não é alterada durante Code ou QA.', { count: copyPreview.fileCount.toLocaleString(localeTag()), size: (copyPreview.totalBytes / (1024 * 1024)).toFixed(1) })}</p>{copyPreview.excludedPaths.length > 0 && <details><summary>{t('Itens excluídos ({count})', { count: copyPreview.excludedPaths.length })}</summary><ul>{copyPreview.excludedPaths.map(path => <li key={path} className="mono">{path}</li>)}</ul></details>}{unsafeCopy && <div className="project-warning" role="alert"><p>{t('Estes caminhos não podem entrar na cópia porque escapam da pasta ou são arquivos especiais:')}</p><ul>{copyPreview.unsafePaths.map(path => <li key={path} className="mono">{path}</li>)}</ul></div>}{!copyPreview.isGit && !unsafeCopy && <label className="authoring-confirm"><input type="checkbox" checked={copyConfirmed} onChange={event => setCopyConfirmed(event.target.checked)} disabled={pending} />{t('Confirmo copiar estes arquivos para a execução isolada do modelo selecionado.')}</label>}</section>}
-    {!noAPIBackend && <div className="pipeline-actions"><button type="button" className="touch-target secondary-button" onClick={() => onComplete(role)} disabled={pending}>{isCode ? t('Verificar código') : t('Registrar avaliação')}</button><button type="button" className="touch-target primary-button" onClick={() => selectedModel && onStart(role, selectedBackendId, selectedModel, copyPreview?.isGit ? false : copyConfirmed)} disabled={pending || !selectedBackend || !eligible(selectedBackend) || !selectedModel || !copyReady}>{isCode ? t('Executar Coder') : t('Executar Evaluator')}</button></div>}
+    {!noAPIBackend && <div className="pipeline-actions">{(!isCode || canComplete) && <button type="button" className="touch-target secondary-button" onClick={() => onComplete(role)} disabled={pending}>{isCode ? t('Verificar código') : t('Registrar avaliação')}</button>}<button type="button" className="touch-target primary-button" onClick={() => selectedModel && onStart(role, selectedBackendId, selectedModel, copyPreview?.isGit ? false : copyConfirmed)} disabled={pending || !selectedBackend || !eligible(selectedBackend) || !selectedModel || !copyReady}>{isCode ? t('Executar Coder') : t('Executar Evaluator')}</button></div>}
     {run.artifacts[run.currentStage] && <pre className="mono diff-body">{run.artifacts[run.currentStage].content}</pre>}
   </div>
 }
@@ -198,7 +202,7 @@ function PipelineLegacyCodeReviewRecovery({ backend, run, onPipelineChange }: { 
   </section>
 }
 
-export function PipelinesPage({ backend, backends, settingsStatus = 'ready', preferredBackendId = '', preferredModelBackendId = '', preferredModelId = '', workspaceId, selectedPipeline, creationDraft, onCreationDraftChange, newWorkRequest = 0, initialDiscovery, initialDiscoveryRequestId, onInitialDiscoveryConsumed, viewStage, viewRequestId, onSelectPipeline, onProjects, onSettings, onStartRole, onOpenSession, onFollowSession, permissionProfile, permissionControl, onMCPServers, onShownStage }: Props) {
+export function PipelinesPage({ backend, backends, settingsStatus = 'ready', preferredBackendId = '', preferredModelBackendId = '', preferredModelId = '', workspaceId, selectedPipeline, creationDraft, onCreationDraftChange, newWorkRequest = 0, initialDiscovery, initialDiscoveryRequestId, onInitialDiscoveryConsumed, viewStage, viewRequestId, onSelectPipeline, onProjects, onSettings, onStartRole, onReplyCoder, onOpenSession, onFollowSession, permissionProfile, permissionControl, onMCPServers, onShownStage }: Props) {
   const t = useT()
   const [items, setItems] = useState<Pipeline[]>([])
   const [discovery, setDiscovery] = useState(creationDraft?.discovery ?? '')
@@ -267,11 +271,31 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
   // QA's failures went back to Code and the fix loop stopped before its Coder round (the app closed, or the round failed to start).
   const lastReview = [...(run?.executionReviews ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
   const resumable = !!run && !fixing && run.currentStage === 'code' && run.stageStatus.code === 'active' && lastReview?.stage === 'eval' && lastReview.decision === 'request_revision'
+  // The PRs stage ends by itself when every PR is approved or merged: a change to the PRs reads the work again.
+  const runId = run?.id, runRevision = run?.revision
+  useEffect(() => {
+    if (!runId) return
+    let live = true
+    const stop = backend.onPullRequestsChange(changed => {
+      if (changed !== runId) return
+      backend.getPipeline(runId).then(updated => { if (live && updated.revision !== runRevision) onSelectPipeline(updated) }, () => undefined)
+    })
+    return () => { live = false; stop() }
+  }, [backend, runId, runRevision])
+  const codeRun = useCodeRun(backend, run)
+  useAutoVerifyCode(backend, run, codeRun, updated => { onSelectPipeline(updated); setNotice(t('Code salvo para revisão. Aprove a versão para liberar o QA.')) })
+  const coderStatus = useCoderStatus(backend, run, `${codeRun?.sessionId ?? ''}:${codeRun?.status ?? ''}`)
+  const coderDone = coderStatus?.state === 'done'
+  const codeWaiting = !!run && run.currentStage === 'code' && run.stageStatus.code === 'waiting_user'
+  // A version the Coder did not say it finished goes back as a revision request carrying the person's answer.
+  const coderTalk = run && coderNeedsPerson(coderStatus) && !codeIsRunning(codeRun) && !fixing
+    ? <CoderTalk status={coderStatus!} disabled={pending} review={codeWaiting} onReply={codeWaiting ? requestCodeRevision : replyToCoder} />
+    : undefined
   const executionView = !run || recoverLegacyCodeReview || (run.currentStage !== 'code' && run.currentStage !== 'eval') ? null
     : run.currentStage === 'eval' || fixing || resumable ? <PipelineQALab key={run.id} resumable={resumable} backend={backend} backends={backends} run={run} workspaceId={workspaceId} roleDefaults={roleDefaults} onPipelineChange={onSelectPipeline} onOpenSession={sessionId => onOpenSession?.(sessionId)} onLoopChange={setQALoop} onSettings={onSettings} onRoleChosen={saveRoleChoice} />
       : run.stageStatus[run.currentStage] === 'waiting_user' ? <PipelineExecutionReview backend={backend} run={run} stage={run.currentStage} onPipelineChange={onSelectPipeline} />
         : <PipelineRoleControls run={run} backend={backend} backends={backends} workspaceId={workspaceId} settingsStatus={settingsStatus} defaultModelBackendId={roleModelBackendId} defaultModelId={roleModelId} phaseConfigured={phaseModelApplies} phaseNote={phaseNote} choicesReady={choicesReady} selectedBackendId={selectedBackendId} selectedBackend={selectedBackend} pending={pending} onSettings={onSettings}
-                onBackendChange={value => { setBackendChoice(value); setError(undefined) }} onStart={startRole} onComplete={completeRole} />
+                onBackendChange={value => { setBackendChoice(value); setError(undefined) }} onStart={startRole} onComplete={completeRole} canComplete={run.currentStage !== 'code' || coderDone} />
   // Code, QA and PRs of an AI-authored pipeline each have a bench of their own.
   // Discovery, SPEC and Plan chosen in the stage bar open the approved documents, not a bench.
   const documentView = viewStage === 'discovery' || viewStage === 'spec' || viewStage === 'plan'
@@ -286,10 +310,8 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
   const benchMode = !documentView && !!run && run.kind === 'ai_authoring' && !recoverLegacyCodeReview && (run.currentStage === 'code' || run.currentStage === 'eval' || run.currentStage === 'prs' || (run.currentStage === '' && run.stageStatus.code === 'completed'))
   // Outside the benches, the screen shows the documents asked for in the bar, or the current stage.
   useEffect(() => { if (!benchMode) onShownStage?.(documentView ? viewStage : run?.currentStage || undefined) }, [benchMode, documentView, viewStage, run?.currentStage, onShownStage])
-  const codeRun = useCodeRun(backend, run)
-  useAutoVerifyCode(backend, run, codeRun, updated => { onSelectPipeline(updated); setNotice(t('Code salvo para revisão. Aprove a versão para liberar o QA.')) })
-  const codeBenchView = run && <CodeBench backend={backend} run={run} onPipelineChange={onSelectPipeline} live={codeIsRunning(codeRun) ? <CodeLiveRun backend={backend} activity={codeRun!} onOpenSession={sessionId => void onOpenSession?.(sessionId)} /> : undefined} runControls={run.currentStage === 'code' && !fixing && run.stageStatus.code !== 'waiting_user' ? <PipelineRoleControls run={run} backend={backend} backends={backends} workspaceId={workspaceId} settingsStatus={settingsStatus} defaultModelBackendId={roleModelBackendId} defaultModelId={roleModelId} phaseConfigured={phaseModelApplies} phaseNote={phaseNote} choicesReady={choicesReady} selectedBackendId={selectedBackendId} selectedBackend={selectedBackend} pending={pending} onSettings={onSettings}
-                onBackendChange={value => { setBackendChoice(value); setError(undefined) }} onStart={startRole} onComplete={completeRole} /> : undefined} />
+  const codeBenchView = run && <CodeBench backend={backend} run={run} onPipelineChange={onSelectPipeline} talk={coderTalk} approvable={!codeWaiting || (!!coderStatus && coderStatus.state !== 'working' && !coderNeedsPerson(coderStatus))} live={codeIsRunning(codeRun) ? <CodeLiveRun backend={backend} activity={codeRun!} onOpenSession={sessionId => void onOpenSession?.(sessionId)} /> : undefined} runControls={run.currentStage === 'code' && !fixing && run.stageStatus.code !== 'waiting_user' ? <PipelineRoleControls run={run} backend={backend} backends={backends} workspaceId={workspaceId} settingsStatus={settingsStatus} defaultModelBackendId={roleModelBackendId} defaultModelId={roleModelId} phaseConfigured={phaseModelApplies} phaseNote={phaseNote} choicesReady={choicesReady} selectedBackendId={selectedBackendId} selectedBackend={selectedBackend} pending={pending} onSettings={onSettings}
+                onBackendChange={value => { setBackendChoice(value); setError(undefined) }} onStart={startRole} onComplete={completeRole} canComplete={coderDone} /> : undefined} />
   const qaBenchView = !run ? null : run.currentStage === 'eval' || fixing || run.artifacts.eval
     ? <PipelineQALab key={run.id} resumable={resumable} backend={backend} backends={backends} run={run} workspaceId={workspaceId} roleDefaults={roleDefaults} onPipelineChange={onSelectPipeline} onOpenSession={sessionId => onOpenSession?.(sessionId)} onLoopChange={setQALoop} onSettings={onSettings} onRoleChosen={saveRoleChoice} />
     : <p className="bench-empty">{t('A QA começa quando o Code for aprovado.')}</p>
@@ -439,6 +461,24 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
     setPending(true); setError(undefined); setNotice(undefined)
     try { await onStartRole(run.id, backendId, role, selection, confirmWorkspaceCopy) }
     catch (failure) { setError(errorMessage(failure)); setPending(false) }
+  }
+
+  async function replyToCoder(text: string) {
+    if (!run || pending || !onReplyCoder) return
+    setPending(true); setError(undefined); setNotice(undefined)
+    try { await onReplyCoder(run.id, text, selectedBackendId ? { backendId: selectedBackendId } : undefined) }
+    catch (failure) { setError(errorMessage(failure)) }
+    finally { setPending(false) }
+  }
+  async function requestCodeRevision(text: string) {
+    const artifact = run?.artifacts.code
+    if (!run || pending || !artifact?.contentDigest) return
+    setPending(true); setError(undefined); setNotice(undefined)
+    try {
+      onSelectPipeline(await backend.decidePipelineExecutionArtifact({ pipelineId: run.id, requestId: crypto.randomUUID(), stage: 'code', artifactVersion: artifact.version, artifactDigest: artifact.contentDigest, decision: 'request_revision', feedback: text, pipelineRevision: run.revision }))
+      setNotice(t('Resposta registrada. Execute o Coder de novo: ele recebe a sua resposta.'))
+    } catch (failure) { setError(errorMessage(failure)) }
+    finally { setPending(false) }
   }
 
   async function completeRole(role: PipelineRole) {

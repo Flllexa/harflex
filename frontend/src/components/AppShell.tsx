@@ -5,6 +5,7 @@ import { Sidebar, type Destination } from './Sidebar'
 import { CasualSidebar } from './CasualSidebar'
 import { PipelineBar } from './PipelineBar'
 import { useStageActivity } from '../features/pipelines/useStageActivity'
+import { useCoderStatus } from '../features/pipelines/CoderTalk'
 import { stageNames } from '../lib/pipelineStages'
 import { ActivityPanel } from './ActivityPanel'
 import { maxSidePanelWidth, minSidePanelWidth, useSidePanelWidth } from './sidePanelWidth'
@@ -34,6 +35,7 @@ export function AppShell({ initialActivityOpen, workState = 'empty', backend, re
   const [shownStage, setShownStage] = useState<PipelineStage>()
   const stageViewSequence = useRef(0)
   const stageActivity = useStageActivity(backend, currentPipeline)
+  const coderStatus = useCoderStatus(backend, currentPipeline, `${stageActivity?.sessionId ?? ''}:${stageActivity?.status ?? ''}`)
   const preparingDocuments = selected === 'Pipelines' && currentPipeline?.preparationExperience === 'conversational' && ['discovery', 'spec', 'plan'].includes(currentPipeline.currentStage)
   const [newChatPrompt, setNewChatPrompt] = useState('')
   const [workbenchContext, setWorkbenchContext] = useState<WorkbenchContext>({ busy: false, loadingHistory: false, hasDraft: false, historyHasUserMessage: false, readOnly: false, recoveryPrompt: '' })
@@ -219,7 +221,7 @@ export function AppShell({ initialActivityOpen, workState = 'empty', backend, re
           <button type="button" className="touch-target icon-button theme-toggle" aria-label={theme === 'dark' ? t('Mudar para o tema claro') : t('Mudar para o tema escuro')} title={theme === 'dark' ? t('Tema claro') : t('Tema escuro')} onClick={toggleTheme}>{theme === 'dark' ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}</button>
           <button ref={activityTrigger} className="touch-target icon-button side-panel-toggle" aria-label={t('Painel lateral')} title={activityOpen ? t('Fechar painel lateral') : t('Abrir painel lateral (atividade e terminal)')} aria-expanded={activityOpen} aria-controls="side-panel" onClick={() => { if (activityOpen) closeActivity(); else setActivityOpen(true) }}>{activityOpen ? <PanelRightClose aria-hidden="true" /> : <PanelRightOpen aria-hidden="true" />}</button>
         </div>
-        {viewMode === 'professional' && <PipelineBar pipeline={currentPipeline} activity={stageActivity} viewStage={selected === 'Pipelines' && shownStage ? shownStage : stageViewRequest?.pipelineId===currentPipeline?.id ? stageViewRequest?.stage : undefined} onViewStage={stage => { if (!workbenchContext.startingSession && currentPipeline) { setStageViewRequest({requestId:++stageViewSequence.current,pipelineId:currentPipeline.id,workspaceId:currentPipeline.workspaceId,stage}); setSelected('Pipelines') } }} />}
+        {viewMode === 'professional' && <PipelineBar pipeline={currentPipeline} activity={stageActivity} coder={coderStatus} viewStage={selected === 'Pipelines' && shownStage ? shownStage : stageViewRequest?.pipelineId===currentPipeline?.id ? stageViewRequest?.stage : undefined} onViewStage={stage => { if (!workbenchContext.startingSession && currentPipeline) { setStageViewRequest({requestId:++stageViewSequence.current,pipelineId:currentPipeline.id,workspaceId:currentPipeline.workspaceId,stage}); setSelected('Pipelines') } }} />}
       </header>
       {backend ? <Workbench backend={backend} restoreProject={restoreProject} selected={selected} newWorkRequest={newWorkRequest} newChatPrompt={newChatPrompt} viewMode={viewMode} historyOpenRequest={historyRequest} projectOpenRequest={projectRequest} stageViewRequest={stageViewRequest} onNavigate={selectDestination} onActivity={setActivityEvents} onPipeline={setCurrentPipeline} onShownStage={setShownStage} onOpenPipeline={openPipeline} onRequestMode={changeMode} onShowActivity={showActivity} onContextChange={reportWorkbenchContext} /> : <WorkArea selected={selected} workState={workState} />}
     </div>
