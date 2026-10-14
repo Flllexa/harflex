@@ -217,7 +217,7 @@ func connect(ctx context.Context, cfg Config) (*mcp.ClientSession, error) {
 	if err := validate(cfg); err != nil {
 		return nil, err
 	}
-	client := mcp.NewClient(&mcp.Implementation{Name: "Harflex", Version: "0.2.8"}, nil)
+	client := mcp.NewClient(&mcp.Implementation{Name: "Harflex", Version: "0.2.9"}, nil)
 	var transport mcp.Transport
 	if cfg.Transport == "stdio" {
 		cmd := exec.CommandContext(ctx, cfg.Command, cfg.Args...)
