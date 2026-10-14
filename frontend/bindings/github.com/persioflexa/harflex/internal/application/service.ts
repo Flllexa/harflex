@@ -61,6 +61,13 @@ export function CancelBrainstormAttempt($in: $models.CancelBrainstormAttemptInpu
     return $Call.ByID(1455998775, $in);
 }
 
+/**
+ * CancelChatCommand stops a running chat command; its end still arrives as an event.
+ */
+export function CancelChatCommand(runID: string): $CancellablePromise<void> {
+    return $Call.ByID(2606728266, runID);
+}
+
 export function CancelPipelineDesign($in: $models.CancelPipelineDesignInput): $CancellablePromise<$models.PipelineDesignDTO> {
     return $Call.ByID(1059020743, $in);
 }
@@ -631,6 +638,13 @@ export function RevealWorkspace(workspaceID: string): $CancellablePromise<void> 
 
 export function ReviseAuthoringDiscovery($in: $models.ReviseAuthoringDiscoveryInput): $CancellablePromise<$models.PipelineDTO> {
     return $Call.ByID(3908236976, $in);
+}
+
+/**
+ * RunChatCommand starts a command in the chat's project and returns its id at once; the output follows as events.
+ */
+export function RunChatCommand($in: $models.RunChatCommandInput): $CancellablePromise<string> {
+    return $Call.ByID(1684712117, $in);
 }
 
 export function RunScheduleNow(scheduleID: string): $CancellablePromise<$models.ScheduleJobDTO> {

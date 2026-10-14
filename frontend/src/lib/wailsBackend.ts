@@ -1,6 +1,6 @@
 import { Dialogs, Events } from '@wailsio/runtime'
 import { Service } from '../../bindings/github.com/persioflexa/harflex/internal/application'
-import { invalidEventDiagnostic, parse, type Backend, type TerminalOutput } from './backend'
+import { invalidEventDiagnostic, parse, type Backend, type ChatCommandEvent, type TerminalOutput } from './backend'
 import { t } from '../i18n'
 
 // The only module that touches generated bindings; every DTO is validated here.
@@ -42,6 +42,13 @@ export const wailsBackend: Backend = {
   onTerminalOutput: listener => Events.On('harflex:terminal', event => {
     const value = event.data as Partial<TerminalOutput> | undefined
     if (value && typeof value.id === 'string') listener({ id: value.id, data: typeof value.data === 'string' ? value.data : undefined, exited: value.exited === true, code: typeof value.code === 'number' ? value.code : undefined })
+  }),
+  runChatCommand: async (sessionId, command) => { const id = await Service.RunChatCommand({ sessionId, command }); if (typeof id !== 'string' || !id) throw new Error('invalid_command_run'); return id },
+  cancelChatCommand: async runId => { await Service.CancelChatCommand(runId) },
+  onChatCommand: listener => Events.On('harflex:command', event => {
+    const value = event.data as Partial<ChatCommandEvent> | undefined
+    if (!value || typeof value.id !== 'string' || typeof value.sessionId !== 'string') return
+    listener({ id: value.id, sessionId: value.sessionId, text: typeof value.text === 'string' ? value.text : undefined, done: value.done === true, exitCode: typeof value.exitCode === 'number' ? value.exitCode : -1, cancelled: value.cancelled === true, timedOut: value.timedOut === true, truncated: value.truncated === true, durationMs: typeof value.durationMs === 'number' ? value.durationMs : 0, output: typeof value.output === 'string' ? value.output : undefined })
   }),
   getProjectMemory: async workspaceId => parse.projectMemory(await Service.GetProjectMemory(workspaceId)),
   declineProjectMemory: async workspaceId => parse.projectMemory(await Service.DeclineProjectMemory(workspaceId)),

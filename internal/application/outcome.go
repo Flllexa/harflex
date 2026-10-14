@@ -153,6 +153,7 @@ var errorCodes = []struct {
 	{ErrChannelConfigLocked, "channel_config_locked"},
 	{ErrMCPServerNotFound, "mcp_server_not_found"},
 	{ErrMCPConnectionFailed, "mcp_connection_failed"},
+	{ErrChatCommandNotFound, "chat_command_not_found"},
 	{ErrNoUpdateAvailable, "no_update_available"},
 	{ErrUpdateNotInstallable, "update_not_installable"},
 	{ErrUpdateNotWritable, "update_not_writable"},

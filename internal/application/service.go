@@ -71,6 +71,7 @@ type Service struct {
 	audit                        AuditExporter
 	emit                         func(string, any)
 	update                       updateState
+	commands                     chatCommands
 	closing                      bool
 	activeCalls                  int
 	drained                      chan struct{}

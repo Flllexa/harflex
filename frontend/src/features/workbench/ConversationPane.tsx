@@ -10,6 +10,7 @@ import type { AppMode } from '../../state/appMode'
 import { requestOf, splitContinuation } from './continuation'
 import { splitPipelineChoice, type PipelineChoice } from './pipelineChoice'
 import { PipelineChoiceCard } from './PipelineChoiceCard'
+import { CommandRunnerContext, type CommandRunner } from '../../components/commandRunner'
 import { t, useT } from '../../i18n'
 
 const failureCopy: Record<string, string> = {
@@ -81,6 +82,8 @@ type Props = {
   onContinue?: (text: string) => void
   /** The person's answer to "how do you want to carry this" when the agent offered a pipeline. */
   onPipelineChoice?: (choice: PipelineChoice) => void
+  /** Runs the shell commands of the agent's code blocks, and sends their result back to it. */
+  commands?: CommandRunner
   viewMode: AppMode
   cancelPending?: boolean
   delegationParentId?: string
@@ -103,7 +106,7 @@ type Props = {
 
 const composerMaxHeight = 200
 
-export function ConversationPane({ state, loadingHistory, permissionControl, viewMode, cancelPending = false, delegationParentId, delegation, queuedTask, onPrepareDelegatedTask, onOpenParent, onDraft, onPrompt, onResolve, onCancel, onRetry, onNewWork, onContinue, onPipelineChoice, backendLabel, modelBar, switchModel, projectControl }: Props) {
+export function ConversationPane({ state, loadingHistory, permissionControl, viewMode, cancelPending = false, delegationParentId, delegation, queuedTask, onPrepareDelegatedTask, onOpenParent, onDraft, onPrompt, onResolve, onCancel, onRetry, onNewWork, onContinue, onPipelineChoice, commands, backendLabel, modelBar, switchModel, projectControl }: Props) {
   const t = useT()
   const draft = state.draft
   const running = state.activeRun === 'running'
@@ -157,7 +160,7 @@ export function ConversationPane({ state, loadingHistory, permissionControl, vie
     {delegation && <p className="continuity-note muted">{t('Subagente: {budget}. A espera por aprovação não conta; tentativas interrompidas contam. Não é limite de custo ou tokens.', { budget: delegationBudgetText(delegation) })}{exhausted ? t(' Limite atingido: revise o histórico antes de delegar novamente.') : ''}</p>}
     {state.messages.length === 0
       ? <div className="empty-state"><p>{viewMode === 'casual' ? t('Nova conversa') : t('Nenhuma conversa iniciada')}</p>{viewMode !== 'casual' && <span className="muted">{t('O trabalho começa com uma conversa.')}</span>}</div>
-      : <ol ref={log} className="conversation-log" aria-label={t('Conversa')} onScroll={trackScroll}>
+      : <CommandRunnerContext.Provider value={commands}><ol ref={log} className="conversation-log" aria-label={t('Conversa')} onScroll={trackScroll}>
         {state.messages.map((item, index) => {
           const reply = item.kind === 'assistant' ? splitPipelineChoice(item.text) : undefined
           // The choice is open only while nothing came after it: once the person answers, the answer is in the conversation.
@@ -172,7 +175,7 @@ export function ConversationPane({ state, loadingHistory, permissionControl, vie
             </>}
           </li>
         })}
-      </ol>}
+      </ol></CommandRunnerContext.Provider>}
     {state.pendingApprovals.length > 0 && <div className="approval-stack">{state.pendingApprovals.map(approval => <ApprovalCard key={approval.approvalId} approval={approval} disabled={state.readOnly || state.calling || state.connectionState === 'degraded'} onResolve={allow => onResolve(approval.approvalId, allow)} />)}</div>}
     <div className="composer-meta">
       {!emptyCasual && <div className={`run-status${liveWork ? ' run-status-active' : ''}`} role="status" aria-live="polite" aria-atomic="true">

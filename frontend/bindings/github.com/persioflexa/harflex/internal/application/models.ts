@@ -454,6 +454,26 @@ export interface ChannelMessageDTO {
 }
 
 /**
+ * ChatCommandEventDTO is one chunk of a chat command's output, or its end.
+ */
+export interface ChatCommandEventDTO {
+    "id": string;
+    "sessionId": string;
+    "text"?: string;
+    "done": boolean;
+    "exitCode": number;
+    "cancelled": boolean;
+    "timedOut": boolean;
+    "truncated": boolean;
+    "durationMs": number;
+
+    /**
+     * Output is the whole output (up to 1 MiB), sent with the end.
+     */
+    "output"?: string;
+}
+
+/**
  * ChatProjectDTO is one project of the Casual sidebar with its most recent conversations. Total counts the project's
  * conversations, so the sidebar can offer the rest; pinned ones are always included.
  */
@@ -1201,6 +1221,11 @@ export interface ReviseAuthoringDiscoveryInput {
     "expectedRevision": number;
     "expectedVersion": number;
     "discovery": string;
+}
+
+export interface RunChatCommandInput {
+    "sessionId": string;
+    "command": string;
 }
 
 export interface RunResultDTO {

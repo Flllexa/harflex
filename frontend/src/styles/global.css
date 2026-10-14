@@ -1090,6 +1090,20 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: var
 .md-copy svg { width: 14px; height: 14px; }
 .md-copy:hover { color: var(--paper); }
 @media (pointer: coarse) { .md-copy { min-height: 44px; min-width: 44px; justify-content: center; } }
+.md-code-actions { display: inline-flex; align-items: center; gap: var(--space-1); }
+.md-run { color: var(--mint); font-weight: 600; }
+.md-run:hover:not(:disabled) { color: var(--ion-void); background: var(--mint); }
+.md-run:disabled { opacity: .5; cursor: not-allowed; }
+.md-run.is-stop { color: var(--danger); }
+.md-run.is-stop:hover { color: var(--paper); background: var(--danger); }
+.md-run-output { border-top: 1px solid var(--border); background: var(--forge); }
+.md-run-status { display: flex; align-items: center; gap: var(--space-2); padding: 6px var(--space-3); font-size: 11px; font-weight: 600; color: var(--muted); }
+.md-run-status svg { width: 14px; height: 14px; flex: none; }
+.md-run-output.is-done .md-run-status { color: var(--mint); }
+.md-run-output.is-failed .md-run-status, .md-run-output.is-cancelled .md-run-status { color: var(--amber); }
+.md-run-output pre { max-height: 280px; border-top: 1px dashed var(--border); white-space: pre-wrap; word-break: break-word; }
+.md-run-spin { animation: activity-spin 1.2s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .md-run-spin { animation: none; } }
 .md-table { margin: 0 0 var(--space-3); overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-control); }
 .md-table table { border-collapse: collapse; width: 100%; font-size: 12px; }
 .md-table th, .md-table td { padding: 6px var(--space-3); border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }

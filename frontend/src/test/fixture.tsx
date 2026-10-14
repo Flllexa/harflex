@@ -9,7 +9,7 @@ import { installAuthoringStageFixture } from './authoringStageFixture'
 import { installPipelineDesignFixture } from './pipelineDesignFixture'
 import { installWorktrees } from './worktreeFixture'
 import { installShowcase, showcaseDocuments, type ShowcaseView } from './showcaseFixture'
-import type { Agent, AgentEvent, Brainstorm, ChannelMessage, Delegation, KnowledgeDocument, KnowledgeEmbeddingProfile, LocalChannel, MCPServer, Pipeline, PipelineStage, ProviderProfile, Schedule, ScheduleJob, Skill, Workflow, WorkflowRun } from '../lib/backend'
+import type { Agent, AgentEvent, Brainstorm, ChannelMessage, ChatCommandEvent, Delegation, KnowledgeDocument, KnowledgeEmbeddingProfile, LocalChannel, MCPServer, Pipeline, PipelineStage, ProviderProfile, Schedule, ScheduleJob, Skill, Workflow, WorkflowRun } from '../lib/backend'
 
 const scenario = new URLSearchParams(window.location.search).get('scenario')
 const foundation = scenario === 'foundation' || scenario === 'foundation-readonly' || scenario === 'foundation-replay-recovery'
@@ -31,6 +31,22 @@ if (new URLSearchParams(window.location.search).get('coder') === 'questions') {
   backend.getPipelineCoderStatus = async pipelineId => ({ pipelineId, sessionId: 'coder-session', state: 'questions', summary: '', canReply: true,
     message: 'I read the SPEC and the Plan and started on `app.js`. Two choices change how the list behaves, so I stopped before guessing.',
     questions: ['Should done tasks move to the bottom of the list, or keep the order they were added?', 'Is there a limit on the number of tasks? If so, what should happen when it is reached?'] })
+}
+// The agent suggests a command in the chat, for pictures and checks of the Run button on code blocks.
+if (new URLSearchParams(window.location.search).get('chatCommand') === '1') {
+  const listEvents = backend.listEvents.bind(backend)
+  backend.listEvents = async (sessionId, after, limit) => {
+    const found = await listEvents(sessionId, after, limit)
+    if (after > 0 || found.length === 0) return found
+    const last = found[found.length - 1]
+    return [...found, { id: 'command-suggestion', streamId: sessionId, sequence: last.sequence + 1, type: 'message.assistant', data: { role: 'assistant', content: 'To check the page in a browser, run the tests first:\n\n```bash\nnpm test -- --reporter=dot\n```' }, createdAt: last.createdAt }]
+  }
+  let listener: (event: ChatCommandEvent) => void = () => undefined
+  backend.onChatCommand = next => { listener = next; return () => undefined }
+  backend.runChatCommand = async sessionId => {
+    setTimeout(() => listener({ id: 'demo-run', sessionId, text: '> todo-app@1.0.0 test\n> node --test\n\n........\n', done: false, exitCode: -1, cancelled: false, timedOut: false, truncated: false, durationMs: 0 }), 50)
+    return 'demo-run'
+  }
 }
 // A newer release, for pictures and checks of the update button beside the logo.
 if (new URLSearchParams(window.location.search).get('update') === 'available') backend.checkForUpdate = async () => ({ currentVersion: '0.2.4', available: true, version: '0.2.5', pageUrl: 'https://github.com/Flllexa/harflex/releases/tag/v0.2.5', canInstall: true })

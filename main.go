@@ -28,6 +28,7 @@ func init() {
 	application.RegisterEvent[appservice.EventDTO]("harflex:event")
 	application.RegisterEvent[appservice.ScheduleChangeDTO]("harflex:schedule")
 	application.RegisterEvent[appservice.UpdateStateDTO]("harflex:update")
+	application.RegisterEvent[appservice.ChatCommandEventDTO]("harflex:command")
 }
 
 const instanceID = "ai.harflex.desktop"

@@ -1,8 +1,9 @@
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Check, Copy } from 'lucide-react'
+import { Check, CircleAlert, Copy, LoaderCircle, Play, Square } from 'lucide-react'
 import { parseMarkdown, type Block, type Inline } from '../lib/markdown'
 import { copyText, openExternal } from '../lib/desktop'
 import { useT } from '../i18n'
+import { commandOf, isShellBlock, useCommandRunner } from './commandRunner'
 
 function Inlines({ nodes }: { nodes: Inline[] }): ReactNode {
   return <>{nodes.map((node, index) => {
@@ -36,9 +37,36 @@ export function CopyButton({ text, label, className = 'md-copy' }: { text: strin
 
 function CodeBlock({ lang, value }: { lang: string; value: string }) {
   const t = useT()
+  const runner = useCommandRunner()
+  const command = runner && isShellBlock(lang) ? commandOf(lang, value) : ''
+  const run = command ? runner!.runs[command] : undefined
+  const busy = run?.status === 'starting' || run?.status === 'running'
+  // The output grows below the block: keep it in view while the command runs, and when it ends.
+  const output = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const element = output.current
+    if (!element || typeof element.scrollIntoView !== 'function') return
+    element.scrollIntoView({ block: 'nearest', behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+  }, [run?.status, run?.output.length])
   return <figure className="md-code">
-    <figcaption><span className="mono">{lang || t('texto')}</span><CopyButton text={value} label={lang ? t('Copiar código {lang}', { lang }) : t('Copiar código')} /></figcaption>
+    <figcaption><span className="mono">{lang || t('texto')}</span>
+      <span className="md-code-actions">
+        {command && (busy
+          ? <button type="button" className="md-copy md-run is-stop" onClick={() => runner!.cancel(command)} aria-label={t('Parar o comando')}><Square aria-hidden="true" /><span aria-hidden="true">{t('Parar')}</span></button>
+          : <button type="button" className="md-copy md-run" disabled={!runner!.canRun} onClick={() => runner!.run(command)} aria-label={t('Executar o comando no projeto')} title={runner!.canRun ? t('Executa no projeto e envia o resultado ao agente') : t('Espere o agente terminar para executar')}><Play aria-hidden="true" /><span aria-hidden="true">{run ? t('Executar de novo') : t('Executar')}</span></button>)}
+        <CopyButton text={command || value} label={lang ? t('Copiar código {lang}', { lang }) : t('Copiar código')} />
+      </span>
+    </figcaption>
     <pre tabIndex={0} aria-label={lang ? t('Código {lang}', { lang }) : t('Código')}><code>{value}</code></pre>
+    {run && <div ref={output} className={`md-run-output is-${run.status}`} role="region" aria-label={t('Saída do comando')}>
+      <div className="md-run-status" role="status">
+        {busy ? <><LoaderCircle className="md-run-spin" aria-hidden="true" />{t('Executando no projeto…')}</>
+          : run.status === 'cancelled' ? <><Square aria-hidden="true" />{t('Comando parado')}</>
+            : run.status === 'failed' ? <><CircleAlert aria-hidden="true" />{run.error || t('O comando não pôde ser executado')}</>
+              : <>{run.exitCode === 0 ? <Check aria-hidden="true" /> : <CircleAlert aria-hidden="true" />}{run.exitCode === 0 ? t('Concluído') : t('Terminou com código {code}', { code: run.exitCode ?? -1 })}{run.delivered === 'sent' ? t(' · resultado enviado ao agente') : run.delivered === 'draft' ? t(' · resultado na caixa de mensagem') : ''}</>}
+      </div>
+      {run.output && <pre tabIndex={0} className="mono">{run.output}</pre>}
+    </div>}
   </figure>
 }
 

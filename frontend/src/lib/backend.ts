@@ -278,6 +278,8 @@ export type WorktreeList = z.infer<typeof worktreeList>
 export type WorktreeGroup = z.infer<typeof worktreeGroup>
 export type ProjectMemory = z.infer<typeof projectMemory>
 export type ChatProject = z.infer<typeof chatProject>
+/** One chunk of a chat command's output, or its end (with the whole output). */
+export type ChatCommandEvent = { id: string; sessionId: string; text?: string; done: boolean; exitCode: number; cancelled: boolean; timedOut: boolean; truncated: boolean; durationMs: number; output?: string }
 export type TerminalInfo = { id: string; shell: string; path: string }
 /** One chunk of a terminal's output (base64), or its end. */
 export type TerminalOutput = { id: string; data?: string; exited?: boolean; code?: number }
@@ -411,6 +413,10 @@ export interface Backend {
   resizeTerminal(id: string, cols: number, rows: number): Promise<void>
   closeTerminal(id: string): Promise<void>
   onTerminalOutput(listener: (output: TerminalOutput) => void): () => void
+  /** Runs a command the agent suggested in a chat, in its project; resolves with the run's id. The output follows on onChatCommand. */
+  runChatCommand(sessionId: string, command: string): Promise<string>
+  cancelChatCommand(runId: string): Promise<void>
+  onChatCommand(listener: (event: ChatCommandEvent) => void): () => void
   refreshProjectMemory(workspaceId: string): Promise<ProjectMemory>
   declineProjectMemory(workspaceId: string): Promise<ProjectMemory>
   saveProjectMemory(workspaceId: string, content: string): Promise<ProjectMemory>

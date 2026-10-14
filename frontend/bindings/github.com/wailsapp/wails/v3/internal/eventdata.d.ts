@@ -12,6 +12,7 @@ import type * as application$0 from "../../../../persioflexa/harflex/internal/ap
 declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
+            "harflex:command": application$0.ChatCommandEventDTO;
             "harflex:event": application$0.EventDTO;
             "harflex:schedule": application$0.ScheduleChangeDTO;
             "harflex:update": application$0.UpdateStateDTO;

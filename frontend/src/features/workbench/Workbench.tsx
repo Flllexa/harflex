@@ -15,6 +15,7 @@ import { ArtifactPane } from './ArtifactPane'
 import { ConversationPane } from './ConversationPane'
 import { continuationPrompt, requestOf } from './continuation'
 import { pipelineChoicePrompt, type PipelineChoice } from './pipelineChoice'
+import { useChatCommands } from './useChatCommands'
 import { CasualStartPanel } from './CasualStartPanel'
 import { ChatModelBar } from './ChatModelBar'
 import { ChatProjectPicker } from './ChatProjectPicker'
@@ -157,6 +158,13 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
   useVerifyCoderWhenDone({ backend, session: state.session, activeRun: state.activeRun, outcome: state.outcome?.status, pipeline: sessionPipeline, onVerified: updated => { setCurrentPipeline(updated); onOpenPipeline?.(updated.id, updated.workspaceId) } })
   const busy = startingSession || state.calling || runIsLive(state) || loadingHistory || cancelPending
   const executionBusy = runIsLive(state) || state.calling && !loadingHistory || cancelPending
+  // Commands the agent suggested run from their code block; the result goes back to the agent so it goes on from it.
+  const commands = useChatCommands(backend, state.readOnly ? undefined : state.session?.id, !busy && !state.readOnly, prompt => {
+    const current = store.getState()
+    if (current.session && !current.calling && !runIsLive(current) && !current.readOnly && !current.draft.trim()) { void sendPrompt(prompt); return 'sent' }
+    store.getState().setDraft(current.draft.trim() ? `${current.draft.trimEnd()}\n\n${prompt}` : prompt)
+    return 'draft'
+  })
   const userChat = !state.session?.purpose || state.session.purpose === 'chat'
   const historyHasUserMessage = userChat && state.events.some(event => event.type === 'message.user')
   const recoveryPrompt = userChat && state.readOnly ? requestOf([...state.messages].reverse().find(message => message.kind === 'user')?.text ?? '') : ''
@@ -513,7 +521,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
   const conversation = state.session?.purpose === 'preparation'
     ? <section className="setup-step"><h2>{t('Preparação do trabalho')}</h2><p className="muted">{t('A conversa de Discovery, SPEC e Plan está na área do trabalho.')}</p><button type="button" className="touch-target primary-button" onClick={() => onNavigate('Pipelines')}>{t('Abrir documentos e atividade')}</button></section>
     : state.session
-    ? <ConversationPane state={state} loadingHistory={loadingHistory} cancelPending={cancelPending} permissionControl={state.workspace ? <PermissionPicker backend={backend} workspace={state.workspace} onWorkspaceUpdated={workspace => store.setState({ workspace })} /> : undefined} viewMode={viewMode} backendLabel={backendLabel(state)} modelBar={modelBar} projectControl={viewMode === 'casual' && state.workspace ? <ChatProjectPicker backend={backend} workspace={state.workspace} disabled={busy || loadingHistory} onPick={path => void switchProject(path)} /> : undefined} switchModel={chatChoice.changed ? { usable: chatChoice.usable, onReset: chatChoice.reset } : undefined} delegationParentId={delegation?.parentSessionId} delegation={delegation} queuedTask={queuedTask} onPrepareDelegatedTask={() => { if (!store.getState().draft && queuedTask) store.getState().setDraft(queuedTask) }} onOpenParent={() => { if (delegation) void openDelegatedSession(delegation.parentSessionId).catch(failure => store.setState({ error: errorMessage(failure) })) }} onDraft={updateDraft} onPrompt={sendPrompt} onResolve={(approvalId, allow) => { void run(id => backend.approve(id, approvalId, allow)) }} onCancel={cancel} onRetry={retryReplay} onContinue={text => continueInNewChat(text, chatChoice.changed ? chatChoice.choice : undefined)} onPipelineChoice={choosePipeline} onNewWork={recoveryPrompt => {
+    ? <ConversationPane commands={commands} state={state} loadingHistory={loadingHistory} cancelPending={cancelPending} permissionControl={state.workspace ? <PermissionPicker backend={backend} workspace={state.workspace} onWorkspaceUpdated={workspace => store.setState({ workspace })} /> : undefined} viewMode={viewMode} backendLabel={backendLabel(state)} modelBar={modelBar} projectControl={viewMode === 'casual' && state.workspace ? <ChatProjectPicker backend={backend} workspace={state.workspace} disabled={busy || loadingHistory} onPick={path => void switchProject(path)} /> : undefined} switchModel={chatChoice.changed ? { usable: chatChoice.usable, onReset: chatChoice.reset } : undefined} delegationParentId={delegation?.parentSessionId} delegation={delegation} queuedTask={queuedTask} onPrepareDelegatedTask={() => { if (!store.getState().draft && queuedTask) store.getState().setDraft(queuedTask) }} onOpenParent={() => { if (delegation) void openDelegatedSession(delegation.parentSessionId).catch(failure => store.setState({ error: errorMessage(failure) })) }} onDraft={updateDraft} onPrompt={sendPrompt} onResolve={(approvalId, allow) => { void run(id => backend.approve(id, approvalId, allow)) }} onCancel={cancel} onRetry={retryReplay} onContinue={text => continueInNewChat(text, chatChoice.changed ? chatChoice.choice : undefined)} onPipelineChoice={choosePipeline} onNewWork={recoveryPrompt => {
       if (!state.workspace || executionBusy || state.readOnly && loadingHistory) return
       historyOpenOrder.current++
       setInitialChatPrompt(userChat ? recoveryPrompt ?? '' : '')
