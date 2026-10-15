@@ -190,7 +190,17 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
   pipelineReactions.current = { onOpenPipeline, onRequestMode }
   useEffect(() => backend.onPipelineCreated(change => {
     if (change.workspaceId !== store.getState().workspace?.id) return
-    // The chat's own work, opened by its first message: there is nothing to announce.
+    // The open chat's own work: it becomes the work the Pipelines screen shows.
+    const ownSession = change.sessionId && change.sessionId === store.getState().session?.id ? change.sessionId : ''
+    if (ownSession) {
+      void backend.getPipeline(change.pipelineId).then(value => {
+        if (value.workspaceId !== store.getState().workspace?.id || store.getState().session?.id !== ownSession) return
+        pipelineShownFor.current = ownSession
+        setSessionPipeline(value)
+        setCurrentPipeline(value)
+      }, () => undefined)
+    }
+    // Opened by the chat's first message: there is nothing to announce.
     if (change.reason === 'chat') return
     const intent = pipelineIntent.current
     if (intent && intent.sessionId === store.getState().session?.id) {
@@ -244,12 +254,19 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     const link = await backend.getParentDelegation(sessionId)
     if (order === delegationReadOrder.current && store.getState().session?.id === sessionId) setDelegation(link ?? undefined)
   }
+  // The work of the open chat is the one the Pipelines screen shows when the person goes there; picking another work
+  // there afterwards is theirs to do, so this happens once per chat opened.
+  const pipelineShownFor = useRef('')
   useEffect(() => {
     const sessionID = state.session?.id, workspaceID = state.workspace?.id
     if (!sessionID || !workspaceID) { setSessionPipeline(undefined); return }
     setSessionPipeline(undefined)
     let live = true
-    backend.getPipelineForSession(sessionID, workspaceID).then(linked => { if (live) setSessionPipeline(linked) }, () => { if (live) setSessionPipeline(undefined) })
+    backend.getPipelineForSession(sessionID, workspaceID).then(linked => {
+      if (!live) return
+      setSessionPipeline(linked)
+      if (linked && pipelineShownFor.current !== sessionID) { pipelineShownFor.current = sessionID; setCurrentPipeline(linked) }
+    }, () => { if (live) setSessionPipeline(undefined) })
     return () => { live = false }
   }, [backend, state.session?.id, state.workspace?.id, currentPipeline?.revision])
   useEffect(() => {
