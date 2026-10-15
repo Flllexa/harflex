@@ -528,7 +528,8 @@ export interface Backend {
   cancelScheduleJob(jobId: string): Promise<ScheduleJob>
   onScheduleChange(listener: (workspaceId: string) => void): () => void
   /** A chat agent created a pipeline through the Harflex tools. */
-  onPipelineCreated(listener: (change: { workspaceId: string; pipelineId: string }) => void): () => void
+  /** A work was created or its Discovery written: by the chat's first message (reason "chat") or by the agent ("agent"), with the chat that coordinates it. */
+  onPipelineCreated(listener: (change: { workspaceId: string; pipelineId: string; sessionId?: string; reason?: 'chat' | 'agent' }) => void): () => void
   saveSkill(input: SkillInput): Promise<Skill>
   importSkill(input: ImportSkillInput): Promise<Skill>
   listSkills(workspaceId: string): Promise<Skill[]>

@@ -436,14 +436,17 @@ describe('durable agent workbench', () => {
   it('offers the pipeline a chat agent created and opens it on Pipelines', async () => {
     const user = userEvent.setup()
     const { backend } = fakeBackend()
-    const listeners = new Set<(change: { workspaceId: string; pipelineId: string }) => void>()
-    const announce = (change: { workspaceId: string; pipelineId: string }) => listeners.forEach(listener => listener(change))
+    const listeners = new Set<(change: { workspaceId: string; pipelineId: string; sessionId?: string; reason?: 'chat' | 'agent' }) => void>()
+    const announce = (change: { workspaceId: string; pipelineId: string; sessionId?: string; reason?: 'chat' | 'agent' }) => listeners.forEach(listener => listener(change))
     backend.onPipelineCreated = listener => { listeners.add(listener); return () => { listeners.delete(listener) } }
     const created = { ...designPipeline(), id: 'agent-pipeline', workspaceId: 'workspace-1', title: 'Baixa parcial' }
     backend.getPipeline = vi.fn(async () => created)
     render(<App backend={backend} />)
     await startSession(user)
     act(() => announce({ workspaceId: 'other-project', pipelineId: 'agent-pipeline' }))
+    expect(screen.queryByText('Pipeline criado pelo agente')).not.toBeInTheDocument()
+    // The work a chat's first message opened is that chat's own: nothing to announce.
+    act(() => announce({ workspaceId: 'workspace-1', pipelineId: 'agent-pipeline', sessionId: 'session-1', reason: 'chat' }))
     expect(screen.queryByText('Pipeline criado pelo agente')).not.toBeInTheDocument()
     act(() => announce({ workspaceId: 'workspace-1', pipelineId: 'agent-pipeline' }))
     expect(await screen.findByText('Pipeline criado pelo agente')).toBeInTheDocument()

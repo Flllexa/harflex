@@ -446,6 +446,9 @@ func TestSessionCompositionAndEventsPersistBeforeEmission(t *testing.T) {
 	}
 	var emitted []EventDTO
 	SetEmitter(s, func(name string, payload any) {
+		if name == "harflex:pipeline" {
+			return // the chat's first message opened its work
+		}
 		if name != "harflex:event" {
 			t.Fatal(name)
 		}
@@ -635,7 +638,11 @@ func TestAppendFailureNeverEmits(t *testing.T) {
 		t.Fatal(err)
 	}
 	emitted := 0
-	SetEmitter(s, func(string, any) { emitted++ })
+	SetEmitter(s, func(name string, _ any) {
+		if name == "harflex:event" {
+			emitted++
+		}
+	})
 	if _, err := s.Prompt(PromptInput{SessionID: created.ID, Text: "private prompt"}); err == nil || strings.Contains(err.Error(), profileInput().APIKey) || strings.Contains(err.Error(), "private prompt") {
 		t.Fatal(err)
 	}

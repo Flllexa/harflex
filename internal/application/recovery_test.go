@@ -140,7 +140,11 @@ func TestRecoverPausesOnlyUnfinishedRunsWithoutExecution(t *testing.T) {
 			s, db, v := setup(t)
 			before := persistedSession(t, s, db, "session", history...)
 			var count atomic.Int32
-			SetEmitter(s, func(_ string, payload any) {
+			SetEmitter(s, func(name string, payload any) {
+				if name != "harflex:event" {
+					return
+				}
+
 				dto := payload.(EventDTO)
 				stored, err := db.ListAfter(t.Context(), dto.StreamID, dto.Sequence-1)
 				if err != nil || len(stored) != 1 || stored[0].ID != dto.ID {
@@ -269,7 +273,11 @@ func TestRecoverFailureDoesNotDuplicateAndRetriesStatus(t *testing.T) {
 			s, db, _ := setup(t)
 			persistedSession(t, s, db, "session", "run.started")
 			emitted := 0
-			SetEmitter(s, func(string, any) { emitted++ })
+			SetEmitter(s, func(name string, _ any) {
+				if name == "harflex:event" {
+					emitted++
+				}
+			})
 			s.store = recoveryFailure{Store: db, appendFailure: appendFailure, updateFailure: !appendFailure}
 			if err := recoverService(t, s, t.Context()); err == nil || strings.Contains(err.Error(), "private-canary") {
 				t.Fatal(err)

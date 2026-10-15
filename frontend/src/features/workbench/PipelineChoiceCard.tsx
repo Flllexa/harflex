@@ -18,7 +18,7 @@ export function PipelineChoiceCard({ viewMode, disabled, onChoose }: { viewMode:
         <LayoutDashboard aria-hidden="true" /><span>{t('Abrir a pipeline e ir para o modo Profissional')}</span>
       </button>}
       <button type="button" className="touch-target secondary-button" disabled={disabled} onClick={() => onChoose('chat')}>
-        <MessageSquare aria-hidden="true" /><span>{t('Só resolver aqui na conversa, sem pipeline')}</span>
+        <MessageSquare aria-hidden="true" /><span>{t('Só resolver aqui na conversa, sem seguir as fases')}</span>
       </button>
     </div>
   </div>

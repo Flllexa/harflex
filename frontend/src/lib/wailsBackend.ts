@@ -201,8 +201,9 @@ export const wailsBackend: Backend = {
     if (typeof result?.workspaceId === 'string' && result.workspaceId) listener(result.workspaceId)
   }),
   onPipelineCreated: listener => Events.On('harflex:pipeline', event => {
-    const result = event.data as { workspaceId?: unknown; pipelineId?: unknown } | null
-    if (typeof result?.workspaceId === 'string' && result.workspaceId && typeof result.pipelineId === 'string' && result.pipelineId) listener({ workspaceId: result.workspaceId, pipelineId: result.pipelineId })
+    const result = event.data as { workspaceId?: unknown; pipelineId?: unknown; sessionId?: unknown; reason?: unknown } | null
+    if (typeof result?.workspaceId !== 'string' || !result.workspaceId || typeof result.pipelineId !== 'string' || !result.pipelineId) return
+    listener({ workspaceId: result.workspaceId, pipelineId: result.pipelineId, ...(typeof result.sessionId === 'string' && result.sessionId ? { sessionId: result.sessionId } : {}), ...(result.reason === 'chat' || result.reason === 'agent' ? { reason: result.reason } : {}) })
   }),
   saveSkill: async input => parse.skill(await Service.SaveSkill({ ...input, id: input.id ?? '' })),
   importSkill: async input => parse.skill(await Service.ImportSkill(input)),

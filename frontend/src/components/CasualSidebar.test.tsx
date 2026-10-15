@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Backend, Session, Workspace } from '../lib/backend'
@@ -339,6 +339,22 @@ describe('CasualSidebar', () => {
     expect(await screen.findByRole('button', { name: /Crie um TODO com html/ })).toBeInTheDocument()
     expect(screen.queryByText('Conversa antiga')).not.toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /Crie um TODO com html/ })).toHaveLength(1)
+  })
+
+  it('shows a new chat as its work as soon as its first message opens it', async () => {
+    let announce: (change: { workspaceId: string; pipelineId: string; sessionId?: string; reason?: 'chat' | 'agent' }) => void = () => undefined
+    const coordinators = vi.fn(async () => ({ coordinators: [] as never[], created: 0 }))
+    renderSidebar({}, backend => {
+      backend.listSessions = async () => [session]
+      backend.openSession = async () => session
+      backend.listEvents = async () => []
+      backend.ensureWorkChats = coordinators
+      backend.onPipelineCreated = listener => { announce = listener; return () => undefined }
+    })
+    await waitFor(() => expect(coordinators).toHaveBeenCalled())
+    const before = coordinators.mock.calls.length
+    act(() => announce({ workspaceId: 'workspace-1', pipelineId: 'new-work', sessionId: session.id, reason: 'chat' }))
+    await waitFor(() => expect(coordinators.mock.calls.length).toBeGreaterThan(before))
   })
 
   it('reads the chats again after giving the works that had none their chat', async () => {

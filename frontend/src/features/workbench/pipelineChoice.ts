@@ -25,6 +25,6 @@ export function pipelineChoicePrompt(choice: PipelineChoice): string {
   switch (choice) {
     case 'casual': return 'Quero seguir com uma pipeline de execução e conduzir tudo por aqui, no modo Casual. Combine comigo o que ainda estiver em aberto e crie a pipeline.'
     case 'professional': return 'Quero seguir com uma pipeline de execução no modo Profissional. Combine comigo o que ainda estiver em aberto e crie a pipeline; eu abro o modo Profissional.'
-    default: return 'Resolva por aqui, na conversa, sem abrir uma pipeline.'
+    default: return 'Resolva por aqui, na conversa, sem seguir as fases da pipeline deste chat.'
   }
 }

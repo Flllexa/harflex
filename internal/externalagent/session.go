@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -52,6 +53,17 @@ func RestoreSession(id string, adapter Adapter, recorder Recorder, request Reque
 	s := NewSession(id, adapter, recorder, request)
 	s.used = used
 	return s
+}
+
+// AddInstructions puts a note at the head of the instructions the CLI gets on its next turns.
+func (s *Session) AddInstructions(note string) bool {
+	if strings.TrimSpace(note) == "" {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.request.SystemPrompt = strings.TrimSpace(note + "\n\n" + s.request.SystemPrompt)
+	return true
 }
 
 // SetFullAccess follows the project's permission profile from one run to the next: the person may change it between messages.

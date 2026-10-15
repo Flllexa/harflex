@@ -20,7 +20,11 @@ func TestToolUpdatesRedactEverySplitAcrossStreamsAndCalls(t *testing.T) {
 					journal := &eventJournal{store: db, service: s, redactor: newSensitiveRedactor([]byte(key))}
 					t.Cleanup(journal.Close)
 					var emitted []events.Event
-					SetEmitter(s, func(_ string, data any) {
+					SetEmitter(s, func(name string, data any) {
+						if name != "harflex:event" {
+							return
+						}
+
 						d := data.(EventDTO)
 						emitted = append(emitted, events.Event{Type: d.Type, Data: d.Data, Sequence: d.Sequence})
 					})
@@ -131,7 +135,12 @@ func TestShutdownFlushesPendingToolTailsAndClearsAliases(t *testing.T) {
 	journal := &eventJournal{store: db, service: s, redactor: newSensitiveRedactor([]byte("synthetic-tool-secret"))}
 	s.journals["shutdown"] = journal
 	var emitted []EventDTO
-	SetEmitter(s, func(_ string, data any) { emitted = append(emitted, data.(EventDTO)) })
+	SetEmitter(s, func(name string, data any) {
+		if name != "harflex:event" {
+			return
+		}
+		emitted = append(emitted, data.(EventDTO))
+	})
 	if _, err := journal.Append(t.Context(), "shutdown", "agent_session", "tool.updated", map[string]string{"toolCallId": "actual-call", "stream": "stdout", "text": "tail"}); err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +177,12 @@ func TestConcurrentShutdownWaitsForPendingFlush(t *testing.T) {
 		t.Fatal(err)
 	}
 	started, release := make(chan struct{}), make(chan struct{})
-	SetEmitter(s, func(string, any) { close(started); <-release })
+	SetEmitter(s, func(name string, _ any) {
+		if name == "harflex:event" {
+			close(started)
+			<-release
+		}
+	})
 	first, second := make(chan struct{}), make(chan struct{})
 	go func() { Shutdown(s); close(first) }()
 	<-started
@@ -189,7 +203,11 @@ func TestJournalEmitterCanReenterWithoutLosingOrder(t *testing.T) {
 	s, db, _ := setup(t)
 	journal := &eventJournal{store: db, service: s, redactor: newSensitiveRedactor()}
 	var sequences []int64
-	SetEmitter(s, func(_ string, payload any) {
+	SetEmitter(s, func(name string, payload any) {
+		if name != "harflex:event" {
+			return
+		}
+
 		event := payload.(EventDTO)
 		sequences = append(sequences, event.Sequence)
 		if event.Type == "message.user" {

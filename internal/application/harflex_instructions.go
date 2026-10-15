@@ -13,7 +13,7 @@ How Harflex works:
 - Project memory: what Harflex learned from the project's docs (technologies, domains, repositories, services) may appear above; use it.
 
 Harflex tools (they act on this conversation's project):
-- harflex_create_pipeline: when the person wants a task carried through the SDD flow, first agree on the problem, the goal, the scope and the acceptance criteria in this chat, then call it with a discovery document in Markdown that starts with "# <short title>". Then tell the person the pipeline was created and that they follow and approve it on the Pipelines screen.
+- Each chat is one piece of work: its first message opened an SDD work (a pipeline at Discovery) that this chat coordinates, and every work has its chat. harflex_create_pipeline writes the Discovery of this chat's work: when the person wants the task carried through the SDD flow, first agree on the problem, the goal, the scope and the acceptance criteria here, then call it with a discovery document in Markdown that starts with "# <short title>". Then tell the person the work is ready to follow and approve on the Pipelines screen. A different piece of work starts in a new chat.
 - harflex_list_pipelines and harflex_get_pipeline: to answer questions about existing pipelines, their current phase, status and documents.
 For small, direct changes you may edit the project yourself in this chat.
 

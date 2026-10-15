@@ -87,6 +87,8 @@ func harflexToolFailure(err error) error {
 		return (&agentcore.ToolFailure{Code: "not_found", Message: "this pull request is not recorded for this pipeline; record it with harflex_register_pull_request first"}).WithCause(err)
 	case errors.Is(err, ErrPullRequestNotFound):
 		return (&agentcore.ToolFailure{Code: "not_found", Message: "this pull request is not recorded for this pipeline; record it with harflex_register_pull_request first"}).WithCause(err)
+	case errors.Is(err, errWorkPastDiscovery):
+		return (&agentcore.ToolFailure{Code: "work_past_discovery", Message: "This conversation coordinates a work that is already past Discovery. A new piece of work starts in a new chat: tell the person to open one."}).WithCause(err)
 	case errors.Is(err, ErrPipelineNotFound):
 		return (&agentcore.ToolFailure{Code: "not_found", Message: "no pipeline with this id in this project; list the pipelines first"}).WithCause(err)
 	case errors.Is(err, ErrWorkspaceNotFound):
@@ -115,11 +117,24 @@ func harflexCreatePipeline(s *Service, workspaceID, sessionID string, args json.
 	if err := json.Unmarshal(args, &in); err != nil || utf8.RuneCountInString(strings.TrimSpace(in.Discovery)) < 20 {
 		return nil, errHarflexArguments
 	}
+	discovery := strings.TrimSpace(in.Discovery)
+	// Each chat is one work: a chat that already coordinates one writes the agreed Discovery into it.
+	if sessionID != "" {
+		if pipelineID, err := s.store.GetPipelineIDForCoordinator(s.ctx, sessionID); err == nil {
+			updated, err := s.updateWorkDiscovery(pipelineID, discovery)
+			if err != nil {
+				return nil, err
+			}
+			s.emitWork(workspaceID, updated.ID, sessionID, "agent")
+			return map[string]any{"created": false, "updated": true, "pipeline": pipelineSummary(updated),
+				"next": "This chat's work now has this Discovery; the person follows and approves each phase on the Pipelines screen."}, nil
+		}
+	}
 	var raw [16]byte
 	if _, err := rand.Read(raw[:]); err != nil {
 		return nil, err
 	}
-	created, err := s.CreateAuthoringPipeline(CreateAuthoringPipelineInput{WorkspaceID: workspaceID, RequestID: hex.EncodeToString(raw[:]), Discovery: strings.TrimSpace(in.Discovery)})
+	created, err := s.createAuthoringPipeline(CreateAuthoringPipelineInput{WorkspaceID: workspaceID, RequestID: hex.EncodeToString(raw[:]), Discovery: discovery})
 	if err != nil {
 		return nil, err
 	}
@@ -129,12 +144,7 @@ func harflexCreatePipeline(s *Service, workspaceID, sessionID string, args json.
 			return nil, safe("link work coordinator", err)
 		}
 	}
-	s.mu.RLock()
-	emit := s.emit
-	s.mu.RUnlock()
-	if emit != nil {
-		emit("harflex:pipeline", map[string]string{"workspaceId": workspaceID, "pipelineId": created.ID})
-	}
+	s.emitWork(workspaceID, created.ID, sessionID, "agent")
 	return map[string]any{"created": true, "pipeline": pipelineSummary(created),
 		"next": "The pipeline is on the Pipelines screen; the person follows and approves each phase there, starting with Discovery."}, nil
 }

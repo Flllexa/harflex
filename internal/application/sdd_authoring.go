@@ -87,7 +87,16 @@ func derivedPipelineText(discovery string) (title, objective string) {
 	return title, objective
 }
 
+// CreateAuthoringPipeline creates a work from its Discovery, and the chat that coordinates it (each work has one).
 func (s *Service) CreateAuthoringPipeline(in CreateAuthoringPipelineInput) (PipelineDTO, error) {
+	created, err := s.createAuthoringPipeline(in)
+	if err == nil {
+		s.ensureWorkChat(created)
+	}
+	return created, err
+}
+
+func (s *Service) createAuthoringPipeline(in CreateAuthoringPipelineInput) (PipelineDTO, error) {
 	if err := s.beginCall(); err != nil {
 		return PipelineDTO{}, err
 	}
@@ -157,6 +166,14 @@ func (s *Service) DeriveAuthoringPipeline(in DeriveAuthoringPipelineInput) (Pipe
 		CreationRequestID: in.RequestID, CreationRequestHash: hash}
 	if err := s.store.DeriveAuthoringPipeline(s.ctx, parent.ID, in.ExpectedRevision, child, in.Discovery); err != nil {
 		return s.resolveAuthoringWriteFailure(parent.WorkspaceID, parent.ID, in.RequestID, hash, "derive authoring pipeline", err)
+	}
+	// The continuation of a work is coordinated by the same chat.
+	if coordinators, err := s.store.ListWorkCoordinators(s.ctx, parent.WorkspaceID); err == nil {
+		for _, item := range coordinators {
+			if item.PipelineID == parent.ID {
+				_ = s.store.SetPipelineCoordinator(s.ctx, child.ID, item.SessionID)
+			}
+		}
 	}
 	stored, err := s.loadPipeline(child.ID)
 	if err != nil {

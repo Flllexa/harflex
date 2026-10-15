@@ -190,6 +190,8 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
   pipelineReactions.current = { onOpenPipeline, onRequestMode }
   useEffect(() => backend.onPipelineCreated(change => {
     if (change.workspaceId !== store.getState().workspace?.id) return
+    // The chat's own work, opened by its first message: there is nothing to announce.
+    if (change.reason === 'chat') return
     const intent = pipelineIntent.current
     if (intent && intent.sessionId === store.getState().session?.id) {
       // The person already said where: go there, with no notice to click.

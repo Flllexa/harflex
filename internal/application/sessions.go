@@ -788,6 +788,7 @@ func (s *Service) Prompt(in PromptInput) (RunResultDTO, error) {
 		return RunResultDTO{}, ErrInvalidInput
 	}
 	s.followWorkspaceProfile(runner, record)
+	s.linkNewChatToWork(record, runner, in.Text)
 	if record.Mode == "sdd_code" {
 		active, err := s.pipelineCodeSessionActive(record.ID)
 		if err != nil {

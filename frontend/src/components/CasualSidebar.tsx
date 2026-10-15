@@ -126,6 +126,9 @@ export function CasualSidebar({ backend, workspace, activeSessionId, activeSessi
 
   // Every work has a chat as its main conversation: the ones that have none yet get one, and the list then shows them.
   const [workChatsRevision, setWorkChatsRevision] = useState(0)
+  // A chat's first message opens its work: the list reads the works again to show it as that chat.
+  const [worksRevision, setWorksRevision] = useState(0)
+  useEffect(() => backend?.onPipelineCreated(change => { if (change.workspaceId === workspace?.id) setWorksRevision(value => value + 1) }), [backend, workspace?.id])
   useEffect(() => {
     if (!backend || !workspace) { setCoordinators({}); return }
     let live = true
@@ -135,7 +138,7 @@ export function CasualSidebar({ backend, workspace, activeSessionId, activeSessi
       () => { backend.listWorkCoordinators(workspace.id).then(items => { if (live) read(items) }, () => { if (live) setCoordinators({}) }) },
     )
     return () => { live = false }
-  }, [backend, workspace?.id, pipelineRevision, activeSessionId])
+  }, [backend, workspace?.id, pipelineRevision, activeSessionId, worksRevision])
 
   const loadHistory = useCallback(async () => {
     const request = ++generation.current

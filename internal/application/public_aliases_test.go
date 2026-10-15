@@ -56,7 +56,12 @@ func TestPublicAliasesProtectIDsAndResolveApprovalOncePerOccurrence(t *testing.T
 	runner := &aliasApprovalRunner{journal: journal}
 	s.sessions["aliases"], s.journals["aliases"] = runner, journal
 	var emitted []EventDTO
-	SetEmitter(s, func(_ string, data any) { emitted = append(emitted, data.(EventDTO)) })
+	SetEmitter(s, func(name string, data any) {
+		if name != "harflex:event" {
+			return
+		}
+		emitted = append(emitted, data.(EventDTO))
+	})
 	seenApproval, seenTool := map[string]bool{}, map[string]bool{}
 	for occurrence := range 2 {
 		result, err := s.Prompt(PromptInput{SessionID: "aliases", Text: "write"})
@@ -150,7 +155,12 @@ func TestUnknownProviderToolNameCannotPublishCredential(t *testing.T) {
 	provider := &fakeProvider{toolCall: &agentcore.ToolCall{ID: "call", Name: key, Arguments: json.RawMessage(`{}`)}}
 	s, db, _, session := sessionSetup(t, provider)
 	var emitted []EventDTO
-	SetEmitter(s, func(_ string, data any) { emitted = append(emitted, data.(EventDTO)) })
+	SetEmitter(s, func(name string, data any) {
+		if name != "harflex:event" {
+			return
+		}
+		emitted = append(emitted, data.(EventDTO))
+	})
 	result, err := s.Prompt(PromptInput{SessionID: session.ID, Text: "run tool"})
 	if err != nil || result.Status != RunFailed || result.Reason != "unknown_tool" || result.Approval != nil {
 		t.Fatal("unknown tool did not fail safely", err)

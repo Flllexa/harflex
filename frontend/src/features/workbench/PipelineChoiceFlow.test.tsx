@@ -64,7 +64,7 @@ it('keeps the notice for a pipeline the person did not ask for, and does nothing
   const { backend, user, announce } = await openAskedChat('casual')
   await user.click(screen.getByRole('button', { name: /Só resolver aqui na conversa/ }))
   await waitFor(() => expect(backend.prompt).toHaveBeenCalledTimes(1))
-  expect(vi.mocked(backend.prompt).mock.calls[0][1]).toContain('sem abrir uma pipeline')
+  expect(vi.mocked(backend.prompt).mock.calls[0][1]).toContain('sem seguir as fases')
   announce()
   expect(await screen.findByText('Pipeline criado pelo agente')).toBeInTheDocument()
   expect(localStorage.getItem('harflex:view-mode')).toBe('casual')

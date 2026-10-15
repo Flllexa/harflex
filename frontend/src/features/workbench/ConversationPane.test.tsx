@@ -150,7 +150,7 @@ it('offers two ways in Professional mode, where there is no other mode to go to'
   const value = askedState(`Entendi.\n\n${choiceBlock}`)
   render(<ConversationPane {...value} viewMode="professional" onPipelineChoice={vi.fn()} />)
   const group = screen.getByRole('group', { name: 'Como você quer tocar isso?' })
-  expect(within(group).getAllByRole('button').map(button => button.textContent)).toEqual(['Abrir a pipeline', 'Só resolver aqui na conversa, sem pipeline'])
+  expect(within(group).getAllByRole('button').map(button => button.textContent)).toEqual(['Abrir a pipeline', 'Só resolver aqui na conversa, sem seguir as fases'])
 })
 
 it('closes the choice once the person has answered, while a reply is being written, or when the run is live', () => {

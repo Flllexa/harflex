@@ -126,6 +126,25 @@ type Session struct {
 	runToolCalls       int
 }
 
+// AddInstructions puts a note at the head of the system instructions, for the next turns of a conversation that is
+// already open (the work it now coordinates, for one). It returns false while a run is going.
+func (s *Session) AddInstructions(note string) bool {
+	if strings.TrimSpace(note) == "" {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.active {
+		return false
+	}
+	if len(s.messages) > 0 && s.messages[0].Role == RoleSystem {
+		s.messages[0].Content = strings.TrimSpace(note + "\n\n" + s.messages[0].Content)
+	} else {
+		s.messages = append([]Message{{Role: RoleSystem, Content: note}}, s.messages...)
+	}
+	return true
+}
+
 // SetAssistantOutputByteLimit configures an opt-in stream guard before the
 // session is published. A zero limit remains the ordinary 1 MiB behavior.
 // hasConversation reports a message beyond the system instructions; callers hold s.mu.

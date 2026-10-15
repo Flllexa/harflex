@@ -20,6 +20,6 @@ describe('the choice block of a large request', () => {
   it('tells the agent what was chosen', () => {
     expect(pipelineChoicePrompt('casual')).toContain('no modo Casual')
     expect(pipelineChoicePrompt('professional')).toContain('modo Profissional')
-    expect(pipelineChoicePrompt('chat')).toContain('sem abrir uma pipeline')
+    expect(pipelineChoicePrompt('chat')).toContain('sem seguir as fases')
   })
 })

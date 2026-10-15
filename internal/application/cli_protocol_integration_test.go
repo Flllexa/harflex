@@ -109,7 +109,11 @@ func TestCLIProtocolPersistsThroughApplicationJournalAndSQLiteReopen(t *testing.
 				t.Fatal("integration bypassed the external Session/application journal")
 			}
 			var emitted []EventDTO
-			SetEmitter(service, func(_ string, payload any) {
+			SetEmitter(service, func(name string, payload any) {
+				if name != "harflex:event" {
+					return
+				}
+
 				event := payload.(EventDTO)
 				stored, err := observer.ListAfter(t.Context(), session.ID, event.Sequence-1)
 				if err != nil || len(stored) != 1 || !reflect.DeepEqual(eventDTO(stored[0]), event) {

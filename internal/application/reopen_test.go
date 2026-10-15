@@ -29,7 +29,11 @@ func TestReopenRestoresHistoryWithoutExecuting(t *testing.T) {
 		t.Fatal(err)
 	}
 	openedEvents := 0
-	SetEmitter(second, func(string, any) { openedEvents++ })
+	SetEmitter(second, func(name string, _ any) {
+		if name == "harflex:event" {
+			openedEvents++
+		}
+	})
 	listed, err := second.ListSessions(ListSessionsInput{WorkspaceID: session.WorkspaceID})
 	if err != nil || len(listed) != 1 || listed[0].Status != "completed" || !listed[0].Resumable {
 		t.Fatal(listed, err)
@@ -168,7 +172,11 @@ func TestReopenInterruptedApprovalIsClosedAndNeverExecutable(t *testing.T) {
 	next := &fakeProvider{}
 	second := NewService(t.Context(), Dependencies{Store: db, Secrets: vault, External: map[string]ExternalBackend{}, ProviderFactory: func(c openai.Config) (agentcore.Provider, error) { next.key = c.APIKey; return next, nil }})
 	var emitted []string
-	SetEmitter(second, func(_ string, payload any) {
+	SetEmitter(second, func(name string, payload any) {
+		if name != "harflex:event" {
+			return
+		}
+
 		event := payload.(EventDTO)
 		emitted = append(emitted, event.Type)
 		items, err := db.ListAfter(t.Context(), session.ID, event.Sequence-1)

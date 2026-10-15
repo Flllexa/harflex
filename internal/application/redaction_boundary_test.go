@@ -24,7 +24,12 @@ func TestJournalRedactsKnownCredentialBeforePersistenceAndEmission(t *testing.T)
 	s, db, _, session := sessionSetup(t, &fakeProvider{})
 	key := profileInput().APIKey
 	var emitted []EventDTO
-	SetEmitter(s, func(_ string, data any) { emitted = append(emitted, data.(EventDTO)) })
+	SetEmitter(s, func(name string, data any) {
+		if name != "harflex:event" {
+			return
+		}
+		emitted = append(emitted, data.(EventDTO))
+	})
 	if _, err := s.Prompt(PromptInput{SessionID: session.ID, Text: "prompt contains " + key}); err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +129,12 @@ func TestModelCredentialCallbackWorksWithAuthenticatedMCPAndRedactsBothKeys(t *t
 		t.Fatal(err)
 	}
 	var emitted []EventDTO
-	SetEmitter(s, func(_ string, data any) { emitted = append(emitted, data.(EventDTO)) })
+	SetEmitter(s, func(name string, data any) {
+		if name != "harflex:event" {
+			return
+		}
+		emitted = append(emitted, data.(EventDTO))
+	})
 	result, err := s.Prompt(PromptInput{SessionID: session.ID, Text: mcpKey + " " + profile.APIKey})
 	if err != nil || result.Status != RunCompleted {
 		t.Fatalf("provider APIKey callback failed with MCP redaction: %+v %v", result, err)
@@ -328,7 +338,12 @@ func TestJournalRedactsEveryPayloadStringPreservingStructure(t *testing.T) {
 	journal := &eventJournal{store: db, service: s, redactor: newSensitiveRedactor([]byte(key))}
 	t.Cleanup(journal.Close)
 	var emitted EventDTO
-	SetEmitter(s, func(_ string, data any) { emitted = data.(EventDTO) })
+	SetEmitter(s, func(name string, data any) {
+		if name != "harflex:event" {
+			return
+		}
+		emitted = data.(EventDTO)
+	})
 	for _, typ := range []string{"message.user", "message.assistant", "tool.finished", "external.event"} {
 		payload := map[string]any{"text": key, "nested": []any{key, map[string]any{"diff": key, "details": key, "number": json.Number("9007199254740993"), "bool": true, "nil": nil}}}
 		event, err := journal.Append(t.Context(), "semantic", "agent_session", typ, payload)
@@ -363,7 +378,11 @@ func TestJournalStreamingRedactionEveryByteSplit(t *testing.T) {
 				journal := &eventJournal{store: db, service: s, redactor: newSensitiveRedactor([]byte(key))}
 				t.Cleanup(journal.Close)
 				var emitted []events.Event
-				SetEmitter(s, func(_ string, data any) {
+				SetEmitter(s, func(name string, data any) {
+					if name != "harflex:event" {
+						return
+					}
+
 					d := data.(EventDTO)
 					emitted = append(emitted, events.Event{Type: d.Type, Data: d.Data, Sequence: d.Sequence})
 				})
@@ -416,7 +435,11 @@ func TestJournalStreamingPreservesUTF8WithShortOrNoCredential(t *testing.T) {
 					journal := &eventJournal{store: db, service: s, redactor: newSensitiveRedactor([]byte(key))}
 					t.Cleanup(journal.Close)
 					var emitted []events.Event
-					SetEmitter(s, func(_ string, payload any) {
+					SetEmitter(s, func(name string, payload any) {
+						if name != "harflex:event" {
+							return
+						}
+
 						dto := payload.(EventDTO)
 						emitted = append(emitted, events.Event{Type: dto.Type, Data: dto.Data, Sequence: dto.Sequence})
 					})
@@ -468,7 +491,11 @@ func TestJournalRedactorFailureAndCloseNeverPersistOriginal(t *testing.T) {
 	s, db, _ := setup(t)
 	journal := &eventJournal{store: db, service: s, redactor: newSensitiveRedactor([]byte("synthetic-close-key"))}
 	emitted := 0
-	SetEmitter(s, func(string, any) { emitted++ })
+	SetEmitter(s, func(name string, _ any) {
+		if name == "harflex:event" {
+			emitted++
+		}
+	})
 	if _, err := journal.Append(t.Context(), "closed", "agent_session", "message.user", make(chan string)); err == nil {
 		t.Fatal("unsupported data accepted")
 	}

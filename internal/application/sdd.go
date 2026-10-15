@@ -177,7 +177,11 @@ func (s *Service) CreatePipeline(in CreatePipelineInput) (PipelineDTO, error) {
 	if err := s.store.CreatePipeline(s.ctx, run); err != nil {
 		return PipelineDTO{}, safe("create pipeline", err)
 	}
-	return s.pipelineDTOWithCodeApplyStatus(run)
+	created, err := s.pipelineDTOWithCodeApplyStatus(run)
+	if err == nil {
+		s.ensureWorkChat(created)
+	}
+	return created, err
 }
 
 func (s *Service) ListPipelines(workspaceID string) ([]PipelineDTO, error) {

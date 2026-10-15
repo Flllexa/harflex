@@ -26,9 +26,16 @@ func TestPipelineStageInspectionUsesRealSessionsWithoutStartingInference(t *test
 			t.Fatalf("%s inspection=%+v %v", stage, activity, err)
 		}
 	}
-	sessions, err := s.ListSessions(ListSessionsInput{WorkspaceID: pipeline.WorkspaceID})
-	if err != nil || len(sessions) != 2 {
-		t.Fatalf("sessions=%+v %v", sessions, err)
+	listed, err := s.ListSessions(ListSessionsInput{WorkspaceID: pipeline.WorkspaceID})
+	// The work's own chat is a chat; the two preparations are not.
+	var sessions []SessionDTO
+	for _, session := range listed {
+		if session.Purpose != "chat" {
+			sessions = append(sessions, session)
+		}
+	}
+	if err != nil || len(sessions) != 2 || len(listed) > 3 {
+		t.Fatalf("sessions=%+v %v", listed, err)
 	}
 	for _, session := range sessions {
 		if session.Purpose != "preparation" || session.Title == "" || session.Resumable {
