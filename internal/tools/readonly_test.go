@@ -363,12 +363,30 @@ func TestGrepLiteralOrderSkipsAndDetails(t *testing.T) {
 	}
 }
 
-func TestGrepLongLineReturnsContextualError(t *testing.T) {
+// A file with a line over 1 MiB (a minified bundle, a generated graph) is skipped like a binary: the search goes on
+// and says which files it left out. Grepping that file itself is a failure the model can recover from.
+func TestGrepSkipsFilesWithLongLines(t *testing.T) {
 	g, root := readOnlyWorkspace(t)
-	putReadOnlyFile(t, root, "long.txt", strings.Repeat("x", 1024*1024+1)+"needle\n")
-	_, err := NewGrepTool(g).Execute(context.Background(), json.RawMessage(`{"query":"needle"}`), nil)
-	if err == nil || !strings.Contains(err.Error(), "long.txt") || !strings.Contains(err.Error(), "scan") {
-		t.Fatalf("long line error = %v", err)
+	putReadOnlyFile(t, root, "graph/long.json", strings.Repeat("x", 1024*1024+1)+"needle\n")
+	putReadOnlyFile(t, root, "src/a.go", "// needle\n")
+	content, details := executeReadOnly(t, NewGrepTool(g), `{"query":"needle"}`)
+	if details["count"] != float64(1) || !reflect.DeepEqual(details["skipped"], []any{"graph/long.json"}) || details["skippedCount"] != float64(1) {
+		t.Fatalf("details = %#v", details)
+	}
+	if text, _ := content["text"].(string); !strings.Contains(text, "src/a.go:1: // needle") || !strings.Contains(text, "graph/long.json") {
+		t.Fatalf("content = %#v", content)
+	}
+	failure, _ := failureOf(t, NewGrepTool(g), `{"query":"needle","path":"graph/long.json"}`)
+	if failure.Code != "line_too_long" || strings.Contains(failure.Message, root) {
+		t.Fatalf("single file failure = %#v", failure)
+	}
+	// Many such files are counted, and only the first few are named.
+	for index := 0; index < maxGrepSkippedListed+5; index++ {
+		putReadOnlyFile(t, root, fmt.Sprintf("bundle/%02d.js", index), strings.Repeat("y", 1024*1024+1))
+	}
+	content, details = executeReadOnly(t, NewGrepTool(g), `{"query":"needle","path":"bundle"}`)
+	if details["skippedCount"] != float64(maxGrepSkippedListed+5) || len(details["skipped"].([]any)) != maxGrepSkippedListed || !strings.Contains(content["text"].(string), "and 5 more") {
+		t.Fatalf("bounded skipped list: %#v", details)
 	}
 }
 
@@ -392,9 +410,9 @@ func TestGrepOneByteOverLineSizeBoundary(t *testing.T) {
 		t.Run(fmt.Sprintf("ending-%q", ending), func(t *testing.T) {
 			line := "needle" + strings.Repeat("x", 1024*1024+1-len("needle"))
 			putReadOnlyFile(t, root, "over.txt", line+ending)
-			_, err := NewGrepTool(g).Execute(context.Background(), json.RawMessage(`{"query":"needle"}`), nil)
-			if err == nil || !strings.Contains(err.Error(), "scan") || !strings.Contains(err.Error(), "over.txt") || !strings.Contains(err.Error(), "1 MiB") {
-				t.Fatalf("one byte over boundary: error = %v", err)
+			_, details := executeReadOnly(t, NewGrepTool(g), `{"query":"needle"}`)
+			if details["count"] != float64(0) || !reflect.DeepEqual(details["skipped"], []any{"over.txt"}) {
+				t.Fatalf("one byte over boundary: details = %#v", details)
 			}
 		})
 	}

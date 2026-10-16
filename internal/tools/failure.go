@@ -27,6 +27,7 @@ var (
 	errNotRegularFile   = errors.New("not a regular file")
 	errRangeRequired    = errors.New("a line range is required")
 	errBinaryFile       = errors.New("unsupported binary file")
+	errLongLine         = errors.New("line longer than 1 MiB")
 )
 
 // classifiedError keeps an existing message and adds the cause the classifier looks for.
@@ -84,6 +85,8 @@ func toolFailureFor(guard *PathGuard, err error) *agentcore.ToolFailure {
 		return &agentcore.ToolFailure{Code: "ambiguous_match", Message: fmt.Sprintf("oldText matches %d times; it must match exactly once", match.count)}
 	case errors.Is(err, errBinaryFile):
 		return &agentcore.ToolFailure{Code: "binary_file", Message: "the file is binary and this tool only handles text"}
+	case errors.Is(err, errLongLine):
+		return &agentcore.ToolFailure{Code: "line_too_long", Message: "the file has a line longer than 1 MiB, so grep skips it; search another path or read it with offset and limit"}
 	case errors.Is(err, errRangeRequired):
 		return &agentcore.ToolFailure{Code: "range_required", Message: "the file is larger than 10 MiB; read it again with offset and limit"}
 	case errors.Is(err, errNotDirectory):

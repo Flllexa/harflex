@@ -19,10 +19,13 @@ import (
 
 const maxGrepLineBytes = 1024 * 1024
 
+// maxGrepSkippedListed bounds the skipped files named in a result; the count says how many there were.
+const maxGrepSkippedListed = 20
+
 // NewGrepTool searches UTF-8 files for literal, case-sensitive text.
 func NewGrepTool(guard *PathGuard) Tool {
 	return readOnlyTool{guard: guard, run: grepFiles, spec: agentcore.ToolSpec{
-		Name: "grep", Description: "Search UTF-8 files for a literal case-sensitive query. Skips binaries, images, .git and node_modules; lines are limited to 1 MiB and results to 200 matches.",
+		Name: "grep", Description: "Search UTF-8 files for a literal case-sensitive query. Skips binaries, images, .git, node_modules and files with a line over 1 MiB (listed as skipped); results are limited to 200 matches.",
 		Schema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","default":""},"query":{"type":"string","minLength":1},"limit":{"type":"integer","minimum":1,"maximum":200,"default":200}},"required":["query"],"additionalProperties":false}`),
 	}}
 }
@@ -63,11 +66,17 @@ func grepFiles(ctx context.Context, guard *PathGuard, args json.RawMessage) (age
 	defer root.Close()
 	matches := make([]grepMatch, 0, limit+1)
 	total := 0
+	// A search through folders leaves out the files it cannot scan line by line, as it does binaries, and says so.
+	skipped := []string{}
 	err = walkReadOnly(ctx, root, rel, func(name string, entry fs.DirEntry) error {
 		if !entry.Type().IsRegular() {
 			return nil
 		}
 		found, count, err := grepFile(ctx, root, name, params.Query, limit)
+		if errors.Is(err, errLongLine) && name != rel {
+			skipped = append(skipped, name)
+			return nil
+		}
 		if err != nil {
 			return err
 		}
@@ -95,7 +104,18 @@ func grepFiles(ctx context.Context, guard *PathGuard, args json.RawMessage) (age
 	for _, match := range matches {
 		fmt.Fprintf(&text, "%s:%d: %s\n", match.Path, match.Line, match.Text)
 	}
-	return textResult(text.String(), map[string]any{"path": rel, "count": len(matches), "truncated": total > limit, "matches": matches})
+	skippedCount := len(skipped)
+	if skippedCount > maxGrepSkippedListed {
+		skipped = skipped[:maxGrepSkippedListed]
+	}
+	if skippedCount > 0 {
+		more := ""
+		if skippedCount > len(skipped) {
+			more = fmt.Sprintf(" and %d more", skippedCount-len(skipped))
+		}
+		fmt.Fprintf(&text, "Skipped (a line over 1 MiB): %s%s\n", strings.Join(skipped, ", "), more)
+	}
+	return textResult(text.String(), map[string]any{"path": rel, "count": len(matches), "truncated": total > limit, "matches": matches, "skipped": skipped, "skippedCount": skippedCount})
 }
 
 func grepFile(ctx context.Context, root *os.Root, path, query string, limit int) ([]grepMatch, int, error) {
@@ -124,7 +144,7 @@ func grepFile(ctx context.Context, root *os.Root, path, query string, limit int)
 		line++
 		data := scanner.Bytes()
 		if len(data) > maxGrepLineBytes {
-			return nil, 0, fmt.Errorf("scan %q: line %d exceeds 1 MiB", path, line)
+			return nil, 0, classified(errLongLine, "scan %q: line %d exceeds 1 MiB", path, line)
 		}
 		// Delay publishing matches until the entire file passes text detection.
 		if !utf8.Valid(data) || bytes.IndexByte(data, 0) >= 0 {
@@ -137,7 +157,9 @@ func grepFile(ctx context.Context, root *os.Root, path, query string, limit int)
 			}
 		}
 	}
-	if err := scanner.Err(); err != nil {
+	if err := scanner.Err(); errors.Is(err, bufio.ErrTooLong) {
+		return nil, 0, classified(errLongLine, "scan %q (maximum line content 1 MiB): %v", path, err)
+	} else if err != nil {
 		return nil, 0, fmt.Errorf("scan %q (maximum line content 1 MiB): %w", path, err)
 	}
 	if err := ctx.Err(); err != nil {
