@@ -106,7 +106,7 @@ export function installPipelineDesignFixture(backend: Backend, persistence?: Per
     for (const stage of ['spec', 'plan'] as const) { const source = read(parent.id).documents[stage]; if (source.content) publish(design, stage, source.content, source.author, 'derived') }
     persist(); return clone(next)
   }
-  backend.previewPipelineCodeWorkspace = async () => ({ isGit: true, fileCount: 5, totalBytes: 2048, excludedPaths: [], unsafePaths: [] })
+  backend.previewPipelineCodeWorkspace = async () => ({ isGit: true, fileCount: 5, totalBytes: 2048, excludedPaths: [], unsafePaths: [], repositories: [], skippedRepositories: [] })
   persist()
   return { read, pipeline, writeDesign: (value: PipelineDesign) => { saved.designs[value.pipelineId] = clone(value); persist() }, prepareCount: () => saved.prepareCount }
 }

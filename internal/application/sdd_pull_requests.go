@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -11,6 +13,7 @@ import (
 	"github.com/persioflexa/harflex/internal/catalog"
 	"github.com/persioflexa/harflex/internal/events"
 	"github.com/persioflexa/harflex/internal/id"
+	"github.com/persioflexa/harflex/internal/repositories"
 	"github.com/persioflexa/harflex/internal/sdd"
 )
 
@@ -53,9 +56,49 @@ func clipText(text string, limit int) string {
 	return text + "\n[…]"
 }
 
+// prRepository is one repository the work changed: its folder ("." for the project's own) and the branch the copy was
+// made from, which the pull request starts from.
+type prRepository struct {
+	Path   string
+	Branch string
+}
+
+var evidenceFileLine = regexp.MustCompile(`(?m)^# file=("(?:[^"\\]|\\.)*")`)
+
+// pipelinePRRepositories lists the repositories the Code evidence changed, when the copy had nested repositories. A work
+// that changed only the project's own repository gets none, and the prompt keeps its single repository steps.
+func pipelinePRRepositories(code string, snapshot repositories.ExecutionSnapshot) []prRepository {
+	if len(snapshot.Repositories) == 0 {
+		return nil
+	}
+	var paths []string
+	for _, match := range evidenceFileLine.FindAllStringSubmatch(code, -1) {
+		if path, err := strconv.Unquote(match[1]); err == nil {
+			paths = append(paths, path)
+		}
+	}
+	var result []prRepository
+	root := false
+	for _, path := range paths {
+		if _, nested := snapshot.RepositoryFor(path); !nested {
+			root = true
+		}
+	}
+	if root {
+		result = append(result, prRepository{Path: ".", Branch: snapshot.SourceBranch})
+	}
+	for _, repository := range snapshot.ChangedRepositories(paths) {
+		result = append(result, prRepository{Path: repository.Path, Branch: repository.Branch})
+	}
+	if len(result) == 1 && result[0].Path == "." {
+		return nil
+	}
+	return result
+}
+
 // pipelinePRPrompt is what the agent is asked to do. It carries the approved plan and the QA criteria for the
 // description, and spells out the limits: no force push, no merge, nothing outside this work.
-func pipelinePRPrompt(run catalog.PipelineRun) string {
+func pipelinePRPrompt(run catalog.PipelineRun, repos []prRepository) string {
 	var prompt strings.Builder
 	prompt.WriteString("Abra o pull request deste trabalho. As mudanças aprovadas já estão aplicadas na pasta do projeto.\n\n")
 	fmt.Fprintf(&prompt, "Título do trabalho: %s\nObjetivo: %s\n", strings.TrimSpace(run.Title), clipText(run.Objective, 2000))
@@ -88,6 +131,19 @@ Regras: não use push forçado, não altere nem apague a branch principal, não 
 Logo depois de abrir cada pull request, chame harflex_register_pull_request com a URL, o título e a branch, para a pessoa ver o PR na tela de PRs e poder ligar a vigia da revisão.
 Termine com um relatório curto em Markdown: cada pull request com link, branch, base e uma frase de resumo. Se algo não deu certo, diga o que e por quê.
 `)
+	if len(repos) > 0 {
+		prompt.WriteString("\nEste trabalho mudou mais de um repositório Git: as pastas abaixo são repositórios próprios dentro do projeto. Abra um pull request para cada um:\n")
+		for _, repository := range repos {
+			if repository.Path == "." {
+				fmt.Fprintf(&prompt, "- `.` (o repositório do projeto), a partir da branch %s\n", repository.Branch)
+			} else {
+				fmt.Fprintf(&prompt, "- `%s`, a partir da branch %s\n", repository.Path, repository.Branch)
+			}
+		}
+		prompt.WriteString(`Para cada repositório, faça os passos 1 a 5 dentro da pasta dele (cd na pasta, ou git -C pasta): a branch nova sai da branch indicada acima, o commit leva só as mudanças daquela pasta, e o push e o pull request vão para o remoto origin daquele repositório. Nunca faça commit de uma pasta de outro repositório no repositório do projeto.
+Ao registrar cada pull request com harflex_register_pull_request, informe também repository com a pasta do repositório ("." para o do projeto).
+`)
+	}
 	return prompt.String()
 }
 
@@ -112,14 +168,18 @@ func (s *Service) createPipelinePRSession(in CreatePipelineSessionInput) (Pipeli
 		return PipelineSessionDTO{}, sdd.ErrInvalidTransition
 	}
 	// The agent works on the project folder, so the approved patch has to be there before it starts.
+	var repos []prRepository
 	if link, err := s.latestPipelineSession(run.ID, "coder"); err == nil {
 		if link.ExecutionAppliedAt.IsZero() && len(link.ExecutionSnapshot) > 0 {
 			return PipelineSessionDTO{}, ErrPipelineCodeNotApplied
 		}
+		if snapshot, err := s.executionSnapshotForLink(link); err == nil {
+			repos = pipelinePRRepositories(run.Artifacts[sdd.Code].Content, snapshot)
+		}
 	} else if !errors.Is(err, sdd.ErrEvidenceRequired) {
 		return PipelineSessionDTO{}, err
 	}
-	prompt := pipelinePRPrompt(run)
+	prompt := pipelinePRPrompt(run, repos)
 	if len(prompt) > maxPromptBytes {
 		return PipelineSessionDTO{}, ErrHistoryTooLarge
 	}

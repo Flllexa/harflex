@@ -206,7 +206,7 @@ function chatJournal(): AgentEvent[] {
 }
 
 const pullRequest: PullRequest = {
-  id: 'pr-1', pipelineId: 'todo-pipeline', sessionId: 'prs-session', url: 'https://github.com/demo/todo-app/pull/7', title: 'To-do list with localStorage', branch: 'harflex/todo-list',
+  id: 'pr-1', pipelineId: 'todo-pipeline', sessionId: 'prs-session', url: 'https://github.com/demo/todo-app/pull/7', title: 'To-do list with localStorage', branch: 'harflex/todo-list', repository: '',
   state: 'open', watch: true, checking: false, lastCheckedAt: at(52), nextCheckAt: at(58),
   timeline: [
     { at: at(46), kind: 'opened', summary: 'PR opened from the copy QA approved.' },

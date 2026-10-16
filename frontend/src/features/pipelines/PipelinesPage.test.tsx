@@ -275,7 +275,7 @@ it('mostra a prévia da cópia não-Git e exige confirmação explícita antes d
   const run: Pipeline = { id: 'pipeline-code', workspaceId: 'workspace-1', title: 'Implementar', objective: 'Criar TODO', currentStage: 'code', stageStatus: { discovery: 'completed', spec: 'completed', plan: 'completed', code: 'active', eval: 'pending' }, revision: 4, artifacts: {}, createdAt: date, updatedAt: date }
   backend.listPipelines = async () => [run]
   backend.getPipeline = async () => run
-  backend.previewPipelineCodeWorkspace = vi.fn(async () => ({ isGit: false, fileCount: 4, totalBytes: 1200, excludedPaths: ['.git', 'node_modules/'], unsafePaths: [] }))
+  backend.previewPipelineCodeWorkspace = vi.fn(async () => ({ isGit: false, fileCount: 4, totalBytes: 1200, excludedPaths: ['.git', 'node_modules/'], unsafePaths: [], repositories: [], skippedRepositories: [] }))
   const profile = { id: 'api-work', name: 'API local', kind: 'openai_compatible', providerType: 'openai' as const, baseUrl: 'https://example.test/v1', model: 'api-model', hasCredential: true, endpointBlocked: false, updatedAt: new Date().toISOString() }
   backend.listProviderProfiles = async () => [profile]
   backend.queryHTTPModelCatalog = async query => ({ backendId: query.profileId, source: 'openai_models', destination: profile.name, profileRevision: 'api-revision', credentialToken: 'a'.repeat(64), searchTerm: '',
@@ -301,7 +301,7 @@ it('bloqueia a cópia quando a prévia encontra links ou arquivos fora do perím
   const run: Pipeline = { id: 'pipeline-code-unsafe-copy', workspaceId: 'workspace-1', title: 'Implementar', objective: 'Criar TODO', currentStage: 'code', stageStatus: { discovery: 'completed', spec: 'completed', plan: 'completed', code: 'active', eval: 'pending' }, revision: 4, artifacts: {}, createdAt: date, updatedAt: date }
   backend.listPipelines = async () => [run]
   backend.getPipeline = async () => run
-  backend.previewPipelineCodeWorkspace = async () => ({ isGit: false, fileCount: 2, totalBytes: 100, excludedPaths: [], unsafePaths: ['linked-secret'] })
+  backend.previewPipelineCodeWorkspace = async () => ({ isGit: false, fileCount: 2, totalBytes: 100, excludedPaths: [], unsafePaths: ['linked-secret'], repositories: [], skippedRepositories: [] })
   render(<PipelinesPage backend={backend} backends={[{ id: 'api', name: 'API', kind: 'api', available: true }]} workspaceId="workspace-1" selectedPipeline={run} onSelectPipeline={() => undefined} onProjects={() => undefined} onStartRole={async () => undefined} />)
 
   expect(await screen.findByText('linked-secret')).toBeInTheDocument()

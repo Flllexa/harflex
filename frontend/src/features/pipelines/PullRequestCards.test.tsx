@@ -8,7 +8,7 @@ import { PullRequestCards } from './PullRequestCards'
 afterEach(cleanup)
 
 const at = '2026-10-07T12:00:00Z'
-const pr = (overrides: Partial<PullRequest> = {}): PullRequest => ({ id: 'pr-1', pipelineId: 'pipe', sessionId: 'chat', url: 'https://github.com/acme/todo/pull/7', title: 'Exportar CSV', branch: 'harflex/exportar-csv', state: 'open', watch: false, checking: false,
+const pr = (overrides: Partial<PullRequest> = {}): PullRequest => ({ id: 'pr-1', pipelineId: 'pipe', sessionId: 'chat', url: 'https://github.com/acme/todo/pull/7', title: 'Exportar CSV', branch: 'harflex/exportar-csv', repository: '', state: 'open', watch: false, checking: false,
   timeline: [{ at, kind: 'opened', summary: 'PR aberto: Exportar CSV' }], ...overrides })
 
 it('turns the review watch on and shows what it will do', async () => {

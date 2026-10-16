@@ -134,7 +134,7 @@ describe('the pull request panel', () => {
 
   it('keeps the stage open while a PR is under review, and offers to conclude once every PR is approved or merged', async () => {
     const at = new Date().toISOString()
-    const pr = (id: string, state: 'open' | 'approved' | 'merged') => ({ id, pipelineId: 'pipeline-prs', sessionId: 'session-prs', url: `https://github.com/acme/todo/pull/${id}`, title: `PR ${id}`, branch: 'harflex/csv', state, watch: state === 'open', checking: false, timeline: [{ at, kind: 'opened', summary: 'PR aberto' }] })
+    const pr = (id: string, state: 'open' | 'approved' | 'merged') => ({ id, pipelineId: 'pipeline-prs', sessionId: 'session-prs', url: `https://github.com/acme/todo/pull/${id}`, title: `PR ${id}`, branch: 'harflex/csv', repository: '', state, watch: state === 'open', checking: false, timeline: [{ at, kind: 'opened', summary: 'PR aberto' }] })
     const reviewing = backendWith([github], 'completed')
     reviewing.listPipelinePullRequests = async () => [pr('7', 'approved'), pr('9', 'open')]
     show(reviewing)

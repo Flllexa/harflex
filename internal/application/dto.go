@@ -246,6 +246,21 @@ type PipelineCodeCopyPreviewDTO struct {
 	TotalBytes    int64    `json:"totalBytes"`
 	ExcludedPaths []string `json:"excludedPaths"`
 	UnsafePaths   []string `json:"unsafePaths"`
+	// Repositories are the nested repositories (such as domains/<name>) that join the copy; SkippedRepositories stay out.
+	Repositories        []PipelineCodeRepositoryDTO        `json:"repositories"`
+	SkippedRepositories []PipelineCodeSkippedRepositoryDTO `json:"skippedRepositories"`
+}
+
+type PipelineCodeRepositoryDTO struct {
+	Path   string `json:"path"`
+	Branch string `json:"branch"`
+}
+
+// PipelineCodeSkippedRepositoryDTO is a nested repository left out of the copy; Reason is uncommitted_changes,
+// no_commits, submodules or repository_limit.
+type PipelineCodeSkippedRepositoryDTO struct {
+	Path   string `json:"path"`
+	Reason string `json:"reason"`
 }
 type BackendDTO struct {
 	ID                    string                 `json:"id"`

@@ -923,6 +923,26 @@ export interface PipelineCodeCopyPreviewDTO {
     "totalBytes": number;
     "excludedPaths": string[] | null;
     "unsafePaths": string[] | null;
+
+    /**
+     * Repositories are the nested repositories (such as domains/<name>) that join the copy; SkippedRepositories stay out.
+     */
+    "repositories": PipelineCodeRepositoryDTO[] | null;
+    "skippedRepositories": PipelineCodeSkippedRepositoryDTO[] | null;
+}
+
+export interface PipelineCodeRepositoryDTO {
+    "path": string;
+    "branch": string;
+}
+
+/**
+ * PipelineCodeSkippedRepositoryDTO is a nested repository left out of the copy; Reason is uncommitted_changes,
+ * no_commits, submodules or repository_limit.
+ */
+export interface PipelineCodeSkippedRepositoryDTO {
+    "path": string;
+    "reason": string;
 }
 
 export interface PipelineDTO {
@@ -1128,6 +1148,7 @@ export interface PullRequestDTO {
     "url": string;
     "title": string;
     "branch": string;
+    "repository": string;
     "state": string;
     "watch": boolean;
     "lastCheckedAt"?: string | null;

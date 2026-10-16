@@ -59,7 +59,7 @@ export function PullRequestCards({ backend, pipelineId, permissionProfile, permi
           <span className="pr-card-state" aria-hidden="true"><StateIcon /></span>
           <div className="pr-card-title">
             <a href={pr.url} onClick={event => { event.preventDefault(); void openExternal(pr.url) }} title={pr.url}>{pr.title || pr.url}</a>
-            <span className="muted">{pr.branch && <code className="mono">{pr.branch}</code>}<span className={`pr-chip is-${pr.state}`}>{stateLabels[pr.state]}</span></span>
+            <span className="muted">{pr.repository && pr.repository !== '.' && <code className="mono pr-repository" title={t('Repositório')}>{pr.repository}</code>}{pr.branch && <code className="mono">{pr.branch}</code>}<span className={`pr-chip is-${pr.state}`}>{stateLabels[pr.state]}</span></span>
           </div>
           {open && <button type="button" role="switch" aria-checked={pr.watch} className={`pr-watch${pr.watch ? ' is-on' : ''}`} disabled={busy === pr.id} onClick={() => void act(pr.id, () => backend.setPullRequestWatch(pr.id, !pr.watch))}>
             <span className="pr-watch-track" aria-hidden="true"><span /></span>{t('Vigiar revisão')}</button>}

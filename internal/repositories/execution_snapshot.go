@@ -46,18 +46,23 @@ type ExecutionSnapshot struct {
 	IsGit         bool                     `json:"isGit"`
 	Manifest      []ExecutionManifestEntry `json:"manifest"`
 	ExcludedPaths []string                 `json:"excludedPaths,omitempty"`
+	// Repositories are the nested repositories whose tracked files joined the copy; SkippedRepositories stayed out.
+	Repositories        []ExecutionRepository        `json:"repositories,omitempty"`
+	SkippedRepositories []ExecutionSkippedRepository `json:"skippedRepositories,omitempty"`
 }
 
 type ExecutionSnapshotPreview struct {
-	SourceRoot    string   `json:"sourceRoot"`
-	SourceGitRoot string   `json:"sourceGitRoot,omitempty"`
-	SourceHead    string   `json:"sourceHead,omitempty"`
-	SourceBranch  string   `json:"sourceBranch,omitempty"`
-	IsGit         bool     `json:"isGit"`
-	FileCount     int      `json:"fileCount"`
-	TotalBytes    int64    `json:"totalBytes"`
-	ExcludedPaths []string `json:"excludedPaths,omitempty"`
-	UnsafePaths   []string `json:"unsafePaths,omitempty"`
+	SourceRoot          string                       `json:"sourceRoot"`
+	SourceGitRoot       string                       `json:"sourceGitRoot,omitempty"`
+	SourceHead          string                       `json:"sourceHead,omitempty"`
+	SourceBranch        string                       `json:"sourceBranch,omitempty"`
+	IsGit               bool                         `json:"isGit"`
+	FileCount           int                          `json:"fileCount"`
+	TotalBytes          int64                        `json:"totalBytes"`
+	ExcludedPaths       []string                     `json:"excludedPaths,omitempty"`
+	UnsafePaths         []string                     `json:"unsafePaths,omitempty"`
+	Repositories        []ExecutionRepository        `json:"repositories,omitempty"`
+	SkippedRepositories []ExecutionSkippedRepository `json:"skippedRepositories,omitempty"`
 }
 
 // PreviewExecutionSnapshot reads file metadata to present the exact source
@@ -82,12 +87,14 @@ func PreviewExecutionSnapshot(ctx context.Context, source string) (ExecutionSnap
 	}
 	preview.IsGit, preview.SourceGitRoot, preview.SourceHead, preview.SourceBranch = snapshot.IsGit, snapshot.SourceGitRoot, snapshot.SourceHead, snapshot.SourceBranch
 	preview.ExcludedPaths = append([]string(nil), snapshot.ExcludedPaths...)
+	preview.Repositories, preview.SkippedRepositories = snapshot.Repositories, snapshot.SkippedRepositories
 	preview.FileCount = len(paths)
 	for _, slashPath := range paths {
 		if err := ctx.Err(); err != nil {
 			return ExecutionSnapshotPreview{}, err
 		}
-		path := filepath.Join(canonical, filepath.FromSlash(slashPath))
+		location := snapshot.locate(slashPath)
+		path := location.abs()
 		entryInfo, err := os.Lstat(path)
 		if err != nil {
 			return ExecutionSnapshotPreview{}, fmt.Errorf("inspect execution preview file: %w", err)
@@ -95,7 +102,7 @@ func PreviewExecutionSnapshot(ctx context.Context, source string) (ExecutionSnap
 		switch {
 		case entryInfo.Mode()&os.ModeSymlink != 0:
 			target, err := os.Readlink(path)
-			if err != nil || !symlinkStaysWithin(canonical, path, target) {
+			if err != nil || !symlinkStaysWithin(location.root, path, target) {
 				preview.UnsafePaths = append(preview.UnsafePaths, filepath.ToSlash(filepath.FromSlash(slashPath)))
 				continue
 			}
@@ -183,7 +190,8 @@ func PrepareExecutionSnapshotAt(ctx context.Context, source string, confirmNonGi
 			_ = os.RemoveAll(root)
 			return ExecutionSnapshot{}, err
 		}
-		entry, size, copyErr := copyExecutionPath(canonical, root, relative, maxExecutionSnapshotBytes-total)
+		location := preview.locate(relative)
+		entry, size, copyErr := copyExecutionPath(location.root, location.inner, root, relative, maxExecutionSnapshotBytes-total)
 		if copyErr != nil {
 			_ = os.RemoveAll(root)
 			return ExecutionSnapshot{}, copyErr
@@ -256,6 +264,37 @@ func executionSourcePaths(ctx context.Context, snapshot *ExecutionSnapshot) ([]s
 		}
 		paths = append(paths, name)
 	}
+	repositories, skipped, err := nestedExecutionRepositories(ctx, inspected.Root, excluded)
+	if err != nil {
+		return nil, err
+	}
+	included := map[string]bool{}
+	for _, repository := range repositories {
+		nested, submodules, err := nestedRepositoryPaths(ctx, repository)
+		if err != nil {
+			return nil, err
+		}
+		if submodules {
+			skipped = append(skipped, ExecutionSkippedRepository{Path: repository.Path, Reason: SkippedRepositorySubmodules})
+			continue
+		}
+		paths = append(paths, nested...)
+		snapshot.Repositories = append(snapshot.Repositories, repository)
+		included[repository.Path] = true
+	}
+	sort.Slice(skipped, func(i, j int) bool { return skipped[i].Path < skipped[j].Path })
+	snapshot.SkippedRepositories = skipped
+	// A nested repository that joined the copy is no longer an excluded path.
+	kept := snapshot.ExcludedPaths[:0]
+	for _, path := range snapshot.ExcludedPaths {
+		if !included[path] {
+			kept = append(kept, path)
+		}
+	}
+	snapshot.ExcludedPaths = kept
+	if len(paths) > maxExecutionSnapshotFiles {
+		return nil, ErrExecutionSnapshotTooLarge
+	}
 	sort.Strings(paths)
 	return paths, nil
 }
@@ -315,12 +354,14 @@ func walkExecutionPaths(root string, snapshot *ExecutionSnapshot) ([]string, err
 	return paths, nil
 }
 
-func copyExecutionPath(sourceRoot, destinationRoot, slashPath string, maxBytes int64) (ExecutionManifestEntry, int64, error) {
-	if maxBytes < 0 || !safeExecutionRelativePath(filepath.FromSlash(slashPath)) {
+// copyExecutionPath copies sourceRoot/sourcePath to destinationRoot/slashPath. The two differ for a file of a nested
+// repository, whose own root may live outside the project; the entry is recorded under the project path.
+func copyExecutionPath(sourceRoot, sourcePath, destinationRoot, slashPath string, maxBytes int64) (ExecutionManifestEntry, int64, error) {
+	if maxBytes < 0 || !safeExecutionRelativePath(filepath.FromSlash(slashPath)) || !safeExecutionRelativePath(filepath.FromSlash(sourcePath)) {
 		return ExecutionManifestEntry{}, 0, ErrExecutionSnapshotUnsafePath
 	}
 	relative := filepath.FromSlash(slashPath)
-	source := filepath.Join(sourceRoot, relative)
+	source := filepath.Join(sourceRoot, filepath.FromSlash(sourcePath))
 	destination := filepath.Join(destinationRoot, relative)
 	if !pathWithin(sourceRoot, source) || !pathWithin(destinationRoot, destination) {
 		return ExecutionManifestEntry{}, 0, ErrExecutionSnapshotUnsafePath
@@ -558,13 +599,17 @@ func ExecutionSourceStillMatches(ctx context.Context, prepared ExecutionSnapshot
 		if head != prepared.SourceHead || !samePath(gitRoot, prepared.SourceGitRoot) {
 			return false, nil
 		}
-		paths, err := executionSourcePaths(ctx, &ExecutionSnapshot{SourceRoot: prepared.SourceRoot})
+		current := ExecutionSnapshot{SourceRoot: prepared.SourceRoot}
+		paths, err := executionSourcePaths(ctx, &current)
 		if err != nil {
 			return false, err
 		}
-		current := ExecutionSnapshot{SourceRoot: prepared.SourceRoot}
+		// The same nested repositories, each on the commit and branch the copy was made from.
+		if !sameRepositories(prepared.Repositories, current.Repositories) {
+			return false, nil
+		}
 		for _, relative := range paths {
-			entry, _, err := executionManifestPath(prepared.SourceRoot, relative, maxExecutionSnapshotBytes)
+			entry, _, err := current.sourceEntry(relative, maxExecutionSnapshotBytes)
 			if err != nil {
 				return false, err
 			}
@@ -603,7 +648,7 @@ func ExecutionSnapshotApplied(ctx context.Context, prepared ExecutionSnapshot) (
 	before := executionManifestByPath(prepared.Manifest)
 	after := executionManifestByPath(finalManifest)
 	for path, expected := range after {
-		current, _, err := executionManifestPath(prepared.SourceRoot, path, maxExecutionSnapshotBytes)
+		current, _, err := prepared.sourceEntry(path, maxExecutionSnapshotBytes)
 		if err != nil || current != expected {
 			return false, nil
 		}
@@ -612,7 +657,7 @@ func ExecutionSnapshotApplied(ctx context.Context, prepared ExecutionSnapshot) (
 		if _, remains := after[path]; remains {
 			continue
 		}
-		if _, err := os.Lstat(filepath.Join(prepared.SourceRoot, filepath.FromSlash(path))); !errors.Is(err, os.ErrNotExist) {
+		if _, err := os.Lstat(prepared.locate(path).abs()); !errors.Is(err, os.ErrNotExist) {
 			return false, nil
 		}
 	}
@@ -671,7 +716,10 @@ func ExecutionDiff(ctx context.Context, prepared ExecutionSnapshot, maxBytes int
 		}
 		var oldContent, newContent []byte
 		if hadOld {
-			oldContent, err = readExecutionContent(prepared.SourceRoot, oldEntry, maxBytes-output.Len())
+			location := prepared.locate(oldEntry.Path)
+			sourceEntry := oldEntry
+			sourceEntry.Path = location.inner
+			oldContent, err = readExecutionContent(location.root, sourceEntry, maxBytes-output.Len())
 			if err != nil {
 				return "", nil, err
 			}
@@ -818,6 +866,18 @@ func manifestsEqual(left, right []ExecutionManifestEntry) bool {
 	}
 	for i := range left {
 		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func sameRepositories(left, right []ExecutionRepository) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i].Path != right[i].Path || !samePath(left[i].SourceRoot, right[i].SourceRoot) || left[i].Head != right[i].Head || left[i].Branch != right[i].Branch {
 			return false
 		}
 	}

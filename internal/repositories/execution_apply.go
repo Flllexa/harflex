@@ -58,11 +58,11 @@ func ApplyExecutionSnapshot(ctx context.Context, prepared ExecutionSnapshot, max
 		oldEntry, hadOld := before[path]
 		newEntry, hasNew := after[path]
 		if hadOld {
-			current, _, err := executionManifestPath(prepared.SourceRoot, path, maxExecutionSnapshotBytes)
+			current, _, err := prepared.sourceEntry(path, maxExecutionSnapshotBytes)
 			if err != nil || current != oldEntry {
 				return nil, ErrExecutionApplyConflict
 			}
-		} else if _, err := os.Lstat(filepath.Join(prepared.SourceRoot, filepath.FromSlash(path))); !errors.Is(err, os.ErrNotExist) {
+		} else if _, err := os.Lstat(prepared.locate(path).abs()); !errors.Is(err, os.ErrNotExist) {
 			return nil, ErrExecutionApplyConflict
 		}
 		changes = append(changes, stagedExecutionChange{path: path, oldEntry: oldEntry, hadOld: hadOld, newEntry: newEntry, hasNew: hasNew})
@@ -102,17 +102,18 @@ func ApplyExecutionSnapshot(ctx context.Context, prepared ExecutionSnapshot, max
 			if !change.applied {
 				continue
 			}
-			destination := filepath.Join(prepared.SourceRoot, filepath.FromSlash(change.path))
+			location := prepared.locate(change.path)
+			destination := location.abs()
 			if err := os.Remove(destination); err != nil && !errors.Is(err, os.ErrNotExist) {
 				rollbackErr = errors.Join(rollbackErr, err)
 				continue
 			}
 			if change.hadOld {
-				if _, err := ensureExecutionParents(prepared.SourceRoot, change.path, &createdDirs); err != nil {
+				if _, err := ensureExecutionParents(location.root, location.inner, &createdDirs); err != nil {
 					rollbackErr = errors.Join(rollbackErr, err)
 					continue
 				}
-				if _, _, err := copyExecutionPath(backupRoot, prepared.SourceRoot, change.path, maxExecutionSnapshotBytes); err != nil {
+				if _, _, err := copyExecutionPath(backupRoot, change.path, location.root, location.inner, maxExecutionSnapshotBytes); err != nil {
 					rollbackErr = errors.Join(rollbackErr, err)
 				}
 			}
@@ -132,8 +133,9 @@ func ApplyExecutionSnapshot(ctx context.Context, prepared ExecutionSnapshot, max
 	var backupBytes, stagedBytes int64
 	for i := range changes {
 		change := &changes[i]
+		location := prepared.locate(change.path)
 		if change.hadOld {
-			_, size, err := copyExecutionPath(prepared.SourceRoot, backupRoot, change.path, maxExecutionSnapshotBytes-backupBytes)
+			_, size, err := copyExecutionPath(location.root, location.inner, backupRoot, change.path, maxExecutionSnapshotBytes-backupBytes)
 			if err != nil {
 				cleanupStaging()
 				removeEmptyDirs()
@@ -144,12 +146,12 @@ func ApplyExecutionSnapshot(ctx context.Context, prepared ExecutionSnapshot, max
 		if !change.hasNew {
 			continue
 		}
-		if _, err := ensureExecutionParents(prepared.SourceRoot, change.path, &createdDirs); err != nil {
+		if _, err := ensureExecutionParents(location.root, location.inner, &createdDirs); err != nil {
 			cleanupStaging()
 			removeEmptyDirs()
 			return nil, err
 		}
-		destination := filepath.Join(prepared.SourceRoot, filepath.FromSlash(change.path))
+		destination := location.abs()
 		stageDir, err := os.MkdirTemp(filepath.Dir(destination), ".harflex-stage-")
 		if err != nil {
 			cleanupStaging()
@@ -157,7 +159,7 @@ func ApplyExecutionSnapshot(ctx context.Context, prepared ExecutionSnapshot, max
 			return nil, fmt.Errorf("stage patch file: %w", err)
 		}
 		change.stageDir = stageDir
-		_, size, err := copyExecutionPath(prepared.Root, stageDir, change.path, maxExecutionSnapshotBytes-stagedBytes)
+		_, size, err := copyExecutionPath(prepared.Root, change.path, stageDir, change.path, maxExecutionSnapshotBytes-stagedBytes)
 		if err != nil {
 			cleanupStaging()
 			removeEmptyDirs()
@@ -172,9 +174,9 @@ func ApplyExecutionSnapshot(ctx context.Context, prepared ExecutionSnapshot, max
 			return fail(err)
 		}
 		change := &changes[i]
-		destination := filepath.Join(prepared.SourceRoot, filepath.FromSlash(change.path))
+		destination := prepared.locate(change.path).abs()
 		if change.hadOld {
-			current, _, err := executionManifestPath(prepared.SourceRoot, change.path, maxExecutionSnapshotBytes)
+			current, _, err := prepared.sourceEntry(change.path, maxExecutionSnapshotBytes)
 			if err != nil || current != change.oldEntry {
 				return fail(ErrExecutionApplyConflict)
 			}
@@ -193,9 +195,9 @@ func ApplyExecutionSnapshot(ctx context.Context, prepared ExecutionSnapshot, max
 	cleanupStaging()
 
 	for _, change := range changes {
-		path := filepath.Join(prepared.SourceRoot, filepath.FromSlash(change.path))
+		path := prepared.locate(change.path).abs()
 		if change.hasNew {
-			current, _, err := executionManifestPath(prepared.SourceRoot, change.path, maxExecutionSnapshotBytes)
+			current, _, err := prepared.sourceEntry(change.path, maxExecutionSnapshotBytes)
 			if err != nil || current != change.newEntry {
 				return fail(ErrExecutionApplyConflict)
 			}
@@ -282,23 +284,47 @@ func ensureExecutionParents(root, slashPath string, created *[]string) (string, 
 	return filepath.Join(root, relative), nil
 }
 
+// verifyAppliedGitStatus checks every repository the change touched: still on the recorded commit and branch, and
+// its status lists exactly the changed paths. Each nested repository is checked in its own root, with its own paths.
 func verifyAppliedGitStatus(ctx context.Context, prepared ExecutionSnapshot, before, after map[string]ExecutionManifestEntry, changed []string) error {
 	head, gitRoot, branch, err := ExecutionGitIdentity(ctx, prepared.SourceRoot)
 	if err != nil || head != prepared.SourceHead || branch != prepared.SourceBranch || !samePath(gitRoot, prepared.SourceGitRoot) {
 		return ErrExecutionApplyConflict
 	}
-	allowed := make(map[string]struct{}, len(changed))
+	byRepository := map[int][]string{-1: nil}
 	for _, path := range changed {
-		allowed[path] = struct{}{}
+		repository := prepared.locate(path).repository
+		byRepository[repository] = append(byRepository[repository], path)
 	}
-	status, truncated, err := gitOutput(ctx, prepared.SourceRoot, 8*1024*1024, "status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames")
+	for repository, paths := range byRepository {
+		root := prepared.SourceRoot
+		if repository >= 0 {
+			nested := prepared.Repositories[repository]
+			if !repositoryIdentityMatches(ctx, nested) {
+				return ErrExecutionApplyConflict
+			}
+			root = nested.SourceRoot
+		}
+		if err := verifyRepositoryStatus(ctx, prepared, root, before, after, paths); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func verifyRepositoryStatus(ctx context.Context, prepared ExecutionSnapshot, root string, before, after map[string]ExecutionManifestEntry, changed []string) error {
+	allowed := make(map[string]string, len(changed))
+	for _, path := range changed {
+		allowed[prepared.locate(path).inner] = path
+	}
+	status, truncated, err := gitOutput(ctx, root, 8*1024*1024, "status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames")
 	if err != nil || truncated {
 		return ErrExecutionApplyConflict
 	}
 	found := make(map[string]struct{})
 	for _, item := range parseStatus(status) {
-		path := StatusPath(item)
-		if _, ok := allowed[path]; !ok {
+		path, ok := allowed[StatusPath(item)]
+		if !ok {
 			return ErrExecutionApplyConflict
 		}
 		found[path] = struct{}{}

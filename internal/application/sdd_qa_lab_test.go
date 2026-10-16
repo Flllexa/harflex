@@ -475,12 +475,12 @@ func TestPullRequestWatchChecksTheRecordedPRInItsConversationAndStopsWhenMerged(
 		t.Fatal("the PRs prompt does not ask to record the pull requests")
 	}
 	register := harflexToolNamed(t, s.pullRequestTools(run.ID, publisher.Session.ID), "harflex_register_pull_request")
-	if _, err := register.Execute(t.Context(), json.RawMessage(`{"url":"https://github.com/acme/todo/pull/7","title":"Exportar CSV","branch":"harflex/exportar-csv"}`), nil); err != nil {
+	if _, err := register.Execute(t.Context(), json.RawMessage(`{"url":"https://github.com/acme/todo/pull/7","title":"Exportar CSV","branch":"harflex/exportar-csv","repository":"domains/todo"}`), nil); err != nil {
 		t.Fatal(err)
 	}
 	// The watch starts with the PR, and its first check comes an hour later.
 	listed, err := s.ListPipelinePullRequests(run.ID)
-	if err != nil || len(listed) != 1 || listed[0].State != "open" || !listed[0].Watch || listed[0].Branch != "harflex/exportar-csv" ||
+	if err != nil || len(listed) != 1 || listed[0].State != "open" || !listed[0].Watch || listed[0].Branch != "harflex/exportar-csv" || listed[0].Repository != "domains/todo" ||
 		listed[0].NextCheckAt == nil || listed[0].NextCheckAt.Sub(time.Now()) < 59*time.Minute {
 		t.Fatalf("recorded PRs: %+v %v", listed, err)
 	}

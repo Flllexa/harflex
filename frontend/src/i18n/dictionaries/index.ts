@@ -7,7 +7,8 @@ import { en as worktrees, es as worktreesEs } from './worktrees'
 import { en as features, es as featuresEs } from './features'
 import { en as backend, es as backendEs } from './backend'
 import { en as activity, es as activityEs } from './activity'
+import { en as nestedRepositories, es as nestedRepositoriesEs } from './nestedRepositories'
 
 // One file per area, so each area can be translated on its own. Every file exports `en` and `es`, keyed by the Portuguese text.
-export const en: Record<string, string> = { ...shell, ...agents, ...pipelines, ...pipelines2, ...workbench, ...worktrees, ...features, ...backend, ...activity }
-export const es: Record<string, string> = { ...shellEs, ...agentsEs, ...pipelinesEs, ...pipelines2Es, ...workbenchEs, ...worktreesEs, ...featuresEs, ...backendEs, ...activityEs }
+export const en: Record<string, string> = { ...shell, ...agents, ...pipelines, ...pipelines2, ...workbench, ...worktrees, ...features, ...backend, ...activity, ...nestedRepositories }
+export const es: Record<string, string> = { ...shellEs, ...agentsEs, ...pipelinesEs, ...pipelines2Es, ...workbenchEs, ...worktreesEs, ...featuresEs, ...backendEs, ...activityEs, ...nestedRepositoriesEs }

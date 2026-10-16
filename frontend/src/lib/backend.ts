@@ -55,7 +55,7 @@ export type PipelineRoleChoice = { backendId: string; selection?: PipelineRoleMo
 export type FixPipelineFindingsInput = { pipelineId: string; findings: string[]; improvements: string[]; note: string; coder: PipelineRoleChoice; evaluator: PipelineRoleChoice }
 export type ResumePipelineFixesInput = { pipelineId: string; coder: PipelineRoleChoice; evaluator: PipelineRoleChoice }
 const pullRequestEvent = z.object({ at: z.string(), kind: z.string(), summary: z.string() })
-const pullRequest = z.object({ id: z.string().min(1), pipelineId: z.string(), sessionId: z.string(), url: z.string(), title: z.string(), branch: z.string(), state: z.enum(['open', 'approved', 'merged', 'closed']), watch: z.boolean(),
+const pullRequest = z.object({ id: z.string().min(1), pipelineId: z.string(), sessionId: z.string(), url: z.string(), title: z.string(), branch: z.string(), repository: z.string().optional().default(''), state: z.enum(['open', 'approved', 'merged', 'closed']), watch: z.boolean(),
   lastCheckedAt: z.string().optional(), nextCheckAt: z.string().optional(), checking: z.boolean(), timeline: z.array(pullRequestEvent).nullish().transform(value => value ?? []) })
 export type PullRequest = z.infer<typeof pullRequest>
 const workCoordinator = z.object({ sessionId: z.string().min(1), pipelineId: z.string().min(1), title: z.string(), currentStage: z.union([pipelineStage, z.literal('')]), stageStatus: z.record(z.string(), z.string()), previousSessionIds: z.array(z.string()).nullish().transform(items => items ?? []), updatedAt: z.string() })
@@ -188,7 +188,9 @@ const sessionModelSelection = z.strictObject({ sessionId: z.string().min(1), bac
   confirmUnverifiedManual: z.boolean(), confirmUnfiltered: z.boolean(), confirmJitLoad: z.boolean(),
   maxOutputTokens: z.number().int().min(0).max(32768), contextLength: z.number().int().min(0), checkedAt: z.iso.datetime({ offset: true }) })
 const pipelineSession = z.object({ session, prompt: z.string().min(1), role: z.enum(['coder', 'evaluator', 'publisher']) })
-const pipelineCodeCopyPreview = z.object({ isGit: z.boolean(), fileCount: z.number().int().nonnegative(), totalBytes: z.number().int().nonnegative(), excludedPaths: z.array(z.string()), unsafePaths: z.array(z.string()) })
+const pipelineCodeCopyPreview = z.object({ isGit: z.boolean(), fileCount: z.number().int().nonnegative(), totalBytes: z.number().int().nonnegative(), excludedPaths: z.array(z.string()), unsafePaths: z.array(z.string()),
+  repositories: z.array(z.object({ path: z.string(), branch: z.string() })).nullish().transform(value => value ?? []),
+  skippedRepositories: z.array(z.object({ path: z.string(), reason: z.string() })).nullish().transform(value => value ?? []) })
 const agent = z.object({ id: z.string().min(1), name: z.string(), description: z.string(), instructions: z.string(), backendId: z.string().min(1), allowedTools: z.array(z.string()), createdAt: z.iso.datetime({ offset: true }), updatedAt: z.iso.datetime({ offset: true }) })
 const delegationLink = z.object({ id: z.string().min(1), parentSessionId: z.string().min(1), childSessionId: z.string().min(1), agentId: z.string().min(1), depth: z.number().int().positive(), createdAt: z.iso.datetime({ offset: true }) })
 const delegation = delegationLink.extend({ taskPrompt: z.string().default(''), promptCount: z.number().int().nonnegative(), promptLimit: z.number().int().positive(), timeoutSeconds: z.number().int().positive(), status: z.enum(['ready', 'running', 'awaiting_approval', 'completed', 'failed', 'cancelled', 'paused', 'history_too_large']), result: z.string(), errorCode: z.string() })

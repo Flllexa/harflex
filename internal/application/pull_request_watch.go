@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/url"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -39,6 +40,7 @@ type PullRequestDTO struct {
 	URL           string                `json:"url"`
 	Title         string                `json:"title"`
 	Branch        string                `json:"branch"`
+	Repository    string                `json:"repository"`
 	State         string                `json:"state"`
 	Watch         bool                  `json:"watch"`
 	LastCheckedAt *time.Time            `json:"lastCheckedAt,omitempty"`
@@ -71,7 +73,7 @@ func (s *Service) pullRequestPipelineFor(sessionID, workspaceID string) string {
 }
 
 func (s *Service) pullRequestDTO(pr catalog.PipelinePullRequest) PullRequestDTO {
-	dto := PullRequestDTO{ID: pr.ID, PipelineID: pr.PipelineID, SessionID: pr.SessionID, URL: pr.URL, Title: pr.Title, Branch: pr.Branch, State: pr.State, Watch: pr.Watch, Timeline: []PullRequestEventDTO{}}
+	dto := PullRequestDTO{ID: pr.ID, PipelineID: pr.PipelineID, SessionID: pr.SessionID, URL: pr.URL, Title: pr.Title, Branch: pr.Branch, Repository: pr.Repository, State: pr.State, Watch: pr.Watch, Timeline: []PullRequestEventDTO{}}
 	if !pr.LastCheckedAt.IsZero() {
 		checked := pr.LastCheckedAt
 		dto.LastCheckedAt = &checked
@@ -237,6 +239,10 @@ func pullRequestWatchPrompt(pr catalog.PipelinePullRequest, since time.Time) str
 		prompt.WriteString(" (branch " + pr.Branch + ")")
 	}
 	prompt.WriteString(".\n")
+	// The pull request of a nested repository is worked on inside its own folder.
+	if pr.Repository != "" && pr.Repository != "." {
+		prompt.WriteString("O PR é do repositório da pasta " + pr.Repository + " do projeto: trabalhe dentro dela (cd na pasta) para ler, corrigir, testar, fazer commit e push.\n")
+	}
 	if since.IsZero() {
 		prompt.WriteString("Leia todos os comentários e revisões abertos do PR.\n")
 	} else {
@@ -289,8 +295,8 @@ func (s *Service) pullRequestTools(pipelineID, sessionID string) []tools.Tool {
 	return []tools.Tool{
 		harflexTool{service: s, workspaceID: pipelineID, risk: security.ReadOnly, spec: agentcore.ToolSpec{
 			Name:        "harflex_register_pull_request",
-			Description: "Record in Harflex a pull request you just opened for this pipeline, so the person sees it on the PRs screen and Harflex watches its review every hour. Call it once per pull request, right after opening it.",
-			Schema:      json.RawMessage(`{"type":"object","properties":{"url":{"type":"string","minLength":8},"title":{"type":"string"},"branch":{"type":"string"}},"required":["url"],"additionalProperties":false}`),
+			Description: "Record in Harflex a pull request you just opened for this pipeline, so the person sees it on the PRs screen and Harflex watches its review every hour. Call it once per pull request, right after opening it. When the work changed several repositories, pass repository: the folder of the repository the pull request belongs to (\".\" for the project's own, or a nested one such as domains/contracts).",
+			Schema:      json.RawMessage(`{"type":"object","properties":{"url":{"type":"string","minLength":8},"title":{"type":"string"},"branch":{"type":"string"},"repository":{"type":"string"}},"required":["url"],"additionalProperties":false}`),
 		}, run: func(s *Service, pipelineID, _ string, args json.RawMessage) (any, error) {
 			return s.registerPullRequest(pipelineID, sessionID, args)
 		}},
@@ -309,17 +315,36 @@ func validPullRequestURL(raw string) bool {
 	return err == nil && (parsed.Scheme == "https" || parsed.Scheme == "http") && parsed.Host != "" && len(raw) <= 2000 && utf8.ValidString(raw)
 }
 
+// validPullRequestRepository accepts "", "." or a folder inside the project, never a path that leaves it.
+func validPullRequestRepository(raw string) bool {
+	value := strings.TrimSpace(raw)
+	if value == "" || value == "." {
+		return true
+	}
+	clean := path.Clean(strings.ReplaceAll(value, "\\", "/"))
+	return len(value) <= 300 && utf8.ValidString(value) && !path.IsAbs(clean) && clean != ".." && !strings.HasPrefix(clean, "../")
+}
+
+func cleanPullRequestRepository(raw string) string {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return ""
+	}
+	return strings.TrimSuffix(path.Clean(strings.ReplaceAll(value, "\\", "/")), "/")
+}
+
 func (s *Service) registerPullRequest(pipelineID, sessionID string, args json.RawMessage) (any, error) {
 	var in struct {
-		URL    string `json:"url"`
-		Title  string `json:"title"`
-		Branch string `json:"branch"`
+		URL        string `json:"url"`
+		Title      string `json:"title"`
+		Branch     string `json:"branch"`
+		Repository string `json:"repository"`
 	}
-	if err := json.Unmarshal(args, &in); err != nil || !validPullRequestURL(in.URL) || len(in.Title) > 500 || len(in.Branch) > 300 {
+	if err := json.Unmarshal(args, &in); err != nil || !validPullRequestURL(in.URL) || len(in.Title) > 500 || len(in.Branch) > 300 || !validPullRequestRepository(in.Repository) {
 		return nil, errHarflexArguments
 	}
 	now := time.Now().UTC()
-	pr := catalog.PipelinePullRequest{ID: id.New(), PipelineID: pipelineID, SessionID: sessionID, URL: strings.TrimSpace(in.URL), Title: strings.TrimSpace(in.Title), Branch: strings.TrimSpace(in.Branch), State: "open", CreatedAt: now, UpdatedAt: now}
+	pr := catalog.PipelinePullRequest{ID: id.New(), PipelineID: pipelineID, SessionID: sessionID, URL: strings.TrimSpace(in.URL), Title: strings.TrimSpace(in.Title), Branch: strings.TrimSpace(in.Branch), Repository: cleanPullRequestRepository(in.Repository), State: "open", CreatedAt: now, UpdatedAt: now}
 	if existing, err := s.store.ListPipelinePullRequests(s.ctx, pipelineID); err == nil {
 		for _, item := range existing {
 			if item.URL == pr.URL {

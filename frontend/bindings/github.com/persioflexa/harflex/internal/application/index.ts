@@ -100,6 +100,8 @@ export type {
     PipelineArchivedArtifactDTO,
     PipelineArtifactDTO,
     PipelineCodeCopyPreviewDTO,
+    PipelineCodeRepositoryDTO,
+    PipelineCodeSkippedRepositoryDTO,
     PipelineDTO,
     PipelineDesignAttemptDTO,
     PipelineDesignDTO,

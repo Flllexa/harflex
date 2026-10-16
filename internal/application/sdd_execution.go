@@ -273,8 +273,16 @@ func (s *Service) PreviewPipelineCodeWorkspace(workspaceID string) (PipelineCode
 	if err != nil {
 		return PipelineCodeCopyPreviewDTO{}, err
 	}
-	return PipelineCodeCopyPreviewDTO{IsGit: preview.IsGit, FileCount: preview.FileCount, TotalBytes: preview.TotalBytes,
-		ExcludedPaths: append([]string{}, preview.ExcludedPaths...), UnsafePaths: append([]string{}, preview.UnsafePaths...)}, nil
+	result := PipelineCodeCopyPreviewDTO{IsGit: preview.IsGit, FileCount: preview.FileCount, TotalBytes: preview.TotalBytes,
+		ExcludedPaths: append([]string{}, preview.ExcludedPaths...), UnsafePaths: append([]string{}, preview.UnsafePaths...),
+		Repositories: []PipelineCodeRepositoryDTO{}, SkippedRepositories: []PipelineCodeSkippedRepositoryDTO{}}
+	for _, repository := range preview.Repositories {
+		result.Repositories = append(result.Repositories, PipelineCodeRepositoryDTO{Path: repository.Path, Branch: repository.Branch})
+	}
+	for _, repository := range preview.SkippedRepositories {
+		result.SkippedRepositories = append(result.SkippedRepositories, PipelineCodeSkippedRepositoryDTO{Path: repository.Path, Reason: repository.Reason})
+	}
+	return result, nil
 }
 
 func (s *Service) CreatePipelineSession(in CreatePipelineSessionInput) (PipelineSessionDTO, error) {
@@ -864,6 +872,17 @@ func pipelineCodeEvidence(ctx context.Context, snapshot repositories.ExecutionSn
 		evidence.WriteString(strconv.Quote(snapshot.SourceHead))
 		evidence.WriteString(" source_branch=")
 		evidence.WriteString(strconv.Quote(snapshot.SourceBranch))
+	}
+	// Each nested repository the change touches is named with the commit and branch it was copied from.
+	for _, repository := range snapshot.ChangedRepositories(changedPaths) {
+		evidence.WriteString("\n# repository=")
+		evidence.WriteString(strconv.Quote(repository.Path))
+		evidence.WriteString(" source_root=")
+		evidence.WriteString(strconv.Quote(repository.SourceRoot))
+		evidence.WriteString(" source_head=")
+		evidence.WriteString(strconv.Quote(repository.Head))
+		evidence.WriteString(" source_branch=")
+		evidence.WriteString(strconv.Quote(repository.Branch))
 	}
 	evidence.WriteString("\n# final_manifest_sha256=")
 	evidence.WriteString(hex.EncodeToString(manifestHash[:]))

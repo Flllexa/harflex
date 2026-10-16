@@ -24,6 +24,8 @@ The screenshots below are of the app itself, using a demo project (`make screens
 
 ![Code workbench with the per-file diff](docs/screenshots/03-code.png)
 
+In a workspace made of several Git repositories (for example, a root repository that ignores `domains/*`, where each domain is a repository of its own, even one linked from elsewhere), every inner repository joins Code's copy. Its changes go back to it, on the branch it was on, and the PRs stage opens one pull request for each repository the work changed. An inner repository with uncommitted changes stays out of the copy, and the Code screen says so until it is committed or stashed.
+
 **Code running:** open the Code stage while the Coder works and you see the plan it declared, the step it is on and what it does in each step. You can leave and come back at any time.
 
 ![Code bench with the Coder's plan and the steps it is working on](docs/screenshots/03b-code-running.png)

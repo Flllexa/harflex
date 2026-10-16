@@ -11,7 +11,7 @@ import (
 	"github.com/persioflexa/harflex/internal/catalog"
 )
 
-const pullRequestColumns = "id, pipeline_id, session_id, url, title, branch, state, watch, last_checked_at, timeline, created_at, updated_at"
+const pullRequestColumns = "id, pipeline_id, session_id, url, title, branch, repository, state, watch, last_checked_at, timeline, created_at, updated_at"
 
 // MaxPullRequestTimeline keeps the most recent lines of a pull request's timeline.
 const MaxPullRequestTimeline = 60
@@ -20,7 +20,7 @@ func scanPullRequest(scan func(...any) error) (catalog.PipelinePullRequest, erro
 	var pr catalog.PipelinePullRequest
 	var watch int
 	var checked, timeline, created, updated string
-	if err := scan(&pr.ID, &pr.PipelineID, &pr.SessionID, &pr.URL, &pr.Title, &pr.Branch, &pr.State, &watch, &checked, &timeline, &created, &updated); err != nil {
+	if err := scan(&pr.ID, &pr.PipelineID, &pr.SessionID, &pr.URL, &pr.Title, &pr.Branch, &pr.Repository, &pr.State, &watch, &checked, &timeline, &created, &updated); err != nil {
 		return pr, err
 	}
 	pr.Watch = watch == 1
@@ -54,10 +54,10 @@ func (s *Store) SavePipelinePullRequest(ctx context.Context, pr catalog.Pipeline
 	if !pr.LastCheckedAt.IsZero() {
 		checked = formatCatalogTime(pr.LastCheckedAt)
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO pipeline_pull_requests (`+pullRequestColumns+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-		ON CONFLICT(pipeline_id, url) DO UPDATE SET session_id=excluded.session_id, title=excluded.title, branch=excluded.branch, state=excluded.state,
+	_, err := s.db.ExecContext(ctx, `INSERT INTO pipeline_pull_requests (`+pullRequestColumns+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+		ON CONFLICT(pipeline_id, url) DO UPDATE SET session_id=excluded.session_id, title=excluded.title, branch=excluded.branch, repository=excluded.repository, state=excluded.state,
 		watch=excluded.watch, last_checked_at=excluded.last_checked_at, timeline=excluded.timeline, updated_at=excluded.updated_at`,
-		pr.ID, pr.PipelineID, pr.SessionID, pr.URL, pr.Title, pr.Branch, pr.State, watch, checked, encodeTimeline(pr.Timeline), formatCatalogTime(pr.CreatedAt), formatCatalogTime(pr.UpdatedAt))
+		pr.ID, pr.PipelineID, pr.SessionID, pr.URL, pr.Title, pr.Branch, pr.Repository, pr.State, watch, checked, encodeTimeline(pr.Timeline), formatCatalogTime(pr.CreatedAt), formatCatalogTime(pr.UpdatedAt))
 	if err != nil {
 		return pr, fmt.Errorf("save pull request: %w", err)
 	}

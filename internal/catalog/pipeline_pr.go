@@ -25,12 +25,14 @@ type PipelinePRsFinish struct {
 
 // PipelinePullRequest is a pull request the PRs conversation opened, with its review watch.
 type PipelinePullRequest struct {
-	ID            string
-	PipelineID    string
-	SessionID     string
-	URL           string
-	Title         string
-	Branch        string
+	ID         string
+	PipelineID string
+	SessionID  string
+	URL        string
+	Title      string
+	Branch     string
+	// Repository is "." for the project's own repository, or the path of a nested one (domains/contracts).
+	Repository    string
 	State         string // open, merged, closed
 	Watch         bool
 	LastCheckedAt time.Time

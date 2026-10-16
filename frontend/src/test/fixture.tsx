@@ -328,7 +328,7 @@ if (scenario === 'phase-executors') {
     backend.listStageExecutors = async workspaceId => { if (++attempts <= 2) throw new Error('offline'); return read(workspaceId) }
   }
 }
-if (scenario === 'pipeline-code' || scenario === 'pipeline-code-cli' || scenario === 'pipeline-code-no-api') {
+if (scenario === 'pipeline-code' || scenario === 'pipeline-code-cli' || scenario === 'pipeline-code-no-api' || scenario === 'pipeline-code-nested') {
   const requestedStage = new URLSearchParams(window.location.search).get('stage') === 'eval' ? 'eval' : 'code'
   let pipeline: Pipeline = { id: 'pipeline-code', workspaceId: 'workspace-1', title: 'Exportar faturas', objective: 'Adicionar exportação CSV', currentStage: requestedStage,
     stageStatus: { discovery: 'completed', spec: 'completed', plan: 'completed', code: requestedStage === 'code' ? 'active' : 'completed', eval: requestedStage === 'eval' ? 'active' : 'pending' }, revision: 4,
@@ -450,7 +450,10 @@ if (scenario === 'pipeline-code' || scenario === 'pipeline-code-cli' || scenario
     return pipeline
   }
   backend.listMCPServers = async () => [{ id: 'mcp-github-1', workspaceId: 'workspace-1', name: 'GitHub', transport: 'http', command: '', args: [], url: 'https://api.githubcopilot.com/mcp/', tokenEnvVar: '', authScheme: 'bearer', enabled: true, tools: [], hasCredential: true, createdAt: '2026-09-25T10:00:00Z', updatedAt: '2026-09-25T10:00:00Z' }]
-  if (scenario === 'pipeline-code-cli') backend.previewPipelineCodeWorkspace = async () => ({ isGit: false, fileCount: 4, totalBytes: 1200, excludedPaths: ['.git'], unsafePaths: [] })
+  if (scenario === 'pipeline-code-cli') backend.previewPipelineCodeWorkspace = async () => ({ isGit: false, fileCount: 4, totalBytes: 1200, excludedPaths: ['.git'], unsafePaths: [], repositories: [], skippedRepositories: [] })
+  // A multi-repo workspace: domains/<name> are repositories of their own inside the project.
+  if (scenario === 'pipeline-code-nested') backend.previewPipelineCodeWorkspace = async () => ({ isGit: true, fileCount: 17316, totalBytes: 243_000_000, excludedPaths: ['.git', 'api-docs/node_modules'], unsafePaths: [],
+    repositories: [{ path: 'domains/settlement', branch: 'main' }, { path: 'domains/fidc', branch: 'main' }], skippedRepositories: [{ path: 'domains/contracts', reason: 'uncommitted_changes' }] })
   if (noAPIProfile) backend.listBackends = async () => [{ id: 'codex', name: 'Codex CLI', kind: 'cli', available: true }]
   if (scenario === 'pipeline-code-cli') backend.listBackends = async () => [
     { id: 'codex', name: 'Codex CLI', kind: 'cli', available: true },
