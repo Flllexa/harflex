@@ -1,8 +1,8 @@
 import { Activity, CheckCircle2, Coins, Database, Timer, Wrench } from 'lucide-react'
 import type { AgentEvent } from '../../lib/backend'
 import { localeTag, useT } from '../../i18n'
+import { usageTotals } from '../../components/activity/runProgress'
 
-type Usage = { inputTokens?: number; outputTokens?: number }
 const started = new Set(['run.started', 'external.run.started'])
 const terminal = new Set(['run.completed', 'run.failed', 'run.cancelled', 'run.interrupted', 'external.run.completed', 'external.run.failed', 'external.run.cancelled', 'external.run.interrupted'])
 
@@ -22,16 +22,15 @@ function duration(events: AgentEvent[]): string {
 
 export function MetricsPane({ events }: { events: AgentEvent[] }) {
   const t = useT()
-  const usage = events.filter(event => event.type === 'usage.recorded').map(event => event.data as Usage)
-  const inputTokens = usage.reduce((sum, item) => sum + (item.inputTokens ?? 0), 0)
-  const outputTokens = usage.reduce((sum, item) => sum + (item.outputTokens ?? 0), 0)
+  // Each model call counts once, with its last usage snapshot, as in the run progress.
+  const usage = usageTotals(events)
   const tools = events.filter(event => event.type === 'tool.completed').length
   const completed = events.filter(event => event.type === 'run.completed' || event.type === 'external.run.completed').length
   const failed = events.filter(event => event.type === 'run.failed' || event.type === 'external.run.failed').length
   if (!events.length) return <div className="empty-state"><p>{t('Nenhuma métrica registrada')}</p><span className="muted">{t('As métricas surgem dos eventos da sessão, após uma execução.')}</span></div>
   const cards = [
-    { label: t('Tokens de entrada'), value: usage.length ? inputTokens.toLocaleString(localeTag()) : '—', Icon: Database },
-    { label: t('Tokens de saída'), value: usage.length ? outputTokens.toLocaleString(localeTag()) : '—', Icon: Activity },
+    { label: t('Tokens de entrada'), value: usage ? usage.input.toLocaleString(localeTag()) : '—', Icon: Database },
+    { label: t('Tokens de saída'), value: usage ? usage.output.toLocaleString(localeTag()) : '—', Icon: Activity },
     { label: t('Duração concluída'), value: duration(events), Icon: Timer },
     { label: t('Ferramentas concluídas'), value: String(tools), Icon: Wrench },
     { label: t('Execuções concluídas'), value: String(completed), Icon: CheckCircle2 },

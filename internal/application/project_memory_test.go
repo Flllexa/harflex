@@ -215,3 +215,47 @@ func TestDecliningTheReadIsRememberedAndKeepsAnExistingMemory(t *testing.T) {
 		t.Fatalf("declining must not throw away a memory: %+v %v", kept, err)
 	}
 }
+
+type blockingMemoryCLIStub struct {
+	memoryCLIStub
+	started, release chan struct{}
+}
+
+func (stub *blockingMemoryCLIStub) GenerateDocument(ctx context.Context, request externalagent.DocumentRequest, progress func(externalagent.Event)) (externalagent.DocumentResult, error) {
+	close(stub.started)
+	<-stub.release
+	return stub.memoryCLIStub.GenerateDocument(ctx, request, progress)
+}
+
+func TestTheReadInProgressNamesItsSession(t *testing.T) {
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "memory.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	stub := &blockingMemoryCLIStub{memoryCLIStub: memoryCLIStub{cliCatalogStub: cliCatalogStub{fakeExternal: fakeExternal{available: true}, id: "claude", version: "2.1.286 (Claude Code)", efforts: []string{"low"}}}, started: make(chan struct{}), release: make(chan struct{})}
+	s := NewService(t.Context(), Dependencies{Store: db, External: map[string]ExternalBackend{"claude": stub}, ExecutionCacheRoot: t.TempDir()})
+	if err := db.SaveSettings(t.Context(), catalog.AppSettings{DefaultBackendID: "claude", DefaultModelBackendID: "claude", DefaultModelID: "provider/model-exact"}); err != nil {
+		t.Fatal(err)
+	}
+	workspace, err := s.OpenWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.RefreshProjectMemory(workspace.ID); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-stub.started:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the read never reached the model")
+	}
+	reading, err := s.GetProjectMemory(workspace.ID)
+	if err != nil || reading.Status != "reading" || reading.SessionID == "" {
+		t.Fatalf("a read in progress must name its session: %+v %v", reading, err)
+	}
+	close(stub.release)
+	if done := waitForMemory(t, s, workspace.ID); done.Status != "ready" || done.SessionID != "" {
+		t.Fatalf("a finished read keeps no live session: %+v", done)
+	}
+}

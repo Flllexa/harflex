@@ -4,6 +4,7 @@ import { CalendarClock, CirclePause, FolderOpen, Play, RefreshCw } from 'lucide-
 import { IonPicker } from '../../components/IonPicker'
 import { errorMessage, type Backend, type BackendOption, type Schedule, type ScheduleInput, type ScheduleJob, type Workflow } from '../../lib/backend'
 import { localeTag, t, useT } from '../../i18n'
+import { SessionRunProgress } from '../../components/activity/RunProgressView'
 
 type Props = { backend: Backend; backends: BackendOption[]; workspaceId?: string; onProjects: () => void; onSettings: () => void; onWorkflows: () => void; onOpenSession: (sessionId: string) => Promise<void> }
 type FormState = Omit<ScheduleInput, 'workspaceId' | 'id' | 'revision'>
@@ -130,6 +131,7 @@ export function SchedulesPage({ backend, backends, workspaceId, onProjects, onSe
               <strong>{byId.get(job.scheduleId)?.name ?? t('Agendamento salvo')}</strong>
               <span className="muted">{job.trigger === 'manual' ? t('Manual') : t('Automático')} · <time dateTime={job.dueAt}>{formatInstant(job.dueAt, byId.get(job.scheduleId)?.timezone ?? localTimezone)}</time></span>
               {job.errorCode && <span className="schedule-job-error">{failureLabels()[job.errorCode] ?? t('A execução não foi concluída. Confira a sessão vinculada.')}</span>}
+              {job.status === 'running' && job.sessionId && <SessionRunProgress key={job.sessionId} backend={backend} sessionId={job.sessionId} />}
             </div>
             <span className={`status-chip${job.status === 'completed' ? ' status-ready' : ['failed', 'interrupted'].includes(job.status) ? ' status-unavailable' : ''}`}>{jobLabels()[job.status]}</span>
             <div className="schedule-item-actions">

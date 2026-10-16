@@ -405,3 +405,25 @@ it('confirms the published pipeline again by itself when a stale confirmation wo
   expect(screen.getByRole('button', { name: 'Aprovar documentos e continuar para Code' })).toBeEnabled()
   expect(changed).toHaveBeenCalledWith(latest)
 })
+
+it('shows the progress of the phase being prepared from its linked session', async () => {
+  const { backend, pipeline, fixture } = setup(true)
+  const current = fixture.read(); current.state = 'running'; current.phase = 'spec'; current.activeAttemptId = 'attempt-live'
+  current.attempts.push({ id: 'attempt-live', requestId: 'r', target: 'all', status: 'running', phase: 'spec', selections: {}, sessionIds: { spec: 'spec-session' }, errorCode: '', createdAt: current.createdAt, updatedAt: current.updatedAt })
+  fixture.writeDesign(current)
+  const started = new Date(Date.now() - 65_000).toISOString()
+  const journal = [
+    { id: 'a', streamId: 'spec-session', sequence: 1, type: 'run.started', data: {}, createdAt: started },
+    { id: 'b', streamId: 'spec-session', sequence: 2, type: 'message.user', data: { role: 'user', content: 'prepare' }, createdAt: started },
+    { id: 'c', streamId: 'spec-session', sequence: 3, type: 'assistant.delta', data: { delta: '{"document":"## SPEC' }, createdAt: started },
+  ]
+  backend.listEvents = vi.fn(async (sessionId: string) => journal.filter(event => event.streamId === sessionId))
+  render(<PipelineDesignStudio backend={backend} pipeline={pipeline} onPipelineChange={() => undefined} />)
+  const progress = await screen.findByRole('region', { name: 'Progresso da IA' })
+  expect(progress).toHaveTextContent('Preparando SPEC')
+  expect(progress).toHaveTextContent('Escrevendo a resposta')
+  expect(progress).toHaveTextContent(/1 min 0\d s/)
+  expect(progress).toHaveTextContent('Tokens: informados ao final')
+  expect(backend.listEvents).toHaveBeenCalledWith('spec-session', 0, 1000)
+  expect(screen.getByRole('button', { name: 'Cancelar preparação' })).toBeEnabled()
+})

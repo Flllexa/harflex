@@ -1158,3 +1158,42 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: var
 .pipeline-choice-options { display: flex; flex-direction: column; gap: var(--space-2); }
 .pipeline-choice-options button { justify-content: flex-start; text-align: left; }
 .pipeline-choice-options svg { width: 16px; height: 16px; flex: none; }
+
+/* AI run progress: step, elapsed time, actions, files and tokens — objective activity only. */
+.run-progress { display: grid; gap: var(--space-1); min-width: 0; padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--forge); font-size: 12px; color: var(--muted); }
+.run-progress-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; color: var(--paper); }
+.run-progress-indicator { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--mint); }
+.run-progress.is-live .run-progress-indicator { animation: activity-pulse 1.6s ease-in-out infinite; }
+.run-progress.is-approval .run-progress-indicator { background: var(--amber); }
+.run-progress.is-failed .run-progress-indicator { background: var(--danger); }
+.run-progress.is-done .run-progress-indicator { background: var(--muted); }
+.run-progress-step { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.run-progress-step strong { font-weight: 600; }
+.run-progress-title { color: var(--muted); }
+.run-progress-elapsed { display: inline-flex; align-items: center; gap: var(--space-1); flex: none; font-variant-numeric: tabular-nums; color: var(--paper); }
+.run-progress svg { width: 13px; height: 13px; flex: none; }
+.run-progress-plan { margin: 0; padding-left: 16px; color: var(--paper); overflow-wrap: anywhere; }
+.run-progress-meta { display: flex; flex-wrap: wrap; gap: 2px var(--space-3); margin: 0; padding-left: 16px; }
+.run-progress-tokens { display: inline-flex; align-items: center; gap: var(--space-1); font-variant-numeric: tabular-nums; }
+.run-progress-details { padding-left: 16px; }
+.run-progress-details > summary { display: inline-flex; align-items: center; gap: 2px; cursor: pointer; color: var(--cyan); list-style: none; min-height: 24px; }
+.run-progress-details > summary::-webkit-details-marker { display: none; }
+.run-progress-details > summary svg { transition: transform 120ms ease; }
+.run-progress-details[open] > summary svg { transform: rotate(90deg); }
+.run-progress-details > summary:focus-visible { outline: var(--focus-ring); outline-offset: 2px; border-radius: 4px; }
+.run-progress-label { display: inline-flex; align-items: center; gap: var(--space-1); font-weight: 600; color: var(--paper); }
+.run-progress-recent, .run-progress-files { display: grid; gap: var(--space-1); margin-top: var(--space-2); }
+.run-progress-recent ol, .run-progress-files ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.run-progress-recent li { display: flex; align-items: flex-start; gap: var(--space-2); min-width: 0; }
+.run-progress-recent li > span { display: grid; min-width: 0; overflow-wrap: anywhere; color: var(--paper); }
+.run-progress-recent li code, .run-progress-files code { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.run-progress-recent li.is-done > svg { color: var(--mint); }
+.run-progress-recent li.is-failed > svg { color: var(--danger); }
+.run-progress-recent li.is-running > svg { color: var(--cyan); }
+.run-progress-files ul { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+.run-progress-spin { animation: activity-spin 1s linear infinite; }
+.composer-meta > .run-progress { flex: 1 1 100%; }
+.mode-casual .conversation .run-progress { width: min(100%, 940px); align-self: center; }
+.design-progress .run-progress { flex: 1 1 100%; }
+.design-progress .run-progress svg { width: 13px; height: 13px; }
+.run-progress.is-metrics .run-progress-meta, .run-progress.is-metrics .run-progress-details { padding-left: 0; }

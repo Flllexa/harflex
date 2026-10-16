@@ -32,6 +32,8 @@ type ProjectMemoryDTO struct {
 	ErrorCode   string    `json:"errorCode,omitempty"`
 	Edited      bool      `json:"edited"`
 	UpdatedAt   time.Time `json:"updatedAt"`
+	// SessionID is the session of the read in progress, so its progress can be followed; empty otherwise.
+	SessionID string `json:"sessionId,omitempty"`
 }
 
 type SaveProjectMemoryInput struct {
@@ -65,7 +67,18 @@ func (s *Service) GetProjectMemory(workspaceID string) (ProjectMemoryDTO, error)
 	if err != nil {
 		return ProjectMemoryDTO{}, safe("read project memory", err)
 	}
-	return projectMemoryDTO(value), nil
+	return s.liveProjectMemoryDTO(value), nil
+}
+
+// liveProjectMemoryDTO adds the session of the read in progress.
+func (s *Service) liveProjectMemoryDTO(value catalog.ProjectMemory) ProjectMemoryDTO {
+	result := projectMemoryDTO(value)
+	if value.Status == "reading" {
+		s.projectMemoryMu.Lock()
+		result.SessionID = s.projectMemoryRuns[value.WorkspaceID]
+		s.projectMemoryMu.Unlock()
+	}
+	return result
 }
 
 // RefreshProjectMemory has the AI read the project again. The read runs in the background; the answer says it started.
@@ -83,7 +96,7 @@ func (s *Service) RefreshProjectMemory(workspaceID string) (ProjectMemoryDTO, er
 	if err != nil {
 		return ProjectMemoryDTO{}, safe("read project memory", err)
 	}
-	return projectMemoryDTO(value), nil
+	return s.liveProjectMemoryDTO(value), nil
 }
 
 // DeclineProjectMemory records that the person chose not to have the project read now; the project stops asking.
@@ -150,11 +163,11 @@ func (s *Service) projectMemoryContext(ctx context.Context, workspaceID string) 
 // startProjectMemory reads the project in the background, once at a time per project.
 func (s *Service) startProjectMemory(workspaceID string) {
 	s.projectMemoryMu.Lock()
-	if s.projectMemoryRuns[workspaceID] {
+	if _, running := s.projectMemoryRuns[workspaceID]; running {
 		s.projectMemoryMu.Unlock()
 		return
 	}
-	s.projectMemoryRuns[workspaceID] = true
+	s.projectMemoryRuns[workspaceID] = ""
 	s.projectMemoryMu.Unlock()
 	previous, _ := s.store.GetProjectMemory(s.ctx, workspaceID)
 	reading := previous
@@ -223,6 +236,11 @@ func (s *Service) readProjectMemory(ctx context.Context, workspaceID string, pre
 	if err != nil {
 		return failed("failed", ErrorCode(err))
 	}
+	s.projectMemoryMu.Lock()
+	if _, running := s.projectMemoryRuns[workspaceID]; running {
+		s.projectMemoryRuns[workspaceID] = record.ID
+	}
+	s.projectMemoryMu.Unlock()
 	content, err := s.runDocumentSession(ctx, workspace, &record, choice, projectMemorySystemPrompt, designOutputSchema, string(prompt))
 	if err != nil {
 		return failed("failed", ErrorCode(err))

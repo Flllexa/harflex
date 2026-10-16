@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
+import { useLayoutEffect, useMemo, useRef, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { ChevronLeft, Send, Square } from 'lucide-react'
 import { runIsLive, type SessionState } from '../../state/session'
 import { ApprovalCard } from './ApprovalCard'
@@ -12,6 +12,8 @@ import { splitPipelineChoice, type PipelineChoice } from './pipelineChoice'
 import { PipelineChoiceCard } from './PipelineChoiceCard'
 import { CommandRunnerContext, type CommandRunner } from '../../components/commandRunner'
 import { t, useT } from '../../i18n'
+import { RunProgress as RunProgressView } from '../../components/activity/RunProgressView'
+import { buildRunProgress, type RunProgress } from '../../components/activity/runProgress'
 
 const failureCopy: Record<string, string> = {
   approval_denied: 'aprovação negada',
@@ -59,6 +61,12 @@ function activeActionText(messages: SessionState['messages']): string {
   return t('Agente trabalhando')
 }
 
+// A run the session holds as ended stays ended on screen, even when the journal lost its terminal event (a restart).
+function finished(progress: RunProgress, outcome: SessionState['outcome'], status: string): RunProgress {
+  const phase = outcome?.status === 'failed' || outcome?.status === 'cancelled' || outcome?.status === 'interrupted' ? outcome.status : 'completed'
+  return { ...progress, live: false, phase, step: status, endedAt: progress.endedAt ?? progress.lastAt }
+}
+
 /** What the person wrote. A message that opened a continued conversation has the old one's context after it, shown folded. */
 function UserText({ text }: { text: string }) {
   const t = useT()
@@ -71,7 +79,7 @@ function UserText({ text }: { text: string }) {
 }
 
 type Props = {
-  state: Pick<SessionState, 'messages' | 'pendingApprovals' | 'activeRun' | 'outcome' | 'calling' | 'error' | 'draft' | 'connectionState' | 'readOnly'>
+  state: Pick<SessionState, 'messages' | 'pendingApprovals' | 'activeRun' | 'outcome' | 'calling' | 'error' | 'draft' | 'connectionState' | 'readOnly'> & { events?: SessionState['events'] }
   onDraft: (text: string) => void
   onPrompt: (text: string) => void
   onResolve: (approvalId: string, allow: boolean) => void
@@ -112,6 +120,9 @@ export function ConversationPane({ state, loadingHistory, permissionControl, vie
   const running = state.activeRun === 'running'
   const liveWork = !loadingHistory && !state.readOnly && !state.error && (running || state.calling || cancelPending)
   const liveStatus = state.activeRun === 'awaiting_approval' ? t('Aguardando aprovação') : activeActionText(state.messages)
+  // The run's objective progress: step, elapsed time, actions, files and tokens from the journal.
+  const progress = useMemo(() => buildRunProgress(state.events ?? []), [state.events])
+  const showProgress = !!state.events?.length && !loadingHistory && !state.error && !cancelPending && (liveWork ? progress.live || state.activeRun === 'awaiting_approval' : !!progress.startedAt && !!state.outcome)
   const displayedStatus = loadingHistory ? t('Carregando histórico') : cancelPending ? t('Confirmando cancelamento…') : state.error ?? (liveWork ? liveStatus : statusText(state))
   const exhausted = !!delegation && delegation.promptCount >= delegation.promptLimit
   const lastUserRequest = requestOf([...state.messages].reverse().find(message => message.kind === 'user')?.text ?? '')
@@ -178,7 +189,8 @@ export function ConversationPane({ state, loadingHistory, permissionControl, vie
       </ol></CommandRunnerContext.Provider>}
     {state.pendingApprovals.length > 0 && <div className="approval-stack">{state.pendingApprovals.map(approval => <ApprovalCard key={approval.approvalId} approval={approval} disabled={state.readOnly || state.calling || state.connectionState === 'degraded'} onResolve={allow => onResolve(approval.approvalId, allow)} />)}</div>}
     <div className="composer-meta">
-      {!emptyCasual && <div className={`run-status${liveWork ? ' run-status-active' : ''}`} role="status" aria-live="polite" aria-atomic="true">
+      {!emptyCasual && showProgress && <RunProgressView progress={liveWork ? progress : finished(progress, state.outcome, displayedStatus)} showFinished />}
+      {!emptyCasual && !showProgress && <div className={`run-status${liveWork ? ' run-status-active' : ''}`} role="status" aria-live="polite" aria-atomic="true">
         {liveWork && <span className="run-status-indicator" aria-hidden="true" />}
         <span>{displayedStatus}</span>
         {liveWork && <span className="run-status-motion" aria-hidden="true"><i /><i /><i /></span>}

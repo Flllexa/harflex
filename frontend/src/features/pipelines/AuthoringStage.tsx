@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { NO_CATALOG_TIME, errorMessage, type APIModelSelection, type AuthoringModelConsentBinding, type AuthoringStage as StageReadback, type Backend, type Pipeline } from '../../lib/backend'
 import { AuthoringStageModelControls } from './AuthoringStageModelControls'
 import { useT } from '../../i18n'
+import { SessionRunProgress } from '../../components/activity/RunProgressView'
 
 type Props = { backend: Backend; pipeline: Pipeline; stage: 'spec' | 'plan'; onPipelineChange: (pipeline: Pipeline) => void; onSettings?: () => void }
 function stateLabels(t: (source: string) => string): Record<StageReadback['state'], string> { return { pending: t('Pendente'), ready: t('Pronto para gerar'), running: t('Gerando documento'), waiting_user: t('Aguardando sua decisão'), paused: t('Tentativa interrompida'), approved: t('Aprovado'), skipped: t('Pulado'), cancellation_pending: t('Cancelamento incerto') } }
@@ -170,6 +171,7 @@ export function AuthoringStage({ backend, pipeline, stage, onPipelineChange, onS
       </>}
       <details className="authoring-history"><summary>{t('Pular esta fase')}</summary><label>{t('Justificativa do pulo')}<textarea value={reason} maxLength={16384} onChange={event => setReason(event.target.value)} /></label><button type="button" disabled={!reason.trim()} onClick={() => void command('skip')}>{t('Pular {title}', { title })}</button></details>
     </div>
+  const runningSession = run?.attempts.find(item => item.status === 'running')?.sessionId
   return <section className={`authoring-workbench authoring-stage${artifact ? ' has-artifact' : ''}`} aria-label={t('{label} por IA', { label: stage === 'spec' ? 'SPEC' : 'Plan' })}>
     <div className="section-heading"><h3>{stage === 'spec' ? 'SPEC' : 'Plan'}</h3>{run && <span className="status-badge">{labels[run.state]}</span>}</div>
     {error && <p role="alert">{error}</p>}
@@ -177,6 +179,7 @@ export function AuthoringStage({ backend, pipeline, stage, onPipelineChange, onS
     {uncertain && <p role="alert">{t('O cancelamento não foi confirmado localmente nem pelo provedor. A chamada pode continuar consumindo recursos. Novas ações estão bloqueadas; atualizar o estado não inicia outra tentativa.')}</p>}
     {unknown && !uncertain && <p role="alert">{t('Resultado do comando ainda não confirmado. Atualize o estado; nenhuma nova geração será iniciada automaticamente.')}</p>}
     {(busy || run?.state === 'running') && <p role="status">{t('Verificação ou geração em andamento. Uma tentativa tem limite de 90 segundos; não feche esta tela para tentar novamente.')}</p>}
+    {run?.state === 'running' && runningSession && <SessionRunProgress key={runningSession} backend={backend} sessionId={runningSession} title={stateLabels(t).running} />}
     <div className="action-row"><button type="button" onClick={() => void read()} disabled={loading}>{t('Atualizar estado')}</button></div>
     {!uncertain && !unknown && current && run?.state === 'running' && <button type="button" disabled={cancelling} onClick={() => void command('cancel')}>{cancelling ? t('Confirmando cancelamento…') : t('Cancelar tentativa')}</button>}
     {artifact && <>

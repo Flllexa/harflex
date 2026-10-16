@@ -24,6 +24,8 @@ func appendCodexEvidence(t *testing.T, db *sqlite.Store, sessionID string, assis
 		{"external.event", externalagent.Event{Type: "external.raw", SessionID: "thread_synthetic", Raw: json.RawMessage(`{"type":"turn.started"}`)}},
 		{"external.event", assistant},
 		{"external.event", externalagent.Event{Type: "external.raw", SessionID: "thread_synthetic", Raw: json.RawMessage(`{"type":"turn.completed","usage":{"input_tokens":12,"output_tokens":8}}`)}},
+		// The session records the turn's totals right after turn.completed.
+		{"usage.recorded", agentcore.Usage{InputTokens: 12, OutputTokens: 8}},
 		{"external.run.completed", map[string]string{"adapter": "codex"}},
 	} {
 		if _, err := db.Append(t.Context(), sessionID, "external_session", item.typ, item.data); err != nil {
@@ -53,7 +55,7 @@ func TestSDDEvidenceAcceptsOneCompletedCodexAssistantMessage(t *testing.T) {
 	answer := `{"question":"Qual recurso é prioridade?"}`
 	appendCodexEvidence(t, db, sessionID, externalagent.Event{Type: "assistant.message", Text: answer, MessageID: "item_1", Mode: "replace", SessionID: "thread_synthetic", Raw: json.RawMessage(`{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"{\"question\":\"Qual recurso é prioridade?\"}"}}`)})
 	evidence, err := s.readSDDBrainstormEvidence(t.Context(), sessionID, "question")
-	if err != nil || evidence.Question != "Qual recurso é prioridade?" {
+	if err != nil || evidence.Question != "Qual recurso é prioridade?" || evidence.Usage == nil || evidence.Usage.InputTokens != 12 || evidence.Usage.OutputTokens != 8 {
 		t.Fatalf("Codex assistant evidence: %+v %v", evidence, err)
 	}
 }
@@ -63,5 +65,26 @@ func TestSDDEvidenceRejectsCodexToolEvents(t *testing.T) {
 	appendCodexEvidence(t, db, sessionID, externalagent.Event{Type: "external.raw", SessionID: "thread_synthetic", Raw: json.RawMessage(`{"type":"item.completed","item":{"type":"command_execution","text":"not allowed"}}`)})
 	if _, _, err := s.readSDDReadOnlyEvidence(t.Context(), sessionID); err != errInvalidSDDOutput {
 		t.Fatalf("Codex tool event accepted as SDD evidence: %v", err)
+	}
+}
+
+func TestSDDEvidenceRejectsCodexUsageOutsideTheTurnEnd(t *testing.T) {
+	s, db, sessionID := cliEvidenceFixture(t)
+	answer := externalagent.Event{Type: "assistant.message", Text: `{"question":"Q?"}`, MessageID: "item_1", Mode: "replace", SessionID: "thread_synthetic", Raw: json.RawMessage(`{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"{\"question\":\"Q?\"}"}}`)}
+	for _, item := range []struct {
+		typ  string
+		data any
+	}{
+		{"external.run.started", map[string]string{"adapter": "codex"}},
+		{"message.user", agentcore.Message{Role: agentcore.RoleUser, Content: "Generate a clarification question"}},
+		{"usage.recorded", agentcore.Usage{InputTokens: 1, OutputTokens: 1}},
+		{"external.event", answer},
+	} {
+		if _, err := db.Append(t.Context(), sessionID, "external_session", item.typ, item.data); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, _, err := s.readSDDReadOnlyEvidence(t.Context(), sessionID); err != errInvalidSDDOutput {
+		t.Fatalf("usage before turn.completed accepted: %v", err)
 	}
 }

@@ -673,7 +673,7 @@ describe('durable agent workbench', () => {
 
     expect(within(screen.getByRole('list', { name: 'Conversa' })).getByText('conseguiu criar?', { exact: true })).toBeInTheDocument()
     await waitFor(() => expect(input).toHaveValue(''))
-    expect(screen.getByRole('status')).toHaveTextContent('Agente trabalhando')
+    expect(screen.getByRole('status')).toHaveTextContent('Aguardando a primeira resposta do modelo')
     await user.type(input, 'Próxima mensagem')
 
     await act(async () => {
@@ -737,7 +737,7 @@ describe('durable agent workbench', () => {
     const input = await startSession(user)
     await user.type(input, 'Mensagem idêntica')
     await user.click(screen.getByRole('button', { name: 'Enviar' }))
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Agente trabalhando'))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Aguardando a primeira resposta do modelo'))
 
     await user.clear(input)
     await user.type(input, 'Mensagem idêntica')

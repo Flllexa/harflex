@@ -184,12 +184,17 @@ for (const width of [320, 1440]) {
       await expect(page.getByRole('dialog', { name: 'Histórico de conversas' })).toBeVisible()
     }
     await page.getByRole('button', { name: /Implementar um arquivo de teste/ }).click()
-    const runStatus = page.locator('.run-status')
-    await expect(runStatus).toContainText('Escrevendo arquivo')
-    await expect(runStatus).toContainText('src/todo.js')
+    // The run's progress: the step it is on (announced), the elapsed time, its actions and the tokens.
+    const runProgress = page.getByRole('region', { name: 'Progresso da IA' })
+    const runStatus = runProgress.locator('.run-progress-step')
+    await expect(runStatus).toContainText('Escrevendo todo.js')
     await expect(runStatus).toHaveAttribute('aria-live', 'polite')
     await expect(runStatus).toHaveAttribute('aria-atomic', 'true')
-    expect(await runStatus.locator('.run-status-motion i').first().evaluate(node => getComputedStyle(node).animationName)).toBe('activity-dots')
+    await expect(runProgress.locator('.run-progress-elapsed')).toHaveText(/\d+ s|\d+ min/)
+    await expect(runProgress).toContainText('Tokens:')
+    await runProgress.getByText('Detalhes da atividade').click()
+    await expect(runProgress.getByText('src/todo.js')).toBeVisible()
+    expect(await runProgress.locator('.run-progress-indicator').evaluate(node => getComputedStyle(node).animationName)).toBe('activity-pulse')
 
     await page.getByRole('button', { name: 'Painel lateral', exact: true }).click()
     const activity = page.getByLabel('Atividade do trabalho')
@@ -200,8 +205,8 @@ for (const width of [320, 1440]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
 
     await page.emulateMedia({ reducedMotion: 'reduce' })
-    expect(await runStatus.locator('.run-status-motion i').first().evaluate(node => getComputedStyle(node).animationName)).toBe('none')
-    await expect(runStatus).toContainText('Escrevendo arquivo')
+    expect(await runProgress.locator('.run-progress-indicator').evaluate(node => getComputedStyle(node).animationName)).toBe('none')
+    await expect(runStatus).toContainText('Escrevendo todo.js')
     await expect(activity.getByText('Em execução · ações atualizadas ao vivo')).toBeVisible()
   })
 }

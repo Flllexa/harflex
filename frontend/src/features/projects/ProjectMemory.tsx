@@ -5,6 +5,7 @@ import { errorMessage, type Backend, type ProjectMemory } from '../../lib/backen
 import { t, useT } from '../../i18n'
 import { DesignMarkdown } from '../pipelines/PipelineDesignDocument'
 import '../pipelines/pipelineDesign.css'
+import { SessionRunProgress } from '../../components/activity/RunProgressView'
 
 const pollMs = 3000
 
@@ -59,6 +60,7 @@ export function ProjectMemoryLine({ backend, workspaceId, name }: { backend: Bac
   const reading = memory?.status === 'reading'
   return <div className="project-memory">
     <span className={`project-memory-state${memory?.status === 'ready' ? ' is-ready' : ''}`}><Brain aria-hidden="true" />{statusText(memory)}</span>
+    {reading && memory?.sessionId && <SessionRunProgress key={memory.sessionId} backend={backend} sessionId={memory.sessionId} title={t('Leitura do projeto')} className="project-memory-progress" />}
     {memory?.status === 'ready' && memory.errorCode && <span className="muted">{t('A última leitura falhou; a memória anterior foi mantida.')}</span>}
     {error && <span className="form-error" role="alert">{error}</span>}
     <div className="project-memory-actions">

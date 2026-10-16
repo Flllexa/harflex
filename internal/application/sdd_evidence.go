@@ -44,7 +44,7 @@ func (s *Service) readSDDBrainstormEvidence(ctx context.Context, sessionID, kind
 }
 
 func (s *Service) readSDDReadOnlyEvidence(ctx context.Context, sessionID string) (string, *catalog.BrainstormUsage, error) {
-	var started, external, user, assistant, completed, threadStarted, sessionBound, turnStarted, turnCompleted bool
+	var started, external, user, assistant, completed, threadStarted, sessionBound, turnStarted, turnCompleted, externalUsage bool
 	var content string
 	var boundSessionID string
 	var usage *catalog.BrainstormUsage
@@ -119,7 +119,15 @@ func (s *Service) readSDDReadOnlyEvidence(ctx context.Context, sessionID string)
 				return errInvalidSDDOutput
 			}
 		case "usage.recorded":
-			if external || !user || assistant {
+			// A CLI turn records its totals once, right after turn.completed; the raw record already gave them.
+			if external {
+				if !turnCompleted || externalUsage {
+					return errInvalidSDDOutput
+				}
+				externalUsage = true
+				return nil
+			}
+			if !user || assistant {
 				return errInvalidSDDOutput
 			}
 			var item struct {

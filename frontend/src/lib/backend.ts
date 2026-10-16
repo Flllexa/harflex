@@ -35,7 +35,7 @@ const worktree = z.object({
 })
 const worktreeList = z.object({ isRepository: z.boolean(), root: z.string(), base: z.string(), baseKnown: z.boolean(), currentPath: z.string(), items: z.array(worktree) })
 const worktreeGroup = z.object({ workspaceId: z.string().min(1), name: z.string(), path: z.string(), projects: z.array(z.string()), list: worktreeList, error: z.string().optional() })
-const projectMemory = z.object({ workspaceId: z.string().min(1), status: z.enum(['', 'reading', 'ready', 'failed', 'needs_model', 'declined']), content: z.string(), sources: z.array(z.string()), backendId: z.string(), modelId: z.string(), errorCode: z.string().optional(), edited: z.boolean(), updatedAt: z.string() })
+const projectMemory = z.object({ workspaceId: z.string().min(1), status: z.enum(['', 'reading', 'ready', 'failed', 'needs_model', 'declined']), content: z.string(), sources: z.array(z.string()), backendId: z.string(), modelId: z.string(), errorCode: z.string().optional(), edited: z.boolean(), updatedAt: z.string(), sessionId: z.string().optional() })
 const deleteWorktreeResult = z.object({ path: z.string(), branch: z.string(), removed: z.boolean(), branchDeleted: z.boolean(), list: worktreeList })
 const worktreeSavePlan = z.object({
   workspace,

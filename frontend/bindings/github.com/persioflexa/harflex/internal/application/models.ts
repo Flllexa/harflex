@@ -1097,6 +1097,11 @@ export interface ProjectMemoryDTO {
     "errorCode"?: string;
     "edited": boolean;
     "updatedAt": string;
+
+    /**
+     * SessionID is the session of the read in progress, so its progress can be followed; empty otherwise.
+     */
+    "sessionId"?: string;
 }
 
 export interface PromptInput {

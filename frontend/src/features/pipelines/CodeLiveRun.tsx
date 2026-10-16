@@ -4,6 +4,8 @@ import type { Backend, Pipeline, PipelineStageActivity } from '../../lib/backend
 import { beforePlan, buildActivityFlow, type Action, type ActionKind } from '../../components/activity/activityFlow'
 import { useT } from '../../i18n'
 import { useRunJournal } from './QALiveRun'
+import { buildRunProgress } from '../../components/activity/runProgress'
+import { RunProgress } from '../../components/activity/RunProgressView'
 
 const busyStatuses = ['running', 'awaiting_approval', 'cancellation_pending']
 const kindIcons: Record<ActionKind, typeof FileText> = { read: FileText, write: PencilLine, search: Search, shell: SquareTerminal, web: Globe, tool: Wrench, agent: Bot }
@@ -69,6 +71,7 @@ export function CodeLiveRun({ backend, activity, onOpenSession }: { backend: Bac
   const t = useT()
   const journal = useRunJournal(backend, activity.sessionId)
   const flow = useMemo(() => buildActivityFlow(journal), [journal])
+  const progress = useMemo(() => buildRunProgress(journal), [journal])
   const waiting = activity.status === 'awaiting_approval'
   const current = [...flow.actions].reverse().find(action => action.status === 'running' || action.status === 'approval')
   const done = flow.plan.filter(step => step.status === 'completed').length
@@ -83,6 +86,7 @@ export function CodeLiveRun({ backend, activity, onOpenSession }: { backend: Bac
       </div>
       {onOpenSession && <button type="button" className="touch-target secondary-button" onClick={() => onOpenSession(activity.sessionId)}><MessageSquare aria-hidden="true" />{t('Ver a conversa')}</button>}
     </header>
+    <RunProgress progress={progress} metricsOnly />
     {waiting && <p className="project-warning" role="status">{t('Há uma ação esperando a sua aprovação. Aprove ou negue na conversa para o Coder continuar.')}</p>}
 
     {before.length > 0 && <ul className="code-live-actions" aria-label={t('Primeiros passos')}>{before.map(action => <ActionRow key={action.id} action={action} />)}</ul>}

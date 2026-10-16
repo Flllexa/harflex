@@ -1,7 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Check, CircleAlert, CircleDashed, FolderSearch, Hammer, LoaderCircle, MonitorPlay, Package, Play, ScanSearch, SquareTerminal, TestTube2 } from 'lucide-react'
 import type { AgentEvent, Backend } from '../../lib/backend'
 import { buildActivityFlow, type ActionStatus } from '../../components/activity/activityFlow'
+import { buildRunProgress } from '../../components/activity/runProgress'
+import { RunProgress } from '../../components/activity/RunProgressView'
+import { useSessionJournal } from '../../components/activity/useSessionJournal'
 import { useT } from '../../i18n'
 
 type Translate = ReturnType<typeof useT>
@@ -69,32 +72,13 @@ export function commandKinds(command: string): Kind[] {
   return checks.length ? checks : found.includes('inspect') ? ['inspect'] : ['other']
 }
 
-const journalTypes = /^(message\.(user|assistant)|tool\.(called|completed|failed|denied|skipped)|approval\.|run\.)/
+// Streamed output and usage stay: the progress strip counts the answer received and the tokens reported.
+const journalTypes = /^(message\.(user|assistant)|assistant\.delta|usage\.recorded|tool\.(called|completed|failed|denied|skipped)|approval\.|run\.|external\.(event|run\.))/
+const keepJournal = (event: AgentEvent) => journalTypes.test(event.type)
 
-// The session's journal without streamed output, kept to the first request so a later reminder does not clear the list.
+// The session's journal, kept to the first request so a later reminder does not clear the list.
 export function useRunJournal(backend: Backend, sessionId?: string) {
-  const [events, setEvents] = useState<AgentEvent[]>([])
-  useEffect(() => {
-    setEvents([])
-    if (!sessionId) return
-    let live = true
-    const merge = (incoming: AgentEvent[]) => {
-      const kept = incoming.filter(event => event.streamId === sessionId && journalTypes.test(event.type))
-      if (kept.length) setEvents(current => [...new Map([...current, ...kept].map(event => [event.id, event])).values()].sort((a, b) => a.sequence - b.sequence))
-    }
-    const unsubscribe = backend.onEvent(event => { if (live) merge([event]) })
-    void (async () => {
-      let after = 0
-      for (let page = 0; page < 50 && live; page++) {
-        const found = await backend.listEvents(sessionId, after, 1000).catch(() => [] as AgentEvent[])
-        if (!live) return
-        merge(found)
-        if (found.length < 1000) return
-        after = found[found.length - 1].sequence
-      }
-    })()
-    return () => { live = false; unsubscribe() }
-  }, [backend, sessionId])
+  const events = useSessionJournal(backend, sessionId, keepJournal)
   return useMemo(() => {
     const first = events.findIndex(event => event.type === 'message.user')
     return events.filter((event, index) => event.type !== 'message.user' || index === first)
@@ -107,6 +91,7 @@ export function QALiveRun({ backend, sessionId }: { backend: Backend; sessionId?
   const kinds = kindsFor(t)
   const statusText = statusTextFor(t)
   const journal = useRunJournal(backend, sessionId)
+  const progress = useMemo(() => buildRunProgress(journal), [journal])
   const commands = useMemo(() => buildActivityFlow(journal).actions.filter(action => action.kind === 'shell').map(action => ({ ...action, kinds: commandKinds(action.detail ?? '') })), [journal])
   const seen = new Set(commands.flatMap(item => item.kinds))
   const upcoming = expected.filter(kind => !seen.has(kind))
@@ -117,6 +102,7 @@ export function QALiveRun({ backend, sessionId }: { backend: Backend; sessionId?
   return <section className="qa-live" aria-label={t('QA em andamento')} aria-busy="true">
     <p className="qa-live-summary" aria-live="polite">{current ? <>{t('Agora:')} <strong>{current.kinds.map(kind => kinds[kind].label).join(' · ')}</strong></> : next ? <>{t('Preparando:')} <strong>{kinds[next].label}</strong></> : commands.length ? t('Pensando no próximo passo…') : t('Preparando o laboratório…')}
       {commands.length > 0 && <span className="muted"> · {t(commands.length === 1 ? '{count} comando' : '{count} comandos', { count: commands.length })}</span>}</p>
+    <RunProgress progress={progress} metricsOnly />
     <ol className="qa-run qa-live-run">
       {commands.map(item => { const { Icon } = kinds[item.kinds[0]]; const label = item.kinds.map(kind => kinds[kind].label).join(' · '); return <li key={item.id} className={`qa-run-row is-live is-${item.status}`}>
         <div className="qa-run-head">

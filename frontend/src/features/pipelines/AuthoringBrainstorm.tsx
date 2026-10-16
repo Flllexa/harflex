@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { IonPicker } from '../../components/IonPicker'
 import { errorCode, errorMessage, type Backend, type Brainstorm, type BrainstormRef, type ModelCatalogResult, type Pipeline, type ProviderProfile, type SDDModelSelection, type Settings } from '../../lib/backend'
 import { localeTag, useT } from '../../i18n'
+import { SessionRunProgress } from '../../components/activity/RunProgressView'
 
 type Props = { backend: Backend; pipeline: Pipeline; onPipelineChange: (pipeline: Pipeline) => void; derivationSafety?: 'checking' | 'unknown' | 'pending' | 'clear'; onRefreshDerivationSafety?: () => void; onSettings?: () => void }
 type SDDExecutor = 'api' | 'codex_cli'
@@ -614,6 +615,7 @@ export function AuthoringBrainstorm({ backend, pipeline, onPipelineChange, deriv
       {run.state === 'skipped_waiting_confirmation' && <button type="button" className="touch-target primary-button" disabled={busy} onClick={() => void apply(`confirm-skip:${run.id}:${run.revision}`, id => backend.confirmDiscoveryAfterSkip(refFor(run, id)))}>{t('Confirmar Discovery após pulo')}</button>}
       {run.state === 'paused' && <div className="pipeline-actions"><button type="button" className="touch-target secondary-button" disabled={busy} onClick={() => void apply(`resume:${run.id}:${run.revision}`, id => backend.resumePausedBrainstorm(refFor(run, id)))}>{t('Retomar brainstorming')}</button>{answeredCount === 0 && <button type="button" className="touch-target secondary-button" disabled={busy} onClick={() => setSkipOpen(true)}>{t('Pular perguntas')}</button>}</div>}
       {isActive(run) && <div className="pipeline-actions"><span className="muted" role="status">{pendingAction ? t('Aguardando geração…') : readableState[run.state]}</span>{activeAttempt && <button type="button" className="touch-target secondary-button" disabled={cancelPending} onClick={() => void cancelAttempt(run, activeAttempt.id)}>{cancelPending ? t('Cancelando…') : t('Cancelar geração')}</button>}</div>}
+      {isActive(run) && activeAttempt?.sessionId && <SessionRunProgress key={activeAttempt.sessionId} backend={backend} sessionId={activeAttempt.sessionId} title={t('Brainstorm')} />}
       {run.state === 'approved' && <p className="muted">{t('Discovery aprovada. A SPEC está pendente de geração; nenhuma edição manual está disponível nesta etapa.')}</p>}
     </section>}
     {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="form-success" role="status">{notice}</p>}

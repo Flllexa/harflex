@@ -6,7 +6,8 @@ export type ActionStatus = 'waiting' | 'running' | 'approval' | 'done' | 'failed
 export type ActionKind = 'read' | 'write' | 'search' | 'shell' | 'web' | 'tool' | 'agent'
 
 export type PlanStep = { text: string; status: StepStatus }
-export type Action = { id: string; kind: ActionKind; label: string; detail?: string; status: ActionStatus; note?: string; step: number }
+/** paths are the files the action read or changed, in full, for the progress summary. */
+export type Action = { id: string; kind: ActionKind; label: string; detail?: string; paths?: string[]; status: ActionStatus; note?: string; step: number }
 export type Outcome = { status: 'completed' | 'failed' | 'cancelled' | 'interrupted'; label: string }
 
 /** What the agent is doing for the latest request: the plan it published, the actions under each step and how it ended. */
@@ -49,19 +50,45 @@ export function shortPath(path: string) {
 }
 const pathDetail = (path: string) => path ? shortPath(path) : undefined
 
+const readers = new Set(['cat', 'head', 'tail', 'nl', 'less', 'more', 'bat', 'sed', 'wc'])
+const looksLikeFile = /^(?:[~.]?\/)?[\w@.+-]+(?:\/[\w@.+-]+)*\.[A-Za-z0-9]{1,10}$|\//
+
+/** The files a shell command only prints (cat, sed -n, head…), so a CLI that reads through the shell still names them. */
+export function shellReadPaths(command: string): string[] {
+  const found: string[] = []
+  for (const part of command.split(/&&|\|\||;|\||\n/)) {
+    const words = part.trim().match(/'[^']*'|"[^"]*"|\S+/g) ?? []
+    const program = words[0]?.split('/').pop() ?? ''
+    // sed -i edits in place; it is a change, not a read.
+    if (!readers.has(program) || program === 'sed' && words.some(word => /^-[a-zA-Z]*i/.test(word))) continue
+    // sed's first free word is its script; the flags of head and tail may take a number.
+    let skipScript = program === 'sed'
+    for (let index = 1; index < words.length; index++) {
+      const word = words[index]
+      if (word.startsWith('-')) { if (/^-[nc]$/.test(word) && program !== 'sed' && program !== 'cat' && program !== 'nl') index++; continue }
+      if (/^[<>&0-9]/.test(word) && !/^\d+[\w-]*\./.test(word)) continue
+      const value = word.replace(/^['"]|['"]$/g, '')
+      if (skipScript) { skipScript = false; continue }
+      if (looksLikeFile.test(value) && !value.includes('*') && !found.includes(value)) found.push(value)
+    }
+  }
+  return found
+}
+
 /** Turns a tool name and its arguments into a short sentence in Portuguese. */
-export function describeTool(rawName: string, args: unknown): { kind: ActionKind; label: string; detail?: string } {
+export function describeTool(rawName: string, args: unknown): { kind: ActionKind; label: string; detail?: string; paths?: string[] } {
   // Claude Code names MCP tools mcp__<server>__<tool>; Harflex's own read like the built-in ones.
   const name = rawName.startsWith('mcp__harflex__') ? rawName.slice('mcp__harflex__'.length) : rawName
   const input = record(args)
   const path = text(input.path) || text(input.file_path) || text(input.notebook_path)
+  const paths = path ? [path] : undefined
   switch (name) {
     case 'read': case 'Read': case 'NotebookRead':
-      return { kind: 'read', label: path ? t('Lendo {file}', { file: describePath(path) }) : t('Lendo um arquivo'), detail: pathDetail(path) }
+      return { kind: 'read', label: path ? t('Lendo {file}', { file: describePath(path) }) : t('Lendo um arquivo'), detail: pathDetail(path), paths }
     case 'write': case 'Write':
-      return { kind: 'write', label: path ? t('Escrevendo {file}', { file: describePath(path) }) : t('Escrevendo um arquivo'), detail: pathDetail(path) }
+      return { kind: 'write', label: path ? t('Escrevendo {file}', { file: describePath(path) }) : t('Escrevendo um arquivo'), detail: pathDetail(path), paths }
     case 'edit': case 'Edit': case 'MultiEdit': case 'NotebookEdit':
-      return { kind: 'write', label: path ? t('Editando {file}', { file: describePath(path) }) : t('Editando um arquivo'), detail: pathDetail(path) }
+      return { kind: 'write', label: path ? t('Editando {file}', { file: describePath(path) }) : t('Editando um arquivo'), detail: pathDetail(path), paths }
     case 'ls': case 'LS':
       return { kind: 'search', label: path ? t('Listando {file}', { file: describePath(path) }) : t('Listando a pasta do projeto'), detail: pathDetail(path) }
     case 'find': case 'Glob': {
@@ -79,7 +106,8 @@ export function describeTool(rawName: string, args: unknown): { kind: ActionKind
     case 'bash': case 'powershell': case 'Bash': {
       const command = unwrapCommand(text(input.command))
       const description = text(input.description)
-      return { kind: 'shell', label: description ? shorten(description, 90) : t('Rodando um comando'), detail: command ? shorten(command, 220) : undefined }
+      const read = shellReadPaths(command)
+      return { kind: 'shell', label: description ? shorten(description, 90) : t('Rodando um comando'), detail: command ? shorten(command, 220) : undefined, paths: read.length ? read : undefined }
     }
     case 'WebFetch': case 'WebSearch': {
       const target = text(input.url) || text(input.query)
@@ -287,7 +315,8 @@ export function buildActivityFlow(events: AgentEvent[]): ActivityFlow {
           const command = unwrapCommand(text(item.command))
           const exit = typeof item.exit_code === 'number' ? item.exit_code : undefined
           const failed = text(item.status) === 'failed' || (done && exit !== undefined && exit !== 0)
-          upsert(id, () => ({ kind: 'shell', label: t('Rodando um comando'), detail: shorten(command, 220) }), failed ? 'failed' : done ? 'done' : 'running', failed && exit !== undefined ? t('Saiu com código {code}', { code: exit }) : undefined)
+          const read = shellReadPaths(command)
+          upsert(id, () => ({ kind: 'shell', label: t('Rodando um comando'), detail: shorten(command, 220), paths: read.length ? read : undefined }), failed ? 'failed' : done ? 'done' : 'running', failed && exit !== undefined ? t('Saiu com código {code}', { code: exit }) : undefined)
           return
         }
         case 'file_change': {
@@ -296,7 +325,8 @@ export function buildActivityFlow(events: AgentEvent[]): ActivityFlow {
           const adding = changes.length > 0 && changes.every(change => text(change.kind) === 'add')
           const verb = adding ? t('Criando') : t('Alterando')
           const label = names.length === 1 ? t('{verb} {file}', { verb, file: names[0] }) : t('{verb} {count} arquivos', { verb, count: names.length })
-          upsert(id, () => ({ kind: 'write', label, detail: names.length > 1 ? shorten(names.join(', '), 200) : pathDetail(text(changes[0]?.path)) }), text(item.status) === 'failed' ? 'failed' : done ? 'done' : 'running')
+          const changed = changes.map(change => text(change.path)).filter(Boolean)
+          upsert(id, () => ({ kind: 'write', label, detail: names.length > 1 ? shorten(names.join(', '), 200) : pathDetail(text(changes[0]?.path)), paths: changed.length ? changed : undefined }), text(item.status) === 'failed' ? 'failed' : done ? 'done' : 'running')
           return
         }
         case 'mcp_tool_call': {

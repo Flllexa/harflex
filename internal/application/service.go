@@ -91,7 +91,7 @@ type Service struct {
 	qaLoops  map[string]QALoopDTO
 	// prWatch tracks the review checks running for the pull requests.
 	prWatch           pullRequestWatchState
-	projectMemoryRuns map[string]bool
+	projectMemoryRuns map[string]string
 }
 
 func NewService(ctx context.Context, deps Dependencies) *Service {
@@ -108,7 +108,7 @@ func NewService(ctx context.Context, deps Dependencies) *Service {
 	if factory == nil {
 		factory = func(c openai.Config) (agentcore.Provider, error) { return openai.New(c) }
 	}
-	service := &Service{ctx: ctx, store: deps.Store, secrets: deps.Secrets, external: external, executionCacheRoot: deps.ExecutionCacheRoot, sessions: make(map[string]sessionRunner), journals: make(map[string]*eventJournal), authoringCodeOwners: make(map[string]*authoringCodeOwner), providerFactory: factory, modelHTTPClient: &http.Client{Transport: http.DefaultTransport}, modelCatalogCache: modelcatalog.NewCache(time.Now), privateWorkspaceParent: deps.PrivateWorkspaceParent, privateCodeCopy: sddworkspace.CreatePrivateCopyAt, authoringCodeScan: sddworkspace.Scan, authoringCodeReadbackTimeout: 15 * time.Minute, authoringCodePatchMaxBytes: sddworkspace.MaxPatchEvidenceBytes, privateCodeCopyInFlight: make(map[string]struct{}), audit: deps.Audit, emit: deps.Emit, drained: make(chan struct{}), scheduleWake: make(chan struct{}, 1), scheduleCanceled: make(map[string]bool), delegationTimeout: defaultDelegationTimeout, projectMemoryRuns: make(map[string]bool)}
+	service := &Service{ctx: ctx, store: deps.Store, secrets: deps.Secrets, external: external, executionCacheRoot: deps.ExecutionCacheRoot, sessions: make(map[string]sessionRunner), journals: make(map[string]*eventJournal), authoringCodeOwners: make(map[string]*authoringCodeOwner), providerFactory: factory, modelHTTPClient: &http.Client{Transport: http.DefaultTransport}, modelCatalogCache: modelcatalog.NewCache(time.Now), privateWorkspaceParent: deps.PrivateWorkspaceParent, privateCodeCopy: sddworkspace.CreatePrivateCopyAt, authoringCodeScan: sddworkspace.Scan, authoringCodeReadbackTimeout: 15 * time.Minute, authoringCodePatchMaxBytes: sddworkspace.MaxPatchEvidenceBytes, privateCodeCopyInFlight: make(map[string]struct{}), audit: deps.Audit, emit: deps.Emit, drained: make(chan struct{}), scheduleWake: make(chan struct{}, 1), scheduleCanceled: make(map[string]bool), delegationTimeout: defaultDelegationTimeout, projectMemoryRuns: make(map[string]string)}
 	_, tokenErr := rand.Read(service.catalogTokenKey[:])
 	service.catalogTokenReady = tokenErr == nil
 	if service.audit == nil {

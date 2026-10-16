@@ -246,6 +246,10 @@ func (s *Session) Prompt(parent context.Context, text string) error {
 				}
 				e.Raw = append([]byte(nil), e.Raw...)
 				recordErr = appendEvent(ctx, "external.event", e)
+				// The turn's token totals join the usage the API runs record, so progress and metrics read one event.
+				if usage, ok := RunUsage(e.Raw); ok && recordErr == nil {
+					recordErr = appendEvent(ctx, "usage.recorded", usage)
+				}
 				if recordErr == nil && ValidSessionID(e.SessionID) && s.Adapter.Capabilities().Resumable && e.SessionID != boundSessionID {
 					recordErr = appendEvent(ctx, "external.session.bound", map[string]string{"sessionId": e.SessionID})
 					if recordErr == nil {

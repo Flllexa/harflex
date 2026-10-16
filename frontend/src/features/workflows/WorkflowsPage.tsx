@@ -4,6 +4,7 @@ import { ArrowRight, CirclePause, FolderOpen, GitFork, Plus, RefreshCw, Trash2 }
 import { IonPicker } from '../../components/IonPicker'
 import { errorMessage, type Backend, type BackendOption, type Workflow, type WorkflowRun, type WorkflowStep } from '../../lib/backend'
 import { t, useT } from '../../i18n'
+import { SessionRunProgress } from '../../components/activity/RunProgressView'
 
 type Props = { backend: Backend; backends: BackendOption[]; workspaceId?: string; reviewedSessions: ReadonlySet<string>; onProjects: () => void; onSettings: () => void; onOpenSession: (sessionId: string) => Promise<void> }
 const blank = (): WorkflowStep => ({ name: '', prompt: '' })
@@ -70,12 +71,23 @@ export function WorkflowsPage({ backend, backends, workspaceId, reviewedSessions
   async function advance(run: WorkflowRun) {
     if (pending) return
     setPending(true); setError(undefined); setNotice(undefined)
+    // The step's session is recorded before the model runs; reading the runs once it exists shows its progress.
+    let waiting = true
+    void (async () => {
+      for (let attempt = 0; attempt < 10 && waiting && workspaceId; attempt++) {
+        await new Promise(resolve => window.setTimeout(resolve, 500))
+        if (!waiting) return
+        const found = (await backend.listWorkflowRuns(workspaceId).catch(() => [] as WorkflowRun[])).find(item => item.id === run.id)
+        if (!waiting) return
+        if (found?.status === 'running' && found.lastSessionId) { setRuns(current => current.map(item => item.id === found.id ? found : item)); return }
+      }
+    })()
     try {
       const updated = await backend.runWorkflowStep(run.id)
       setRuns(current => current.map(item => item.id === updated.id ? updated : item))
       setNotice(updated.status === 'waiting_user' ? t('Etapa aguardando sua aprovação na conversa.') : updated.status === 'completed' ? t('Workflow concluído com execução registrada.') : updated.status === 'paused' ? t('Etapa pausada. Confira o histórico antes de tentar novamente.') : t('Etapa concluída; próxima pronta.'))
     } catch (failure) { setError(errorMessage(failure)) }
-    finally { setPending(false) }
+    finally { waiting = false; setPending(false) }
   }
 
   async function cancel(run: WorkflowRun) {
@@ -124,6 +136,7 @@ export function WorkflowsPage({ backend, backends, workspaceId, reviewedSessions
                 {(run.status === 'ready' || run.status === 'waiting_user' || run.status === 'running') && <button type="button" className="touch-target primary-button" onClick={() => void advance(run)} disabled={pending}>{run.status === 'ready' ? <>{t('Executar etapa')}<ArrowRight aria-hidden="true" /></> : t('Atualizar resultado')}</button>}
                 {run.status !== 'completed' && run.status !== 'cancelled' && <button type="button" className="touch-target secondary-button" onClick={() => void cancel(run)} disabled={pending}><CirclePause aria-hidden="true" />{t('Cancelar')}</button>}
               </div>
+              {run.status === 'running' && run.lastSessionId && <SessionRunProgress key={run.lastSessionId} backend={backend} sessionId={run.lastSessionId} title={t('Etapa {current}', { current: run.currentStep + 1 })} />}
               {run.status === 'paused' && run.lastSessionId && <div className="workflow-recovery">
                 <p className="muted">{t('Abra a sessão da etapa e confira o histórico antes de decidir. Reexecutar pode repetir efeitos já produzidos.')}</p>
                 <div className="workflow-recovery-controls">

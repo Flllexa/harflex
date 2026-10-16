@@ -4,6 +4,7 @@ import { errorMessage, type Backend, type PullRequest } from '../../lib/backend'
 import { localeTag, useT } from '../../i18n'
 import { openExternal } from '../../lib/desktop'
 import './pullRequests.css'
+import { SessionRunProgress } from '../../components/activity/RunProgressView'
 
 type Props = {
   backend: Backend
@@ -68,6 +69,7 @@ export function PullRequestCards({ backend, pipelineId, permissionProfile, permi
             : <><Eye aria-hidden="true" /><span>{pr.nextCheckAt ? t('A cada hora a IA confere a revisão e os checks, corrige os apontamentos no mesmo branch, roda os testes, faz push e responde, até o PR ser aprovado ou mergeado. Nunca faz merge. Próxima conferência às {time}.', { time: time(pr.nextCheckAt) }) : t('A cada hora a IA confere a revisão e os checks, corrige os apontamentos no mesmo branch, roda os testes, faz push e responde, até o PR ser aprovado ou mergeado. Nunca faz merge. Conferindo em instantes.')}</span></>}
           <button type="button" className="touch-target text-button" disabled={busy === pr.id || pr.checking || !full} onClick={() => void act(pr.id, () => backend.checkPullRequestNow(pr.id))}><MessageSquareReply aria-hidden="true" />{t('Conferir agora')}</button>
         </div>}
+        {open && pr.checking && pr.sessionId && <SessionRunProgress key={pr.sessionId} backend={backend} sessionId={pr.sessionId} title={t('Conferência do PR')} />}
         {open && pr.watch && !full && <div className="pr-watch-access" role="alert"><ShieldAlert aria-hidden="true" /><p>{t('Para a IA corrigir e fazer push sozinha, o projeto precisa de Acesso total. Ative aqui:')}</p>{permissionControl}</div>}
         {recent.length > 0 && <ol className="pr-notes" aria-label={t('O que aconteceu neste PR')}>{recent.map((event, index) => { const Icon = eventIcons[event.kind] ?? CircleDot; return <li key={index} className={`pr-note is-${event.kind}`}><header><Icon aria-hidden="true" /><time dateTime={event.at}>{time(event.at)}</time></header><span>{event.summary}</span></li> })}</ol>}
       </article>

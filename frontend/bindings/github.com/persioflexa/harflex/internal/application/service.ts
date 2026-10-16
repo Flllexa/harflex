@@ -144,6 +144,9 @@ export function ContinueWorkChat(previousSessionID: string, nextSessionID: strin
     return $Call.ByID(3034680119, previousSessionID, nextSessionID);
 }
 
+/**
+ * CreateAuthoringPipeline creates a work from its Discovery, and the chat that coordinates it (each work has one).
+ */
 export function CreateAuthoringPipeline($in: $models.CreateAuthoringPipelineInput): $CancellablePromise<$models.PipelineDTO> {
     return $Call.ByID(2977356340, $in);
 }
