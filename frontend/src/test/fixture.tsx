@@ -796,6 +796,17 @@ if (scenario === 'restore-project') {
   backend.listWorkspaces = async () => [{ id: 'workspace-1', path: '/synthetic/workspace/api-faturas', profile: 'ask', available: true }]
 }
 
+// ?latency=<ms> delays the history reads the way the real backend does, to see what a slow switch looks like.
+const latency = Number(new URLSearchParams(window.location.search).get('latency') ?? 0)
+if (latency > 0) {
+  const delayed = <T,>(read: () => Promise<T>) => new Promise<T>((resolve, reject) => window.setTimeout(() => read().then(resolve, reject), latency))
+  const { listSessions, openSession, listEvents, listChatProjects } = backend
+  backend.listSessions = workspaceId => delayed(() => listSessions(workspaceId))
+  backend.openSession = (id, workspaceId) => delayed(() => openSession(id, workspaceId))
+  backend.listEvents = (id, after, limit) => delayed(() => listEvents(id, after, limit))
+  backend.listChatProjects = limit => delayed(() => listChatProjects(limit))
+}
+
 // Browser-only E2E fixture: the full app against the simulated Go facade.
 // Scenarios start from a blank shell unless they exercise reopening the last project.
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(

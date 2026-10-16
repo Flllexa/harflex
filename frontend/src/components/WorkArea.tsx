@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { BarChart3, FileText, Folder, MessageSquare } from 'lucide-react'
 import type { Destination } from './Sidebar'
 import { useT } from '../i18n'
@@ -52,6 +52,16 @@ export function WorkArea({ selected, workState, compact=false, project = example
   const detail = project === exampleProject ? t(exampleProject.detail) : project.detail
   const [activeTab, setActiveTab] = useState(0)
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
+  // Moving to another destination fades the area in. It animates the element in place, never remounting it, so open
+  // popovers and the state of the page are left alone; only opacity changes, so nothing is measured mid-move.
+  const area = useRef<HTMLElement>(null)
+  const shownDestination = useRef(selected)
+  useEffect(() => {
+    if (shownDestination.current === selected) return
+    shownDestination.current = selected
+    if (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    area.current?.animate?.([{ opacity: 0.35 }, { opacity: 1 }], { duration: 180, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' })
+  }, [selected])
   const destinationContent: Partial<Record<Destination, ReactNode>> = {
     Projetos: projectContent, Configurações: settingsContent, Logs: logsContent,
     Repositórios: repositoryContent, Worktrees: worktreesContent, Pipelines: pipelineContent, Agentes: agentsContent,
@@ -74,7 +84,7 @@ export function WorkArea({ selected, workState, compact=false, project = example
     setActiveTab(next)
     tabRefs.current[next]?.focus()
   }
-  return <main id="work-area" className={`work-area${selected === 'Conversas' ? ' is-conversation' : ''}`} aria-label={t('Área de trabalho')} tabIndex={-1}>
+  return <main ref={area} id="work-area" className={`work-area${selected === 'Conversas' ? ' is-conversation' : ''}`} aria-label={t('Área de trabalho')} tabIndex={-1}>
     {compact ? <><h1 className="visually-hidden">{t('Conversa no projeto {name}', { name: project.name })}</h1>{projectNotice && <div className="project-notice">{projectNotice}</div>}</> : <section className="project-header" aria-labelledby="project-title">
       <div className="project-title"><Folder aria-hidden="true" /><h1 id="project-title">{project.name}</h1><span className="project-path mono-path muted" title={detail}>{shortPath(detail)}</span></div>
       {projectExtra}

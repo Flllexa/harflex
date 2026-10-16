@@ -104,6 +104,13 @@ export function CasualSidebar({ backend, workspace, activeSessionId, activeSessi
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const generation = useRef(0)
   const projectsRequest = useRef(0)
+  // The project whose chats the list shows: a refresh of the same project keeps them on screen while it reads.
+  const chatsWorkspace = useRef<string>()
+  const [refreshing, setRefreshing] = useState(false)
+  // The chat being opened is marked at once, so the click answers before its history arrives.
+  const currentChatId = loadingHistory && openedChatId ? openedChatId : activeSessionId ?? openedChatId
+  const shownChats = useRef(0)
+  shownChats.current = chats.length
 
   // Every project's recent conversations and the pinned ones; the open project keeps its own fuller list below.
   const loadProjects = useCallback(async () => {
@@ -149,7 +156,10 @@ export function CasualSidebar({ backend, workspace, activeSessionId, activeSessi
       setLoadState('ready')
       return
     }
-    setLoadState('loading')
+    // Only a project shown for the first time waits on a blank list; switching chats refreshes the list in place.
+    const background = chatsWorkspace.current === workspace.id
+    if (background) setRefreshing(true)
+    else setLoadState('loading')
     setLoadError(false)
     setMoreState(false)
     try {
@@ -157,14 +167,20 @@ export function CasualSidebar({ backend, workspace, activeSessionId, activeSessi
       if (generation.current !== request) return
       const summaries = await Promise.all(sessions.slice(0, pageSize).map(session => readChatSummary(backend, session)))
       if (generation.current !== request) return
+      chatsWorkspace.current = workspace.id
       setChats(summaries)
       setTotalSessions(sessions.length)
       setLoadState('ready')
     } catch {
       if (generation.current !== request) return
-      setChats([])
-      setLoadError(true)
-      setLoadState('error')
+      // A failed refresh keeps the chats already shown; with none on screen, it says it failed.
+      if (!background || shownChats.current === 0) {
+        setChats([])
+        setLoadError(true)
+        setLoadState('error')
+      }
+    } finally {
+      if (generation.current === request) setRefreshing(false)
     }
   }, [backend, workspace])
 
@@ -179,7 +195,7 @@ export function CasualSidebar({ backend, workspace, activeSessionId, activeSessi
   const filtered = chats.filter(chat => !superseded.has(chat.session.id)).filter(chat => chat.title.toLocaleLowerCase('pt-BR').includes(search.trim().toLocaleLowerCase('pt-BR')))
   const canLoadMore = chats.length < totalSessions
   function startChat() {
-    const active = chats.find(chat => chat.session.id === (activeSessionId ?? openedChatId))
+    const active = chats.find(chat => chat.session.id === currentChatId)
     const terminalReadOnlyRequest = active && !active.session.resumable && active.session.status !== 'ready' ? active.lastUserRequest : ''
     setOpenedChatId(undefined)
     onNewChat(recoveryPrompt || terminalReadOnlyRequest || undefined)
@@ -215,15 +231,17 @@ export function CasualSidebar({ backend, workspace, activeSessionId, activeSessi
       <Plus aria-hidden="true" /><span>{t('Novo chat')}</span>
     </button>
     {workspace && <label className="casual-search"><Search aria-hidden="true" /><span className="visually-hidden">{t('Buscar conversas')}</span><input aria-label={t('Buscar conversas')} value={search} onChange={event => setSearch(event.target.value)} placeholder={t('Buscar conversas')} /></label>}
-    {busy && <p className="casual-history-notice" role="status">{t('Sessão em execução; conclua ou cancele antes de trocar de conversa.')}</p>}
-    {!busy && loadingHistory && <p className="casual-history-notice" role="status">{t('Carregando conversa… escolha outro chat para cancelar esta abertura.')}</p>}
+    {busy && !loadingHistory && <p className="casual-history-notice" role="status">{t('Sessão em execução; conclua ou cancele antes de trocar de conversa.')}</p>}
+    {/* Opening a chat shows as a thin bar over the list, so nothing below it moves. */}
+    <div className={`casual-loading-bar${loadingHistory || refreshing ? ' is-active' : ''}`} aria-hidden="true" />
+    {loadingHistory && <p className="visually-hidden" role="status">{t('Carregando conversa… escolha outro chat para cancelar esta abertura.')}</p>}
 
     <div className="casual-history-scroll">
     {pinned.length > 0 && <section className="casual-group" aria-labelledby="casual-pinned-title">
       <h2 id="casual-pinned-title" className="casual-group-label"><Pin aria-hidden="true" />{t('Fixados')}</h2>
       <ul className="casual-chat-list" aria-label={t('Conversas fixadas')}>
         {pinned.filter(({ chat }) => (plainTitle(chat.title) ?? '').toLocaleLowerCase('pt-BR').includes(search.trim().toLocaleLowerCase('pt-BR'))).map(({ chat, project }) => <li key={chat.id} className="casual-chat-row">
-          <button type="button" className="touch-target casual-chat-item" aria-current={chat.id === (activeSessionId ?? openedChatId) ? 'true' : undefined} disabled={busy}
+          <button type="button" className="touch-target casual-chat-item" aria-current={chat.id === currentChatId ? 'true' : undefined} disabled={busy}
             onClick={() => { setOpenedChatId(chat.id); onOpenSession(chat.id, chat.workspaceId, project.workspace.path) }}>
             <span className="casual-chat-title">{plainTitle(chat.title) ?? t('Conversa {id}', { id: chat.id.slice(0, 12) })}</span>
             <span className="casual-chat-meta"><span>{basename(project.workspace.path)}</span><time dateTime={chat.updatedAt}>{new Date(chat.updatedAt).toLocaleDateString(localeTag())}</time></span>
@@ -238,7 +256,7 @@ export function CasualSidebar({ backend, workspace, activeSessionId, activeSessi
         <div className="casual-group-title"><FolderOpen aria-hidden="true" /><div><strong>{workspace ? basename(workspace.path) : t('Nenhum projeto aberto')}</strong><span className="muted">{workspace ? t('Projeto aberto') : t('Escolha uma pasta para começar')}</span></div></div>
         <div className="casual-group-actions">
           {workspace && <button type="button" className="touch-target icon-button" aria-label={t('Abrir a pasta de {name}', { name: basename(workspace.path) })} title={t('Abrir a pasta')} onClick={() => reveal(workspace.id)}><FolderSearch aria-hidden="true" /></button>}
-          <button type="button" className="touch-target icon-button" aria-label={t('Atualizar histórico')} onClick={() => { void loadHistory(); void loadProjects() }} disabled={loadState === 'loading' || !workspace}><RefreshCw aria-hidden="true" /></button>
+          <button type="button" className="touch-target icon-button" aria-label={t('Atualizar histórico')} onClick={() => { void loadHistory(); void loadProjects() }} disabled={loadState === 'loading' || !workspace}><RefreshCw aria-hidden="true" className={refreshing ? 'is-spinning' : undefined} /></button>
         </div>
       </div>
       {!workspace ? <div className="casual-history-empty"><MessageSquare aria-hidden="true" /><p>{t('Abra um projeto para ver o histórico de chats.')}</p><button type="button" className="touch-target secondary-button" onClick={onProjects} disabled={busy || loadingHistory}>{t('Ver projetos')}</button></div>
@@ -248,7 +266,7 @@ export function CasualSidebar({ backend, workspace, activeSessionId, activeSessi
               : <>{filtered.length === 0 ? <p className="muted casual-history-state">{t('Nenhum chat corresponde à busca.')}</p> : <ul className="casual-chat-list" aria-label={t('Histórico de chats')}>
                   {filtered.map(chat => <li key={chat.session.id} className="casual-chat-row">
                     {/* The open chat stays reachable while it runs: clicking it only goes back to it. */}
-                    <button type="button" className="touch-target casual-chat-item" aria-current={chat.session.id === (activeSessionId ?? openedChatId) ? 'true' : undefined} disabled={chat.session.id !== activeSessionId && busy}
+                    <button type="button" className="touch-target casual-chat-item" aria-current={chat.session.id === currentChatId ? 'true' : undefined} disabled={chat.session.id !== activeSessionId && busy}
                       onClick={() => { if (chat.session.id === activeSessionId && busy) { onSelectDestination('Conversas'); if (mobileOpen) onClose(); return } setOpenedChatId(chat.session.id); onOpenSession(chat.session.id, chat.session.workspaceId) }}>
                       <span className="casual-chat-title">{coordinators[chat.session.id]?.title || chat.title}</span>
                       <span className="casual-chat-meta"><span>{coordinators[chat.session.id] ? workProgressOf(coordinators[chat.session.id].currentStage, coordinators[chat.session.id].stageStatus) : t(sessionState(chat.session))}</span><time dateTime={chat.session.updatedAt}>{new Date(chat.session.updatedAt).toLocaleDateString(localeTag())}</time></span>

@@ -110,11 +110,13 @@ type Props = {
   projectControl?: ReactNode
   /** The bar names another provider, model or effort: the next message continues in a new chat with it. */
   switchModel?: { usable: boolean; onReset: () => void }
+  /** The open conversation; a new one enters with a short transition. */
+  sessionKey?: string
 }
 
 const composerMaxHeight = 200
 
-export function ConversationPane({ state, loadingHistory, permissionControl, viewMode, cancelPending = false, delegationParentId, delegation, queuedTask, onPrepareDelegatedTask, onOpenParent, onDraft, onPrompt, onResolve, onCancel, onRetry, onNewWork, onContinue, onPipelineChoice, commands, backendLabel, modelBar, switchModel, projectControl }: Props) {
+export function ConversationPane({ sessionKey, state, loadingHistory, permissionControl, viewMode, cancelPending = false, delegationParentId, delegation, queuedTask, onPrepareDelegatedTask, onOpenParent, onDraft, onPrompt, onResolve, onCancel, onRetry, onNewWork, onContinue, onPipelineChoice, commands, backendLabel, modelBar, switchModel, projectControl }: Props) {
   const t = useT()
   const draft = state.draft
   const running = state.activeRun === 'running'
@@ -136,6 +138,14 @@ export function ConversationPane({ state, loadingHistory, permissionControl, vie
   const continuing = state.readOnly && !!onContinue || switching
   const canSend = switching ? draft.trim() !== '' && switchModel.usable && !loadingHistory && !state.calling && !running && state.activeRun !== 'awaiting_approval' && state.connectionState === 'ready' : draft.trim() !== '' && (!state.readOnly || continuing) && !loadingHistory && !exhausted && !state.calling && (state.activeRun === 'idle' || state.activeRun === 'paused' || continuing && state.activeRun === 'awaiting_approval') && state.connectionState === 'ready'
   const emptyCasual = viewMode === 'casual' && state.messages.length === 0 && !state.readOnly && !loadingHistory && !state.error && !state.outcome && !state.calling && state.activeRun === 'idle' && !delegation && !delegationParentId && !queuedTask
+  // While another conversation loads, the one on screen stays (dimmed) instead of flashing an empty page; the new one
+  // replaces it whole once its history is in.
+  const shown = useRef<{ key?: string; messages: SessionState['messages'] }>({ key: sessionKey, messages: state.messages })
+  if (!loadingHistory || state.messages.length > 0 && shown.current.key === sessionKey) shown.current = { key: sessionKey, messages: state.messages }
+  const changingChat = loadingHistory && shown.current.key !== sessionKey && shown.current.messages.length > 0
+  const messages = changingChat ? shown.current.messages : state.messages
+  // From the click on another chat until it is in, the one on screen dims: it is on its way out.
+  const leaving = loadingHistory && messages.length > 0
   const log = useRef<HTMLOListElement>(null)
   const composer = useRef<HTMLTextAreaElement>(null)
   // Follow the newest message only while the reader is at the bottom; scrolling up pauses it.
@@ -169,13 +179,13 @@ export function ConversationPane({ state, loadingHistory, permissionControl, vie
     {(!emptyCasual || !!draft.trim() || !!modelBar) && <div className="conversation-actions"><button type="button" className="touch-target secondary-button" onClick={() => onNewWork(carriedRequest || undefined)} disabled={state.readOnly && loadingHistory || executionBusy}>{newWorkLabel === 'Sessões do projeto' && <ChevronLeft aria-hidden="true" />}{t(newWorkLabel)}</button>{delegationParentId && <button type="button" className="touch-target secondary-button" onClick={onOpenParent} disabled={loadingHistory || state.calling || runIsLive(state)}>{t('Voltar à sessão pai')}</button>}{!modelBar && backendLabel && <span className="conversation-backend muted">{backendLabel}</span>}</div>}
     {queuedTask && <div className="continuity-note muted delegated-task-recovery"><p>{t('A tarefa delegada está salva no histórico. Prepare-a no rascunho e revise antes de enviar; nada é executado automaticamente.')}</p><button type="button" className="touch-target secondary-button" onClick={onPrepareDelegatedTask} disabled={loadingHistory || state.calling || state.readOnly || !!draft || state.activeRun !== 'idle'}>{t('Preparar tarefa delegada')}</button></div>}
     {delegation && <p className="continuity-note muted">{t('Subagente: {budget}. A espera por aprovação não conta; tentativas interrompidas contam. Não é limite de custo ou tokens.', { budget: delegationBudgetText(delegation) })}{exhausted ? t(' Limite atingido: revise o histórico antes de delegar novamente.') : ''}</p>}
-    {state.messages.length === 0
-      ? <div className="empty-state"><p>{viewMode === 'casual' ? t('Nova conversa') : t('Nenhuma conversa iniciada')}</p>{viewMode !== 'casual' && <span className="muted">{t('O trabalho começa com uma conversa.')}</span>}</div>
-      : <CommandRunnerContext.Provider value={commands}><ol ref={log} className="conversation-log" aria-label={t('Conversa')} onScroll={trackScroll}>
-        {state.messages.map((item, index) => {
+    {messages.length === 0
+      ? <div className="empty-state conversation-enter"><p>{viewMode === 'casual' ? t('Nova conversa') : t('Nenhuma conversa iniciada')}</p>{viewMode !== 'casual' && <span className="muted">{t('O trabalho começa com uma conversa.')}</span>}</div>
+      : <CommandRunnerContext.Provider value={commands}><ol ref={log} key={changingChat ? shown.current.key : sessionKey} className={`conversation-log${leaving ? ' is-switching' : ' conversation-enter'}`} aria-label={t('Conversa')} aria-busy={leaving || undefined} onScroll={trackScroll}>
+        {messages.map((item, index) => {
           const reply = item.kind === 'assistant' ? splitPipelineChoice(item.text) : undefined
           // The choice is open only while nothing came after it: once the person answers, the answer is in the conversation.
-          const asking = !!reply?.ask && !!onPipelineChoice && index === state.messages.length - 1 && !(item.kind === 'assistant' && item.streaming) && !state.readOnly
+          const asking = !!reply?.ask && !!onPipelineChoice && index === messages.length - 1 && !(item.kind === 'assistant' && item.streaming) && !state.readOnly
           return <li key={item.id} className={`turn turn-${item.kind}`}>
             {item.kind === 'tool' ? <ToolCallCard call={item.call} /> : <>
               <span className="turn-author">{item.kind === 'user' ? t('Você') : t('Agente')}</span>
