@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
-import { ChevronLeft, Send, Square } from 'lucide-react'
+import { ChevronLeft, Info, Lock, Pause, RefreshCw, Send, Square } from 'lucide-react'
 import { runIsLive, type SessionState } from '../../state/session'
 import { ApprovalCard } from './ApprovalCard'
 import { ToolCallCard, toolTarget } from './ToolCallCard'
@@ -208,12 +208,14 @@ export function ConversationPane({ sessionKey, state, loadingHistory, permission
       {permissionControl && !modelBar && <div className="composer-toolbar">{permissionControl}</div>}
     </div>
     {state.connectionState === 'degraded' && <button type="button" className="touch-target secondary-button" disabled={state.calling} onClick={onRetry}>{t('Atualizar eventos')}</button>}
-    {state.readOnly ? <p className="continuity-note muted">{continuing
-      ? <>{t('Somente leitura: esta execução foi encerrada. Escreva abaixo e o Harflex continua em um novo chat, levando o contexto desta conversa.')}{carriedRequest ? t(' Continuar em novo chat só prepara o último pedido para você revisar antes de enviar.') : ''}</>
-      : <>{t('Somente leitura: esta execução foi encerrada. Inicie um novo chat para continuar.')} {carriedRequest ? t('O último pedido será preparado para revisão, sem reenvio automático.') : t('Você pode descrever um novo pedido.')}</>}</p> : state.activeRun === 'paused' && <p className="continuity-note muted">{t('Envie uma mensagem para retomar o trabalho. Revise os resultados das ferramentas interrompidas.')}</p>}
-    {!state.readOnly && draft.trim() && viewMode !== 'casual' && <p className="continuity-note muted">{t('Se iniciar outro trabalho, este rascunho será levado para revisão e permanecerá sem envio automático.')}</p>}
-    {switchModel && <p className="chat-model-note" role="status">{switchModel.usable ? t('A próxima mensagem abre um novo chat com esta escolha, levando o contexto desta conversa.') : t('Escolha um modelo disponível para continuar com este provedor.')} <button type="button" className="text-button" onClick={switchModel.onReset}>{t('Manter o atual')}</button></p>}
     <form className={`composer${modelBar ? ' composer-card' : ''}`} onSubmit={submit}>
+      {/* What the box will do with the next message is said inside it, on one quiet line, never between the run and the box. */}
+      {state.readOnly ? <p className="composer-notice"><Lock aria-hidden="true" /><span>{continuing
+        ? t('Somente leitura: esta execução foi encerrada. O que você enviar abre um novo chat com o contexto desta conversa.')
+        : t('Somente leitura: esta execução foi encerrada. Inicie um novo chat para continuar.')}</span></p>
+        : state.activeRun === 'paused' && <p className="composer-notice"><Pause aria-hidden="true" /><span>{t('Envie uma mensagem para retomar o trabalho. Revise os resultados das ferramentas interrompidas.')}</span></p>}
+      {!state.readOnly && draft.trim() && viewMode !== 'casual' && <p className="composer-notice"><Info aria-hidden="true" /><span>{t('Se iniciar outro trabalho, este rascunho será levado para revisão e permanecerá sem envio automático.')}</span></p>}
+      {switchModel && <p className="composer-notice chat-model-note" role="status"><RefreshCw aria-hidden="true" /><span>{switchModel.usable ? t('A próxima mensagem abre um novo chat com esta escolha, levando o contexto desta conversa.') : t('Escolha um modelo disponível para continuar com este provedor.')}</span> <button type="button" className="text-button" onClick={switchModel.onReset}>{t('Manter o atual')}</button></p>}
       <label className="visually-hidden" htmlFor="composer-input">{t('Mensagem')}</label>
       <textarea ref={composer} id="composer-input" className="composer-input" rows={1} value={draft} disabled={state.readOnly && !continuing || continuing && state.calling || loadingHistory} placeholder={switching ? t('Enter envia e abre um novo chat com o modelo escolhido, levando o contexto') : continuing ? t('Continue de onde parou · Enter envia e abre um novo chat com o contexto') : t('Descreva o trabalho · Enter envia, Shift+Enter quebra a linha')} onChange={event => onDraft(event.target.value)} onKeyDown={composerKey} />
       {modelBar ? <div className="composer-card-actions">

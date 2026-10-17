@@ -505,7 +505,7 @@ describe('durable agent workbench', () => {
       expect(screen.getByRole('button', { name: 'Enviar' })).toBeEnabled()
     } else {
       expect(screen.getByLabelText('Mensagem')).toBeEnabled()
-      expect(screen.getByText(/Escreva abaixo e o Harflex continua em um novo chat/)).toBeInTheDocument()
+      expect(screen.getByText(/O que você enviar abre um novo chat/)).toBeInTheDocument()
     }
   })
   it('retries a failed session list without leaking the error', async () => {

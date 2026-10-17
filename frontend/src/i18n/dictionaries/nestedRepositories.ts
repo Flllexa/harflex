@@ -12,6 +12,7 @@ export const en: Record<string, string> = {
   'não pôde ser lido': 'could not be read',
   'Repositório': 'Repository',
   'Ver a saída': 'Show the output',
+  'Somente leitura: esta execução foi encerrada. O que você enviar abre um novo chat com o contexto desta conversa.': 'Read-only: this run has ended. What you send opens a new chat with this conversation\'s context.',
 }
 
 export const es: Record<string, string> = {
@@ -27,4 +28,5 @@ export const es: Record<string, string> = {
   'não pôde ser lido': 'no se pudo leer',
   'Repositório': 'Repositorio',
   'Ver a saída': 'Ver la salida',
+  'Somente leitura: esta execução foi encerrada. O que você enviar abre um novo chat com o contexto desta conversa.': 'Solo lectura: esta ejecución terminó. Lo que envíes abre un nuevo chat con el contexto de esta conversación.',
 }

@@ -1339,3 +1339,14 @@ body, .workspace { background: var(--canvas); }
 @media (max-width: 767px), (pointer: coarse), (hover: none) {
   .conversation-actions .secondary-button { min-height: 44px; }
 }
+
+/* Composer notices: what the next message will do, said on one quiet line inside the composer card. */
+.composer-notice { display: flex; align-items: center; gap: var(--space-2); flex-basis: 100%; width: 100%; margin: 0 0 var(--space-2); padding: 6px 10px; border-radius: 10px; background: var(--surface-2); color: var(--muted); font-size: 12px; line-height: 1.45; }
+.composer-notice > svg { width: 14px; height: 14px; flex: none; color: var(--cyan); }
+.composer-notice > span { min-width: 0; }
+.composer-notice .text-button { margin-left: auto; flex: none; min-height: 28px; padding: 0 var(--space-2); font-size: 12px; color: var(--cyan); }
+.composer:not(.composer-card) { flex-wrap: wrap; }
+.composer:not(.composer-card) > .composer-notice { margin: 2px 0 4px; }
+.chat-model-note.composer-notice { width: 100%; padding-inline: 10px; }
+.composer:not(.composer-card) > .composer-input { flex: 1 1 0; width: auto; min-width: 0; }
+.composer:not(.composer-card) > button { margin-left: auto; }
