@@ -162,7 +162,7 @@ func TestPipelineDesignManualEditsPreserveHistoryAndMarkDependenciesStale(t *tes
 func beginDesign(t *testing.T, store *Store, workspace catalog.PipelineDesignWorkspace, requestID, target string) (catalog.PipelineDesignWorkspace, catalog.PipelineDesignAttempt, catalog.PipelineDesignAttemptRequest) {
 	t.Helper()
 	in := catalog.PipelineDesignAttemptRequest{Ref: designRef(workspace, requestID), Message: "Preparar os documentos", Target: target, Selections: map[sdd.Stage]catalog.ModelSelection{}}
-	for _, stage := range []sdd.Stage{sdd.Discovery, sdd.Spec, sdd.Plan} {
+	for _, stage := range []sdd.Stage{sdd.Discovery, sdd.Spec, sdd.Brainstorm, sdd.Plan} {
 		in.Selections[stage] = catalog.ModelSelection{BackendID: "local", ModelID: "test-model", Source: "test", CatalogRevision: "catalog-v1", LocalRevision: "local-v1", WorkspacePath: "/project", CheckedAt: time.Now().UTC(), MaxOutputTokens: 4096}
 	}
 	in.IntentHash, _ = in.Hash()

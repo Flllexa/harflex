@@ -158,7 +158,7 @@ func validSessionModelSelection(session catalog.SessionRecord, selection catalog
 		documentCLI := selection.Status == "listed" && (selection.BackendID == "codex" || selection.BackendID == "claude")
 		// The limits older sessions were made with stay valid, so they reopen as they were.
 		if session.Mode == "sdd_readonly" {
-			return documentCLI && slices.Contains([]int{2 * 1024, 64 * 1024, catalog.MaxPipelineDesignDocumentBytes}, selection.MaxAssistantOutputBytes)
+			return documentCLI && slices.Contains([]int{2 * 1024, 64 * 1024, catalog.MaxPipelineDesignDocumentBytes, catalog.MaxBrainstormAnswerBytes}, selection.MaxAssistantOutputBytes)
 		}
 		if session.Mode == "sdd_code" {
 			return documentCLI && slices.Contains([]int{64 * 1024, catalog.MaxPipelineRoleOutputBytes}, selection.MaxAssistantOutputBytes)

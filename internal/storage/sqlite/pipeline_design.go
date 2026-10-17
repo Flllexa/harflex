@@ -234,7 +234,7 @@ func loadPipelineDesign(ctx context.Context, tx *sql.Tx, pipelineID string) (cat
 	if err = rows.Close(); err != nil {
 		return workspace, err
 	}
-	rows, err = tx.QueryContext(ctx, `SELECT l.attempt_id,l.stage,l.session_id FROM pipeline_design_attempt_sessions l JOIN pipeline_design_attempts a ON a.id=l.attempt_id WHERE a.pipeline_id=?`, pipelineID)
+	rows, err = tx.QueryContext(ctx, `SELECT l.attempt_id,l.stage,l.session_id FROM pipeline_design_attempt_sessions l JOIN pipeline_design_attempts a ON a.id=l.attempt_id WHERE a.pipeline_id=? ORDER BY l.rowid`, pipelineID)
 	if err != nil {
 		return workspace, fmt.Errorf("list pipeline design source sessions: %w", err)
 	}
@@ -676,6 +676,19 @@ func pipelineDesignSelectionsMatch(expected, actual catalog.ModelSelection) bool
 }
 
 func (s *Store) LinkPipelineDesignSession(ctx context.Context, pipelineID, attemptID string, stage sdd.Stage, sessionID string) (catalog.PipelineDesignWorkspace, error) {
+	return s.linkPipelineDesignSession(ctx, pipelineID, attemptID, stage, "", sessionID)
+}
+
+// RelinkPipelineDesignSession records the session of Brainstorm's one corrective retry: the AI's answer in previous was
+// refused, and the document will come from sessionID instead. Both links stay on record.
+func (s *Store) RelinkPipelineDesignSession(ctx context.Context, pipelineID, attemptID string, stage sdd.Stage, previous, sessionID string) (catalog.PipelineDesignWorkspace, error) {
+	if stage != sdd.Brainstorm || !safeBrainstormText(previous, 128) {
+		return catalog.PipelineDesignWorkspace{}, sdd.ErrInvalidTransition
+	}
+	return s.linkPipelineDesignSession(ctx, pipelineID, attemptID, stage, previous, sessionID)
+}
+
+func (s *Store) linkPipelineDesignSession(ctx context.Context, pipelineID, attemptID string, stage sdd.Stage, previous, sessionID string) (catalog.PipelineDesignWorkspace, error) {
 	if !safeBrainstormText(pipelineID, 128) || !safeBrainstormText(attemptID, 128) || !safeBrainstormText(sessionID, 128) || !validPipelineDesignStage(stage) {
 		return catalog.PipelineDesignWorkspace{}, sdd.ErrInvalidTransition
 	}
@@ -692,11 +705,19 @@ func (s *Store) LinkPipelineDesignSession(ctx context.Context, pipelineID, attem
 	if !found {
 		return workspace, ErrPipelineConflict
 	}
-	if linked := attempt.SessionIDs[stage]; linked != "" {
-		if linked != sessionID {
-			return workspace, ErrPipelineConflict
-		}
+	if linked := attempt.SessionIDs[stage]; linked == sessionID {
 		return workspace, tx.Commit()
+	} else if linked != previous {
+		return workspace, ErrPipelineConflict
+	}
+	if previous != "" {
+		var links int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM pipeline_design_attempt_sessions WHERE attempt_id=? AND stage=?`, attemptID, stage).Scan(&links); err != nil {
+			return workspace, err
+		}
+		if links != 1 {
+			return workspace, sdd.ErrInvalidTransition
+		}
 	}
 	attempt, err = validatePipelineDesignOwner(workspace, attemptID, true)
 	if err != nil {
@@ -718,7 +739,7 @@ func (s *Store) LinkPipelineDesignSession(ctx context.Context, pipelineID, attem
 	if _, err := tx.ExecContext(ctx, `INSERT INTO pipeline_design_attempt_sessions(attempt_id,stage,session_id,created_at) VALUES(?,?,?,?)`, attemptID, stage, sessionID, formatCatalogTime(now)); err != nil {
 		return workspace, fmt.Errorf("link pipeline design source session: %w", err)
 	}
-	if err := appendPipelineEvent(ctx, tx, pipelineID, "pipeline.design.session.linked", map[string]any{"attemptId": attemptID, "stage": stage, "sessionId": sessionID}, now); err != nil {
+	if err := appendPipelineEvent(ctx, tx, pipelineID, "pipeline.design.session.linked", map[string]any{"attemptId": attemptID, "stage": stage, "sessionId": sessionID, "replaces": previous}, now); err != nil {
 		return workspace, err
 	}
 	workspace, err = loadPipelineDesign(ctx, tx, pipelineID)

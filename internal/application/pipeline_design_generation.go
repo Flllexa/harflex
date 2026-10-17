@@ -85,6 +85,11 @@ func (s *Service) PreparePipelineDesign(in PreparePipelineDesignInput) (Pipeline
 		if choiceErr != nil {
 			return PipelineDesignDTO{}, safe("choose document model", choiceErr)
 		}
+		if stage == sdd.Brainstorm {
+			if err := brainstormSelectionFits(choice); err != nil {
+				return PipelineDesignDTO{}, err
+			}
+		}
 		selections[stage] = choice
 	}
 	s.authoringAdmissionGate.Lock()
@@ -128,17 +133,27 @@ func (s *Service) PreparePipelineDesign(in PreparePipelineDesignInput) (Pipeline
 		if _, err := s.store.SetPipelineDesignPhase(ctx, workspace.PipelineID, attempt.ID, stage); err != nil {
 			return s.failPipelineDesign(attempt, err)
 		}
-		prompt, err := pipelineDesignPrompt(stage, in.Message, documents, workspace.Messages, memory)
-		if err != nil {
-			return s.failPipelineDesign(attempt, err)
-		}
-		content, sessionID, choice, err := s.runPipelineDesignPhase(ctx, workspace, attempt, stage, selections[stage], prompt)
-		if err != nil {
-			return s.failPipelineDesign(attempt, err)
-		}
-		document, reply, err := parsePipelineDesignOutput(content)
-		if err != nil {
-			return s.failPipelineDesign(attempt, err)
+		var document, reply, sessionID string
+		var choice catalog.ModelSelection
+		if stage == sdd.Brainstorm {
+			document, reply, sessionID, choice, err = s.runBrainstormPhase(ctx, workspace, attempt, selections[stage], in.Message, documents, memory)
+			if err != nil {
+				return s.failPipelineDesign(attempt, err)
+			}
+		} else {
+			prompt, err := pipelineDesignPrompt(stage, in.Message, documents, workspace.Messages, memory)
+			if err != nil {
+				return s.failPipelineDesign(attempt, err)
+			}
+			var content string
+			content, sessionID, choice, err = s.runPipelineDesignPhase(ctx, workspace, attempt, stage, selections[stage], designSystemPrompt, designOutputSchema, prompt, "")
+			if err != nil {
+				return s.failPipelineDesign(attempt, err)
+			}
+			document, reply, err = parsePipelineDesignOutput(content)
+			if err != nil {
+				return s.failPipelineDesign(attempt, err)
+			}
 		}
 		output := catalog.PipelineDesignDocumentInput{Content: document, Author: "ai", SourceSessionID: sessionID, SourceDigest: catalog.PipelineDesignSourceDigest(stage, documents), Selection: choice}
 		outputs[stage] = output
@@ -169,6 +184,7 @@ func pipelineDesignPrompt(stage sdd.Stage, message string, documents map[sdd.Sta
 	for _, source := range designStages() {
 		content[string(source)] = documents[source].Content
 	}
+	content[string(sdd.Brainstorm)] = brainstormSummary(documents[sdd.Brainstorm].Content)
 	if len(conversation) > 12 {
 		conversation = conversation[len(conversation)-12:]
 	}
@@ -228,20 +244,60 @@ func parsePipelineDesignOutput(content string) (string, string, error) {
 	return document, reply, nil
 }
 
-func (s *Service) runPipelineDesignPhase(ctx context.Context, workspace catalog.PipelineDesignWorkspace, attempt catalog.PipelineDesignAttempt, stage sdd.Stage, choice catalog.ModelSelection, prompt string) (string, string, catalog.ModelSelection, error) {
+// runPipelineDesignPhase makes one document call in a session of its own, linked to the attempt before the model is
+// composed. replaces names the session of an answer that was refused, when this call is its corrective retry.
+func (s *Service) runPipelineDesignPhase(ctx context.Context, workspace catalog.PipelineDesignWorkspace, attempt catalog.PipelineDesignAttempt, stage sdd.Stage, choice catalog.ModelSelection, systemPrompt string, schema json.RawMessage, prompt, replaces string) (string, string, catalog.ModelSelection, error) {
 	registered, err := s.store.GetWorkspace(ctx, workspace.WorkspaceID)
 	if err != nil {
 		return "", "", choice, err
 	}
-	record, choice, err := s.createDocumentSession(ctx, registered, choice, designSystemPrompt, prompt)
+	if stage == sdd.Brainstorm && choice.ContextLength > 0 && len(prompt)+len(systemPrompt)+2048+choice.MaxOutputTokens > choice.ContextLength {
+		return "", "", choice, ErrBrainstormModelTooSmall
+	}
+	record, choice, err := s.createDocumentSession(ctx, registered, choice, systemPrompt, prompt)
 	if err != nil {
 		return "", record.ID, choice, err
 	}
-	if _, err := s.store.LinkPipelineDesignSession(ctx, workspace.PipelineID, attempt.ID, stage, record.ID); err != nil {
+	if replaces == "" {
+		_, err = s.store.LinkPipelineDesignSession(ctx, workspace.PipelineID, attempt.ID, stage, record.ID)
+	} else {
+		_, err = s.store.RelinkPipelineDesignSession(ctx, workspace.PipelineID, attempt.ID, stage, replaces, record.ID)
+	}
+	if err != nil {
 		return "", record.ID, choice, err
 	}
-	content, err := s.runDocumentSession(ctx, registered, &record, choice, designSystemPrompt, designOutputSchema, prompt)
+	content, err := s.runDocumentSession(ctx, registered, &record, choice, systemPrompt, schema, prompt, pipelineDesignOutputBytes(stage))
 	return content, record.ID, choice, err
+}
+
+// runBrainstormPhase writes the Brainstorm document. An answer that is not a valid document (cut short, without the
+// flow, with a forbidden tag) is refused once with its reason, and the AI answers again in a new session; a second
+// refusal fails the preparation. The document saved is always the canonical form of an accepted answer.
+func (s *Service) runBrainstormPhase(ctx context.Context, workspace catalog.PipelineDesignWorkspace, attempt catalog.PipelineDesignAttempt, choice catalog.ModelSelection, message string, documents map[sdd.Stage]catalog.PipelineDesignDocument, memory string) (string, string, string, catalog.ModelSelection, error) {
+	registered, err := s.store.GetWorkspace(ctx, workspace.WorkspaceID)
+	if err != nil {
+		return "", "", "", choice, err
+	}
+	design := projectDesignContext(registered.Path)
+	refused, previous := "", ""
+	for {
+		prompt, err := brainstormPrompt(message, documents, workspace.Messages, memory, design, refused)
+		if err != nil {
+			return "", "", "", choice, err
+		}
+		content, sessionID, used, err := s.runPipelineDesignPhase(ctx, workspace, attempt, sdd.Brainstorm, choice, brainstormSystemPrompt, brainstormOutputSchema, prompt, previous)
+		if err != nil {
+			return "", "", sessionID, used, err
+		}
+		brainstorm, reply, err := parseBrainstormOutput(content)
+		if err == nil {
+			return brainstorm.Canonical(), reply, sessionID, used, nil
+		}
+		if previous != "" || !errors.Is(err, errInvalidSDDOutput) {
+			return "", "", sessionID, used, err
+		}
+		refused, previous = strings.TrimPrefix(err.Error(), errInvalidSDDOutput.Error()+": "), sessionID
+	}
 }
 
 // createDocumentSession records the read-only session one document call runs in, with the selection it was made for.
@@ -267,8 +323,8 @@ func (s *Service) createDocumentSession(ctx context.Context, registered catalog.
 }
 
 // runDocumentSession makes one tool-less document call in the session: through the CLI's isolated document contract,
-// or through the API profile's own runner. It returns the assistant's text.
-func (s *Service) runDocumentSession(ctx context.Context, registered catalog.Workspace, record *catalog.SessionRecord, choice catalog.ModelSelection, systemPrompt string, schema json.RawMessage, prompt string) (string, error) {
+// or through the API profile's own runner. It returns the assistant's text, of at most outputBytes.
+func (s *Service) runDocumentSession(ctx context.Context, registered catalog.Workspace, record *catalog.SessionRecord, choice catalog.ModelSelection, systemPrompt string, schema json.RawMessage, prompt string, outputBytes int) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -297,7 +353,7 @@ func (s *Service) runDocumentSession(ctx context.Context, registered catalog.Wor
 		phaseCtx, phaseCancel := context.WithCancel(ctx)
 		defer phaseCancel()
 		var callbackErr error
-		output, generationErr := generator.GenerateDocument(phaseCtx, externalagent.DocumentRequest{Prompt: prompt, SystemPrompt: systemPrompt, CWD: scratch, Model: choice.ModelID, ReasoningEffort: choice.ReasoningEffort, ExpectedExecutablePath: choice.ExecutablePath, ExpectedExecutableVersion: choice.ExecutableVersion, OutputSchema: schema, MaxAssistantOutputBytes: catalog.MaxPipelineDesignDocumentBytes}, func(event externalagent.Event) {
+		output, generationErr := generator.GenerateDocument(phaseCtx, externalagent.DocumentRequest{Prompt: prompt, SystemPrompt: systemPrompt, CWD: scratch, Model: choice.ModelID, ReasoningEffort: choice.ReasoningEffort, ExpectedExecutablePath: choice.ExecutablePath, ExpectedExecutableVersion: choice.ExecutableVersion, OutputSchema: schema, MaxAssistantOutputBytes: outputBytes}, func(event externalagent.Event) {
 			if callbackErr != nil {
 				return
 			}
@@ -348,7 +404,7 @@ func (s *Service) runDocumentSession(ctx context.Context, registered catalog.Wor
 	if !ok {
 		return "", ErrInvalidInput
 	}
-	if err := core.SetAssistantOutputByteLimit(catalog.MaxPipelineDesignDocumentBytes); err != nil {
+	if err := core.SetAssistantOutputByteLimit(outputBytes); err != nil {
 		return "", err
 	}
 	if err := runner.Prompt(ctx, prompt); err != nil {

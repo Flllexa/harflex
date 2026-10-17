@@ -100,6 +100,7 @@ var errorCodes = []struct {
 	{ErrSDDCLIReadIsolationUnavailable, "sdd_cli_read_isolation_unavailable"},
 	{ErrPipelineDesignModelRequired, "pipeline_design_model_required"},
 	{ErrPipelineDesignSpecStale, "pipeline_design_spec_stale"},
+	{ErrBrainstormModelTooSmall, "brainstorm_model_too_small"},
 	{sqlite.ErrPipelineDesignSpecStale, "pipeline_design_spec_stale"},
 	{ErrPipelineDesignExecutorUnavailable, "pipeline_design_executor_unavailable"},
 	{sqlite.ErrPipelineDesignDerivationRequired, "pipeline_design_derivation_required"},

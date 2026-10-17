@@ -140,7 +140,7 @@ func (s *Service) resolvePipelineDesignSelection(ctx context.Context, workspaceI
 			input = APIModelSelectionInput{Executor: "api", ProfileID: backendID, ModelID: modelID, CatalogRevision: result.ProfileRevision, Source: result.Source, Destination: result.Destination, CheckedAt: result.CheckedAt, CredentialToken: result.CredentialToken}
 		}
 	}
-	input.MaxOutputTokens, input.ForSDD = pipelineDesignOutputTokens, true
+	input.MaxOutputTokens, input.ForSDD = pipelineDesignOutputTokens(stage), true
 	if input.Executor == "codex_cli" {
 		if !documentCLI(input.BackendID) || input.ProfileID != "" || input.CredentialToken != "" || input.Source != documentCLISources[input.BackendID] || input.Destination != "" || input.ConfirmUnfiltered || input.ConfirmJITLoad || input.ConfirmUnverifiedManual {
 			return catalog.ModelSelection{}, ErrInvalidInput
@@ -159,7 +159,7 @@ func (s *Service) resolvePipelineDesignSelection(ctx context.Context, workspaceI
 		if choice == nil || choice.Source != documentCLISources[input.BackendID] {
 			return catalog.ModelSelection{}, ErrBackendChanged
 		}
-		choice.MaxOutputTokens, choice.MaxAssistantOutputBytes = pipelineDesignOutputTokens, catalog.MaxPipelineDesignDocumentBytes
+		choice.MaxOutputTokens, choice.MaxAssistantOutputBytes = pipelineDesignOutputTokens(stage), pipelineDesignOutputBytes(stage)
 		return *choice, nil
 	}
 	if input.Executor != "" && input.Executor != "api" {
@@ -176,9 +176,23 @@ func (s *Service) resolvePipelineDesignSelection(ctx context.Context, workspaceI
 	return *choice, nil
 }
 
+// pipelineDesignOutputTokens is the output budget of one document phase: Brainstorm writes full screens and has its own.
+func pipelineDesignOutputTokens(stage sdd.Stage) int {
+	if stage == sdd.Brainstorm {
+		return brainstormOutputTokens
+	}
+	// Discovery, SPEC and Plan: room for the plan of a large work.
+	return 16384
+}
+
+// pipelineDesignOutputBytes bounds one document phase's answer: the document plus the JSON around it and the reply.
+func pipelineDesignOutputBytes(stage sdd.Stage) int {
+	if stage == sdd.Brainstorm {
+		return catalog.MaxBrainstormAnswerBytes
+	}
+	return catalog.MaxPipelineDesignDocumentBytes
+}
+
 func validPipelineDesignMessage(message string) bool {
 	return strings.TrimSpace(message) != "" && len(message) <= catalog.MaxPipelineDesignMessageBytes && utf8.ValidString(message) && !strings.ContainsRune(message, 0)
 }
-
-// pipelineDesignOutputTokens is the answer size of Discovery, SPEC and Plan: room for the plan of a large work.
-const pipelineDesignOutputTokens = 16384

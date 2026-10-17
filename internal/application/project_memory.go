@@ -241,7 +241,7 @@ func (s *Service) readProjectMemory(ctx context.Context, workspaceID string, pre
 		s.projectMemoryRuns[workspaceID] = record.ID
 	}
 	s.projectMemoryMu.Unlock()
-	content, err := s.runDocumentSession(ctx, workspace, &record, choice, projectMemorySystemPrompt, designOutputSchema, string(prompt))
+	content, err := s.runDocumentSession(ctx, workspace, &record, choice, projectMemorySystemPrompt, designOutputSchema, string(prompt), catalog.MaxPipelineDesignDocumentBytes)
 	if err != nil {
 		return failed("failed", ErrorCode(err))
 	}

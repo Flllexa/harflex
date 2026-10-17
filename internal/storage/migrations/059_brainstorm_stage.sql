@@ -2,7 +2,8 @@
 -- executors a seventh stage. SQLite cannot change a CHECK, so these tables are rebuilt with the same rows. Foreign keys
 -- stay on during migrations, so the old tables are renamed first (their children follow the rename), the new ones are
 -- created and filled parents first, the old ones dropped children first, and only then the indexes and triggers are
--- created again (an old trigger or index still holds its name until its table is dropped).
+-- created again (an old trigger or index still holds its name until its table is dropped). A Brainstorm answer the
+-- AI must correct runs in a second session, so a stage may hold two session links (the later one is the source).
 ALTER TABLE pipeline_design_workspaces RENAME TO pipeline_design_workspaces_old;
 ALTER TABLE pipeline_design_versions RENAME TO pipeline_design_versions_old;
 ALTER TABLE pipeline_design_documents RENAME TO pipeline_design_documents_old;
@@ -64,7 +65,7 @@ CREATE TABLE pipeline_design_attempt_sessions (
  stage TEXT NOT NULL CHECK(stage IN ('discovery','spec','brainstorm','plan')),
  session_id TEXT NOT NULL UNIQUE REFERENCES sessions(id) ON DELETE RESTRICT,
  created_at TEXT NOT NULL,
- PRIMARY KEY(attempt_id,stage)
+ PRIMARY KEY(attempt_id,stage,session_id)
 );
 
 CREATE TABLE pipeline_design_messages (

@@ -94,6 +94,7 @@ type Store interface {
 	BeginPipelineDesignAttempt(context.Context, catalog.PipelineDesignAttemptRequest) (catalog.PipelineDesignWorkspace, catalog.PipelineDesignAttempt, bool, error)
 	SetPipelineDesignPhase(context.Context, string, string, sdd.Stage) (catalog.PipelineDesignWorkspace, error)
 	LinkPipelineDesignSession(context.Context, string, string, sdd.Stage, string) (catalog.PipelineDesignWorkspace, error)
+	RelinkPipelineDesignSession(context.Context, string, string, sdd.Stage, string, string) (catalog.PipelineDesignWorkspace, error)
 	CompletePipelineDesignAttempt(context.Context, catalog.PipelineDesignCompleteRequest) (catalog.PipelineDesignWorkspace, error)
 	FailPipelineDesignAttempt(context.Context, catalog.PipelineDesignFailRequest) (catalog.PipelineDesignWorkspace, error)
 	RequestPipelineDesignCancellation(context.Context, string, string) (catalog.PipelineDesignWorkspace, error)

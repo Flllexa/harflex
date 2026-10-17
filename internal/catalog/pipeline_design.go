@@ -19,6 +19,9 @@ const MaxPipelineRoleOutputBytes = 1024 * 1024
 // larger than the other preparation documents', because screens are full pages.
 const MaxBrainstormDocumentBytes = 512 * 1024
 
+// MaxBrainstormAnswerBytes bounds the Brainstorm phase's answer: the document plus the JSON around it and the reply.
+const MaxBrainstormAnswerBytes = MaxBrainstormDocumentBytes + 8*1024
+
 // MaxPipelineDesignDocumentBytesFor is the size limit of one preparation document.
 func MaxPipelineDesignDocumentBytesFor(stage sdd.Stage) int {
 	if stage == sdd.Brainstorm {
@@ -26,6 +29,7 @@ func MaxPipelineDesignDocumentBytesFor(stage sdd.Stage) int {
 	}
 	return MaxPipelineDesignDocumentBytes
 }
+
 const MaxPipelineDesignMessageBytes = 16 * 1024
 
 // PipelineDesignRef binds an explicit command to both aggregate revisions.
