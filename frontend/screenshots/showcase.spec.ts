@@ -37,7 +37,7 @@ test('chat: an agent creates the SDD work from a conversation', async ({ page })
   await page.screenshot({ path: out('01-chat') })
 })
 
-test('design: Discovery, SPEC and Plan written with the AI', async ({ page }) => {
+test('design: Discovery, SPEC and Brainstorm written with the AI', async ({ page }) => {
   await page.goto('/e2e/fixture.html?scenario=conversational-design&demo=todo')
   await page.getByLabel('Folder path').fill('/Users/demo/Projects/todo-app')
   await page.getByRole('button', { name: 'Open project' }).click()
@@ -50,6 +50,12 @@ test('design: Discovery, SPEC and Plan written with the AI', async ({ page }) =>
   await page.locator('.pipeline-design-studio').first().evaluate(element => element.scrollIntoView({ block: 'start' }))
   await page.waitForTimeout(400)
   await page.screenshot({ path: out('02-design') })
+  await page.getByRole('tab', { name: /Brainstorm/ }).click()
+  await expect(page.getByRole('region', { name: 'Flow' }).locator('.flow-svg svg')).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Design' }).frameLocator('iframe').getByRole('heading', { name: 'My tasks' })).toBeVisible()
+  await page.locator('.brainstorm-stage').first().evaluate(element => element.scrollIntoView({ block: 'start' }))
+  await page.waitForTimeout(600)
+  await page.screenshot({ path: out('02b-brainstorm') })
 })
 
 test('code: the change file by file', async ({ page }) => {

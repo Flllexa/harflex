@@ -207,3 +207,8 @@
 .design-question-state.is-waiting { color: var(--cyan); }
 .design-question-sent { margin: 0; padding: 8px 10px; border-radius: var(--radius-control); background: var(--soft-mint); font-size: 13px; line-height: 1.5; }
 .design-question-sent span { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--mint); font-weight: 600; margin-bottom: 2px; }
+
+/* The Brainstorm tab lays out its own columns (flow and conversation, design): the workspace stops splitting in two. */
+.design-workspace.design-workspace-brainstorm { display: block; }
+.design-workspace-brainstorm .design-document { border: 0; }
+.design-workspace-brainstorm .brainstorm-conversation .design-conversation { border: 1px solid var(--border); border-radius: 12px; }

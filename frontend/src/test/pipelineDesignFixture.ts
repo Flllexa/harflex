@@ -4,7 +4,7 @@ import type { Backend, Pipeline, PipelineDesign, PipelineDesignDocument, Pipelin
 export const designFixtureKey = 'harflex:conversational-design'
 export const designStages = ['discovery', 'spec', 'brainstorm', 'plan'] as const
 /** A Brainstorm as the synthetic AI writes it: the flow and one screen. */
-export const fixtureBrainstorm = JSON.stringify({ flow: 'flowchart TD\n  A[Abrir faturas] --> B[Filtrar período]\n  B --> C[Exportar CSV]', design: { screens: [{ name: 'Exportar faturas', purpose: 'Escolher o período e baixar o CSV', html: '<!doctype html><html><head><style>body{font-family:system-ui;margin:24px}button{min-height:44px}</style></head><body><h1>Exportar faturas</h1><label>Período <input type="month"></label><button>Exportar CSV</button></body></html>' }] }, noDesignReason: '', notes: '## Decisões\n\n| # | Questão | Decisão | Justificativa |\n|---|---|---|---|\n| D1 | Formato | CSV | Pedido no Discovery |' })
+export const fixtureBrainstorm = JSON.stringify({ flow: 'flowchart TD\n  A[Abrir faturas] --> B[Filtrar período]\n  B --> C[Exportar CSV]', design: { screens: [{ name: 'Exportar faturas', purpose: 'Escolher o período e baixar o CSV', html: '<!doctype html><html><head><style>body{font-family:system-ui;margin:24px}button{min-height:44px}</style></head><body><h1>Exportar faturas</h1><label>Período <input type="month"></label><button>Exportar CSV</button></body></html>' }, { name: 'Exportação pronta', purpose: 'Confirmar o arquivo gerado', html: '<!doctype html><html><head><style>body{font-family:system-ui;margin:24px}</style></head><body><h1>Exportação pronta</h1><p>faturas-2026-10.csv · 128 linhas</p></body></html>' }] }, noDesignReason: '', notes: '## Decisões\n\n| # | Questão | Decisão | Justificativa |\n|---|---|---|---|\n| D1 | Formato | CSV | Pedido no Discovery |' })
 const now = () => new Date().toISOString()
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 // Synthetic provenance for browser fixtures; provider and native hashes are tested by Go.
@@ -26,8 +26,8 @@ export function designReadback(pipeline = designPipeline(), complete = false): P
 
 type Saved = { pipelines: Pipeline[]; designs: Record<string, PipelineDesign>; prepareCount: number }
 type Persistence = Pick<Storage, 'getItem' | 'setItem'>
-// `written` replaces the SPEC and Plan the synthetic AI writes, for pictures of another project.
-export function installPipelineDesignFixture(backend: Backend, persistence?: Persistence, seed?: { pipeline: Pipeline; design?: PipelineDesign }, written?: { spec: string; plan: string }) {
+// `written` replaces the SPEC, Brainstorm and Plan the synthetic AI writes, for pictures of another project.
+export function installPipelineDesignFixture(backend: Backend, persistence?: Persistence, seed?: { pipeline: Pipeline; design?: PipelineDesign }, written?: { spec: string; plan: string; brainstorm?: string }) {
   const stored = persistence?.getItem(designFixtureKey)
   const saved: Saved = stored ? JSON.parse(stored) : { pipelines: seed ? [clone(seed.pipeline)] : [], designs: seed ? { [seed.pipeline.id]: clone(seed.design ?? designReadback(seed.pipeline)) } : {}, prepareCount: 0 }
   const persist = () => persistence?.setItem(designFixtureKey, JSON.stringify(saved))
@@ -68,7 +68,7 @@ export function installPipelineDesignFixture(backend: Backend, persistence?: Per
     await new Promise(resolve => setTimeout(resolve, 120))
     if (attempt.status !== 'running') return read(value.pipelineId)
     for (const stage of stages) {
-      const content = stage === 'brainstorm' ? fixtureBrainstorm : written && stage !== 'discovery' ? written[stage] : stage === 'discovery' ? `# Discovery\n\n${value.documents.discovery.content}\n\n${input.message}` : stage === 'spec' ? `# SPEC\n\n## Escopo\n\nExportar faturas em CSV.\n\n## Critérios de aceite\n\n- Respeitar filtros e usar datas ISO.\n${input.message ? `- ${input.message}` : ''}` : `# Plan\n\n## Implementação\n\n1. Criar exportação com filtros.\n2. Verificar o formato das datas.\n${input.message ? `3. ${input.message}` : ''}`
+      const content = stage === 'brainstorm' ? written?.brainstorm ?? fixtureBrainstorm : written && stage !== 'discovery' ? written[stage] : stage === 'discovery' ? `# Discovery\n\n${value.documents.discovery.content}\n\n${input.message}` : stage === 'spec' ? `# SPEC\n\n## Escopo\n\nExportar faturas em CSV.\n\n## Critérios de aceite\n\n- Respeitar filtros e usar datas ISO.\n${input.message ? `- ${input.message}` : ''}` : `# Plan\n\n## Implementação\n\n1. Criar exportação com filtros.\n2. Verificar o formato das datas.\n${input.message ? `3. ${input.message}` : ''}`
       publish(value, stage, content, 'ai', 'generated')
     }
     value.messages.push({ id: `reply-${input.ref.requestId}`, role: 'assistant', content: `${stages.map(stage => stageNames[stage]).join(', ')} preparados para revisão.`, target: input.target, attemptId: attempt.id, createdAt: now() })

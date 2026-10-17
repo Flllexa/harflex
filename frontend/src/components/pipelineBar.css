@@ -13,21 +13,44 @@
 @media (prefers-reduced-motion: reduce) { .stage-working .pipeline-stage-button svg { animation: none; } }
 
 /* The bar reshapes itself by the width it has, not the window's, so it holds with the side panel open. With room, the
-   seven stages sit on one line with a card for the stage in progress; narrow, they gather into Preparação, Execução and
-   Entrega, and only the current stage keeps its name and status. */
+   seven stages sit on one line (from 1040px of room), a node with its name under it, and the card beside it says where the work stands; narrow,
+   they gather into Preparação, Execução and Entrega, and only the current stage keeps its name and status. */
 .pipeline { container: pipeline / inline-size; }
-.pipeline-line li + li::before { content: ''; flex: none; width: var(--space-3); height: 1px; background: var(--border); }
-.pipeline-group-label { display: none; }
+.pipeline .pipeline-line { flex: 1 1 auto; min-width: 0; justify-content: flex-start; align-items: flex-start; gap: 0; }
+.pipeline .pipeline-line li { position: relative; flex: 1 1 0; min-width: 72px; flex-direction: column; align-items: stretch; gap: 0; }
+.pipeline .pipeline-line li + li::before { content: ''; position: absolute; top: 20px; left: -50%; width: 100%; height: 1px; background: var(--border); }
+.pipeline .pipeline-line li.stage-completed + li::before { background: var(--mint); }
+.pipeline .pipeline-line .pipeline-stage-button { position: relative; z-index: 1; flex-direction: column; justify-content: flex-start; align-items: center; gap: 4px; padding: 4px 2px; min-height: 44px; text-align: center; }
+.pipeline .pipeline-line .pipeline-stage-button svg { flex: none; border-radius: 50%; background: var(--ion-void); }
+.pipeline .pipeline-line .pipeline-stage-button > span { align-items: center; }
+.pipeline .pipeline-line .pipeline-stage-button strong { white-space: nowrap; }
+/* On the line the card says the current status, so each node keeps its status only for screen readers. */
+.pipeline .pipeline-line .pipeline-stage-button > span > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.pipeline .pipeline-line .pipeline-group-label { display: none; }
 .stage-skipped .pipeline-stage-button { opacity: .5; }
 .stage-skipped .pipeline-stage-button strong { text-decoration: line-through; text-decoration-color: var(--muted); }
-.pipeline-now { flex: 0 1 38ch; min-width: 0; margin: 0; padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface-2); color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-@container pipeline (max-width: 879px) {
+.pipeline-now { flex: 0 1 34ch; min-width: 18ch; margin: 0; padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface-2); color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@container pipeline (max-width: 1039px) {
   .pipeline-now { display: none; }
-  .pipeline-line { justify-content: flex-start; gap: var(--space-1); }
-  .pipeline-line li + li::before { display: none; }
-  .pipeline-group-start:not(:first-child) { margin-left: var(--space-4); }
-  .pipeline-group-label { display: block; margin-right: var(--space-1); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-  .pipeline-line li:not([aria-current]) .pipeline-stage-button { justify-content: center; min-width: 44px; min-height: 44px; width: auto; padding: 8px; }
-  .pipeline-line li:not([aria-current]) .pipeline-stage-button > span { display: none; }
-  .pipeline-line li[aria-current] .pipeline-stage-button { border-color: var(--mint); background: var(--soft-mint); border-radius: 999px; }
+  .pipeline .pipeline-line { gap: var(--space-1); align-items: center; }
+  .pipeline .pipeline-line li { flex: none; min-width: 0; flex-direction: row; align-items: center; gap: var(--space-1); }
+  .pipeline .pipeline-line li + li::before { display: none; }
+  .pipeline .pipeline-line .pipeline-group-start:not(:first-child) { margin-left: var(--space-4); }
+  .pipeline .pipeline-line .pipeline-group-label { display: block; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .pipeline .pipeline-line .pipeline-stage-button { flex-direction: row; width: auto; min-width: 44px; padding: 8px; }
+  .pipeline .pipeline-line li:not([aria-current]) .pipeline-stage-button > span { display: none; }
+  .pipeline .pipeline-line li[aria-current] .pipeline-stage-button { width: auto; padding: 4px 12px 4px 6px; border-color: var(--mint); background: var(--soft-mint); border-radius: 999px; }
+  .pipeline .pipeline-line li[aria-current] .pipeline-stage-button > span { align-items: flex-start; }
+  .pipeline .pipeline-line li[aria-current] .pipeline-stage-button > span > span { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
+  .pipeline .pipeline-line .pipeline-group-start:not(:first-child) { margin-left: var(--space-3); }
 }
+/* A mouse or trackpad needs less than the 44px touch target, so the grouped bar fits beside the toolbar. */
+@container pipeline (max-width: 1039px) {
+  @media (hover: hover) and (pointer: fine) and (min-width: 768px) {
+    .pipeline .pipeline-line li:not([aria-current]) .pipeline-stage-button { min-width: 32px; min-height: 32px; padding: 6px; }
+  }
+}
+
+/* A size container has no width of its own, so the header that holds the bar takes the whole row instead of shrinking
+   to its content (between 768 and 1023px it sits in a column with align-self: start). */
+.shell-header { width: 100%; }

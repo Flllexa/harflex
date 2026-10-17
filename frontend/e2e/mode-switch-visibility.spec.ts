@@ -11,7 +11,7 @@ for (const width of [320, 768, 900, 1024, 1440]) {
     await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('button', { name: 'Pipelines', exact: true }).click()
     await page.getByLabel('Discovery', { exact: true }).fill('Exportar faturas em CSV.\n' + 'Preservar os filtros e os nomes longos de cada documento.\n'.repeat(80))
     await page.getByRole('button', { name: 'Criar pipeline' }).click()
-    await expect(page.getByRole('button', { name: 'Aprovar documentos e continuar para Code' })).toBeEnabled()
+    await expect(page.getByRole('button', { name: 'Aprovar fluxo e design' })).toBeEnabled()
     // From 768px the shell fills the window and the work area scrolls; below that the page itself does.
     await page.evaluate(() => {
       const area = document.getElementById('work-area')

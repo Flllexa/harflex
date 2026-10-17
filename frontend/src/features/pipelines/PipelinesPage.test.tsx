@@ -21,10 +21,10 @@ it('collapses approved preparation during Code and opens it only for an explicit
   // During Code the screen is Code's bench; the approved documents are a stage away in the top bar.
   expect(await screen.findByRole('region', { name: 'Bancada Code' })).toBeInTheDocument()
   await waitFor(() => expect(screen.getByRole('button', { name: 'Executar Coder' })).toBeEnabled())
-  expect(screen.queryByText('Discovery, SPEC e Plan aprovados')).not.toBeInTheDocument()
+  expect(screen.queryByText('Discovery, SPEC, Brainstorm e Plan aprovados')).not.toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Critérios de aceite' })).not.toBeInTheDocument()
   view.rerender(<PipelinesPage {...props} viewStage="spec" viewRequestId={1} />)
-  const summary = await screen.findByText('Discovery, SPEC e Plan aprovados')
+  const summary = await screen.findByText('Discovery, SPEC, Brainstorm e Plan aprovados')
   await waitFor(() => expect(summary.closest('details')).toHaveAttribute('open'))
   expect(await screen.findByRole('heading', { name: 'Critérios de aceite' })).toBeInTheDocument()
   expect(screen.queryByRole('region', { name: 'Bancada Code' })).not.toBeInTheDocument()

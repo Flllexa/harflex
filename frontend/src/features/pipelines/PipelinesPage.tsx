@@ -16,7 +16,7 @@ import { PipelineDesignStudio } from './PipelineDesignStudio'
 import { StageActivityPane } from './StageActivityPane'
 import { localeTag, useT } from '../../i18n'
 import { CopyRepositories } from './CopyRepositories'
-import { stageNames, stageOrder } from '../../lib/pipelineStages'
+import { isDesignStage, stageNames, stageOrder } from '../../lib/pipelineStages'
 
 type SettingsReadState = 'loading' | 'ready' | 'error'
 /** What the stage needs before it can be recorded: a run that ended well (a follow-up in its conversation that failed or was cancelled takes it away) and, for the Code, changes to show for it. */
@@ -163,12 +163,12 @@ function hasLegacyCodeReviewGap(run: Pipeline) {
   return !(run.executionReviews ?? []).some(review => review.stage === 'code' && review.version === code.version && review.contentDigest === code.contentDigest && review.decision === 'approve')
 }
 
-function ApprovedPreparation({ archived, viewStage, viewRequestId, children }: { archived: boolean; viewStage?: PipelineStage; viewRequestId?: number; children: ReactNode }) {
+function ApprovedPreparation({ archived, viewStage, viewRequestId, withBrainstorm = true, children }: { archived: boolean; viewStage?: PipelineStage; viewRequestId?: number; /** False for work prepared before the Brainstorm stage. */ withBrainstorm?: boolean; children: ReactNode }) {
   const t = useT()
   const [open, setOpen] = useState(!archived)
   useLayoutEffect(() => { setOpen(!archived) }, [archived])
-  useEffect(() => { if (archived && (viewStage === 'discovery' || viewStage === 'spec' || viewStage === 'plan')) setOpen(true) }, [archived, viewStage, viewRequestId])
-  return <details className={`pipeline-preparation-archive${archived ? ' is-archived' : ''}`} open={!archived || open} onToggle={event => { if (archived) setOpen(event.currentTarget.open) }}><summary hidden={!archived}>{t('Discovery, SPEC e Plan aprovados')}</summary><div hidden={archived && !open}>{children}</div></details>
+  useEffect(() => { if (archived && (!!viewStage && isDesignStage(viewStage))) setOpen(true) }, [archived, viewStage, viewRequestId])
+  return <details className={`pipeline-preparation-archive${archived ? ' is-archived' : ''}`} open={!archived || open} onToggle={event => { if (archived) setOpen(event.currentTarget.open) }}><summary hidden={!archived}>{withBrainstorm ? t('Discovery, SPEC, Brainstorm e Plan aprovados') : t('Discovery, SPEC e Plan aprovados')}</summary><div hidden={archived && !open}>{children}</div></details>
 }
 
 function PipelineLegacyCodeReviewRecovery({ backend, run, onPipelineChange }: { backend: Backend; run: Pipeline; onPipelineChange: (run: Pipeline) => void }) {
@@ -303,8 +303,8 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
         : <PipelineRoleControls run={run} backend={backend} backends={backends} workspaceId={workspaceId} settingsStatus={settingsStatus} defaultModelBackendId={roleModelBackendId} defaultModelId={roleModelId} phaseConfigured={phaseModelApplies} phaseNote={phaseNote} choicesReady={choicesReady} selectedBackendId={selectedBackendId} selectedBackend={selectedBackend} pending={pending} onSettings={onSettings}
                 onBackendChange={value => { setBackendChoice(value); setError(undefined) }} onStart={startRole} onComplete={completeRole} canComplete={run.currentStage !== 'code' || coderDone} />
   // Code, QA and PRs of an AI-authored pipeline each have a bench of their own.
-  // Discovery, SPEC and Plan chosen in the stage bar open the approved documents, not a bench.
-  const documentView = viewStage === 'discovery' || viewStage === 'spec' || viewStage === 'plan'
+  // Discovery, SPEC, Brainstorm and Plan chosen in the stage bar open the approved documents, not a bench.
+  const documentView = !!viewStage && isDesignStage(viewStage)
   // What the person picks for Code or QA in the lab becomes the project's choice for that phase.
   async function saveRoleChoice(stage: 'code' | 'eval', backendId: string, modelId: string) {
     if (!workspaceId) return
@@ -541,7 +541,7 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
           {!conversational && <div className="pipeline-phase-list" aria-label={t('Fases do pipeline')}>{([...stageOrder]).map(stage => <span key={stage} className={`pipeline-phase phase-${run.stageStatus[stage]}`}>{labels[stage]}<small>{run.stageStatus[stage] === 'skipped' ? t('Pulada') : run.stageStatus[stage] === 'completed' ? t('Concluída') : run.stageStatus[stage] === 'active' ? t('Atual') : run.stageStatus[stage] === 'failed' ? t('Reprovada') : run.stageStatus[stage] === 'waiting_user' ? t('Aguardando decisão') : run.stageStatus[stage] === 'paused' ? t('Pausada') : t('Pendente')}</small></span>)}</div>}
           {viewStage && !(benchMode && (viewStage === 'code' || viewStage === 'eval' || viewStage === 'prs')) && <StageActivityPane key={`${run.id}:${viewStage}:${viewRequestId ?? 0}`} backend={backend} pipeline={run} stage={viewStage} />}
           {recoverLegacyCodeReview && <PipelineLegacyCodeReviewRecovery backend={backend} run={run} onPipelineChange={onSelectPipeline} />}
-          {run.kind === 'ai_authoring' ? <>{benchMode ? null : conversational ? <ApprovedPreparation archived={run.currentStage === 'code' || run.currentStage === 'eval' || run.currentStage === 'prs' || run.currentStage === ''} viewStage={viewStage} viewRequestId={viewRequestId}><PipelineDesignStudio key={`${run.workspaceId}:${run.id}`} backend={backend} pipeline={run} stageExecutors={stageExecutors} onPipelineChange={onSelectPipeline} onSettings={onSettings} autoPrepareRequest={autoPrepare?.pipelineId === run.id ? autoPrepare.requestId : undefined} onAutoPrepareConsumed={requestId => setAutoPrepare(current => current?.requestId === requestId ? undefined : current)} requestedStage={viewStage === 'discovery' || viewStage === 'spec' || viewStage === 'plan' ? viewStage : undefined} viewRequestId={viewRequestId} /></ApprovedPreparation> : <AuthoringWorkbench key={`${run.workspaceId}:${run.id}:${run.currentStage}`} backend={backend} pipeline={run} onPipelineChange={onSelectPipeline} onSettings={onSettings} />}
+          {run.kind === 'ai_authoring' ? <>{benchMode ? null : conversational ? <ApprovedPreparation archived={run.currentStage === 'code' || run.currentStage === 'eval' || run.currentStage === 'prs' || run.currentStage === ''} withBrainstorm={run.stageStatus.brainstorm !== 'skipped'} viewStage={viewStage} viewRequestId={viewRequestId}><PipelineDesignStudio key={`${run.workspaceId}:${run.id}`} backend={backend} pipeline={run} stageExecutors={stageExecutors} onPipelineChange={onSelectPipeline} onSettings={onSettings} autoPrepareRequest={autoPrepare?.pipelineId === run.id ? autoPrepare.requestId : undefined} onAutoPrepareConsumed={requestId => setAutoPrepare(current => current?.requestId === requestId ? undefined : current)} requestedStage={viewStage && isDesignStage(viewStage) ? viewStage : undefined} viewRequestId={viewRequestId} /></ApprovedPreparation> : <AuthoringWorkbench key={`${run.workspaceId}:${run.id}:${run.currentStage}`} backend={backend} pipeline={run} onPipelineChange={onSelectPipeline} onSettings={onSettings} />}
             {benchMode ? <PipelineBench run={run} viewStage={viewStage} viewRequestId={viewRequestId} focus={fixing || resumable ? 'eval' : undefined} onShownStage={onShownStage} code={codeBenchView} qa={qaBenchView} prs={prsBenchView} /> : <>{executionView}
             <PipelineArtifactArchive run={run} stages={['code', 'eval']} inspectedStage={inspectedStage} onInspect={setInspectedStage} /></>}
           </> : run.currentStage && run.currentStage !== 'prs' && <div className="pipeline-editor"><div className="pipeline-editor-heading"><FileText aria-hidden="true" /><div><strong>{t('Artefato de {stage}', { stage: labels[run.currentStage] })}</strong><span className="muted">{run.artifacts[run.currentStage] ? t('Versão {version}', { version: run.artifacts[run.currentStage].version }) : t('Ainda não salvo')}</span></div></div>

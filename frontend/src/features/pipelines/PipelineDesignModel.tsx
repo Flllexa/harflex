@@ -4,13 +4,15 @@ import { IonPicker } from '../../components/IonPicker'
 import { designLabels, designStageOrder } from './PipelineDesignDocument'
 import { useT } from '../../i18n'
 
-type Props = { backend: Backend; design: PipelineDesign; /** What the project chose per phase: a document without a pick here follows it before the default of Settings. */ stageExecutors?: StageExecutor[]; disabled: boolean; onChange: (selections: Partial<Record<PipelineDesignStage, SDDModelSelection>>, ready: boolean) => void; onSettings?: () => void }
+type Props = { backend: Backend; design: PipelineDesign; /** What the project chose per phase: a document without a pick here follows it before the default of Settings. */ stageExecutors?: StageExecutor[]; disabled: boolean; onChange: (selections: Partial<Record<PipelineDesignStage, SDDModelSelection>>, ready: boolean) => void; onSettings?: () => void; /** Changes when something asks the card to open, such as a phase whose model cannot serve it. */ openRequest?: number }
 type Choice = { backendId: string; modelId: string; catalog?: ModelCatalogResult; confirmUnfiltered: boolean; confirmJitLoad: boolean; status: 'loading' | 'ready' | 'error'; error: string }
 const inheritedChoice: Choice = { backendId: '', modelId: '', confirmUnfiltered: false, confirmJitLoad: false, status: 'ready', error: '' }
 const usable = (profile: ProviderProfile) => !profile.endpointBlocked && profile.providerType !== 'generic' && (profile.hasCredential || ['lm_studio', 'ollama'].includes(profile.providerType))
 
-export function PipelineDesignModel({ backend, design, stageExecutors = [], disabled, onChange, onSettings }: Props) {
+export function PipelineDesignModel({ backend, design, stageExecutors = [], disabled, onChange, onSettings, openRequest }: Props) {
   const t = useT()
+  const card = useRef<HTMLDetailsElement>(null)
+  useEffect(() => { if (openRequest && card.current) { card.current.open = true; setOpen(true); card.current.scrollIntoView?.({ block: 'nearest' }) } }, [openRequest])
   const [open, setOpen] = useState(false), [settings, setSettings] = useState<Settings>(), [settingsError, setSettingsError] = useState(false)
   const [profiles, setProfiles] = useState<ProviderProfile[]>([]), [providers, setProviders] = useState<BackendOption[]>([]), [providersError, setProvidersError] = useState('')
   const [choices, setChoices] = useState<Record<PipelineDesignStage, Choice>>({ discovery: { ...inheritedChoice }, spec: { ...inheritedChoice }, brainstorm: { ...inheritedChoice }, plan: { ...inheritedChoice } })
@@ -63,7 +65,7 @@ export function PipelineDesignModel({ backend, design, stageExecutors = [], disa
   const effective = designStageOrder.map(stage => design.documents[stage]?.selection?.modelId).filter(Boolean), defaultLabel = settings?.defaultModelId || (settings?.defaultBackendId === 'codex' ? 'Codex CLI' : settings?.defaultBackendId === 'claude' ? 'Claude Code' : settings?.defaultBackendId ? t('Modelo configurado') : '')
   const phaseChoice = (stage: PipelineDesignStage) => stageExecutors.find(item => item.stage === stage)
   const byPhase = designStageOrder.flatMap(stage => phaseChoice(stage) ? [`${designLabels[stage]}: ${phaseChoice(stage)!.modelId || t('modelo do perfil')}`] : [])
-  return <details className="design-models" onToggle={event => setOpen(event.currentTarget.open)}>
+  return <details ref={card} className="design-models" onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>{t('Modelos')} <span className="muted">{effective.length ? t('Última versão · {models}', { models: [...new Set(effective)].join(', ') }) : byPhase.length ? t('Por fase · {phases}', { phases: byPhase.join(' · ') }) : defaultLabel ? t('Padrão · {label}', { label: defaultLabel }) : t('Padrão das Configurações')}</span></summary>
     {settingsError && <p className="form-error" role="alert">{t('Não foi possível ler o padrão. Atualize o trabalho ou confira Configurações.')}</p>}
     {open && <><p className="muted">{t('Escolha um modelo só para este trabalho.')}</p>{providersError && <p className="form-error" role="alert">{providersError}</p>}<div className="design-model-grid">{designStageOrder.map(stage => {

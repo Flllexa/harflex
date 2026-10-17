@@ -15,7 +15,7 @@ for (const width of [320, 768, 1440]) {
   test(`chooses a provider and a model for each phase at ${width}px`, async ({ page }, info) => {
     const phases = await openPipelines(page, width)
     // A project with no pipeline sees the card open, with every phase on the default.
-    await expect(phases.getByRole('listitem')).toHaveCount(6)
+    await expect(phases.getByRole('listitem')).toHaveCount(7)
     await expect(phases).toContainText('Segue o padrão: Local API · api-model.')
     await expect(page.getByText('Todas seguem o padrão das Configurações')).toBeVisible()
 
@@ -38,7 +38,7 @@ for (const width of [320, 768, 1440]) {
     await row('Code').getByRole('button', { name: /Abrir opções de Modelo de Code/ }).click()
     await page.getByRole('option', { name: 'Modelo Codex' }).click()
     await expect(row('Code')).toContainText('Salvo · Codex CLI · codex-model')
-    await expect(page.getByText('2 de 6 com escolha própria')).toBeVisible()
+    await expect(page.getByText('2 de 7 com escolha própria')).toBeVisible()
 
     // The pull requests need the tool loop, so Codex is not offered there.
     await row('PRs').getByTestId('picker-phase-executor-prs').getByRole('button').first().click()
@@ -49,7 +49,7 @@ for (const width of [320, 768, 1440]) {
     // The way back to the default.
     await pick('SPEC', 'picker-phase-executor-spec', 'Usar o padrão')
     await expect(row('SPEC')).toContainText('Segue o padrão: Local API · api-model.')
-    await expect(page.getByText('1 de 6 com escolha própria')).toBeVisible()
+    await expect(page.getByText('1 de 7 com escolha própria')).toBeVisible()
 
     // Nothing spills out of the card or the window.
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)

@@ -21,8 +21,9 @@
 .design-view-device button[aria-pressed='true'], .design-view-tabs button[aria-selected='true'] { border-color: var(--mint); background: var(--soft-mint); }
 .flow-canvas { overflow: auto; max-height: 420px; min-height: 160px; padding: var(--space-3); border-radius: 10px; background: var(--forge); cursor: grab; touch-action: none; }
 .flow-canvas:active { cursor: grabbing; }
-.flow-svg { transform-origin: top left; width: max-content; }
-.flow-svg svg { max-width: none; height: auto; }
+.flow-svg { width: 100%; }
+/* The app sizes every svg as an 18px icon; a diagram keeps Mermaid's own size (width 100%, capped by its max-width). */
+.flow-svg svg { display: block; width: 100%; height: auto; margin: 0 auto; stroke-width: initial; }
 .flow-source { margin: 0; max-height: 420px; overflow: auto; padding: var(--space-3); border-radius: 10px; background: var(--forge); white-space: pre-wrap; }
 .flow-invalid { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--danger); border-radius: 10px; }
 .flow-invalid p { margin: 0; color: var(--danger); }

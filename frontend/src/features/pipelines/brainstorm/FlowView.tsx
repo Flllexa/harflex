@@ -51,7 +51,7 @@ function Canvas({ svg, zoom }: { svg: string; zoom: number }) {
     box.scrollLeft = from.left - (event.clientX - from.x); box.scrollTop = from.top - (event.clientY - from.y)
   }
   return <div ref={canvas} className="flow-canvas" data-zoom={String(zoom)} onPointerDown={start} onPointerMove={move} onPointerUp={() => { drag.current = undefined }}>
-    <div className="flow-svg" style={{ transform: `scale(${zoom})` }} dangerouslySetInnerHTML={{ __html: svg }} />
+    <div className="flow-svg" style={{ zoom }} dangerouslySetInnerHTML={{ __html: svg }} />
   </div>
 }
 

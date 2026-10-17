@@ -2,15 +2,19 @@ import { StrictMode } from 'react'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
-import type { PipelineDesign } from '../../lib/backend'
+import type { Pipeline, PipelineDesign } from '../../lib/backend'
 import { createFakeBackend } from '../../test/fakeBackend'
 import { designPipeline, designReadback, installPipelineDesignFixture } from '../../test/pipelineDesignFixture'
 import { PipelineDesignStudio } from './PipelineDesignStudio'
 import { DesignMarkdown } from './PipelineDesignDocument'
 import { PipelinesPage } from './PipelinesPage'
 
-function setup(complete = false) {
-  const { backend } = createFakeBackend(), pipeline = designPipeline()
+vi.mock('mermaid', () => ({ default: { initialize: vi.fn(), parse: vi.fn(async () => ({})), render: vi.fn(async () => ({ svg: '<svg><text>fluxo desenhado</text></svg>' })) } }))
+
+/** A work at the given gate: before the flow and design are approved, or at the Plan after it. */
+function setup(complete = false, gate: 'flow' | 'plan' = 'flow') {
+  const { backend } = createFakeBackend(), base = designPipeline()
+  const pipeline: Pipeline = gate === 'plan' ? { ...base, currentStage: 'plan', stageStatus: { ...base.stageStatus, discovery: 'completed', spec: 'completed', brainstorm: 'completed', plan: 'active' } } : base
   const fixture = installPipelineDesignFixture(backend, undefined, { pipeline, design: designReadback(pipeline, complete) })
   return { backend, pipeline, fixture }
 }
@@ -25,15 +29,15 @@ it('opens persisted documents without inference or provider catalog calls, inclu
   expect(backend.queryCLIModelCatalog).not.toHaveBeenCalled()
 })
 
-it('prepares SPEC and Plan from saved Discovery with inherited defaults in one click', async () => {
+it('prepares SPEC and Brainstorm from saved Discovery with inherited defaults in one click', async () => {
   const { backend, pipeline } = setup(), prepare = vi.fn(backend.preparePipelineDesign)
   backend.preparePipelineDesign = prepare
   render(<PipelineDesignStudio backend={backend} pipeline={pipeline} onPipelineChange={() => undefined} />)
   await userEvent.type(await screen.findByLabelText('Pedido para a IA'), 'Próximo ajuste em rascunho.')
-  await userEvent.click(await screen.findByRole('button', { name: 'Preparar SPEC e Plan' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Preparar SPEC e Brainstorm' }))
   expect(await screen.findByRole('heading', { name: 'Critérios de aceite' })).toBeInTheDocument()
   expect(prepare).toHaveBeenCalledOnce()
-  expect(prepare).toHaveBeenCalledWith(expect.objectContaining({ message: 'Prepare a SPEC e o Plan para o Discovery salvo.', target: 'all', ref: expect.objectContaining({ pipelineId: pipeline.id, pipelineRevision: 1, designRevision: 1 }) }))
+  expect(prepare).toHaveBeenCalledWith(expect.objectContaining({ message: 'Prepare a SPEC e o Brainstorm para o Discovery salvo.', target: 'all', ref: expect.objectContaining({ pipelineId: pipeline.id, pipelineRevision: 1, designRevision: 1 }) }))
   expect(prepare.mock.calls[0][0].selections).toBeUndefined()
   expect(screen.getByLabelText('Pedido para a IA')).toHaveValue('Próximo ajuste em rascunho.')
 })
@@ -90,8 +94,8 @@ it('keeps the composer text when the provider rejects before durable admission',
   expect(screen.getByRole('button', { name: 'Enviar pedido' })).toBeEnabled()
 })
 
-it('saves manual SPEC without a provider, marks Plan stale and blocks approval until updated', async () => {
-  const { backend, pipeline, fixture } = setup(true)
+it('saves manual SPEC without a provider, marks Brainstorm and Plan stale and blocks approval until updated', async () => {
+  const { backend, pipeline, fixture } = setup(true, 'plan')
   backend.listBackends = async () => []; backend.getSettings = async () => ({ defaultBackendId: '', defaultModelBackendId: '', defaultModelId: '' })
   render(<PipelineDesignStudio backend={backend} pipeline={pipeline} onPipelineChange={() => undefined} />)
   await userEvent.click(await screen.findByRole('button', { name: 'Editar SPEC' }))
@@ -101,7 +105,13 @@ it('saves manual SPEC without a provider, marks Plan stale and blocks approval u
   await userEvent.click(screen.getByRole('button', { name: 'Salvar SPEC' }))
   expect(await screen.findByText('SPEC manual')).toBeInTheDocument()
   expect(fixture.read().documents.plan.stale).toBe(true)
+  expect(fixture.read().documents.brainstorm.stale).toBe(true)
   expect(screen.getByRole('button', { name: 'Aprovar documentos e continuar para Code' })).toBeDisabled()
+  await userEvent.click(screen.getByRole('tab', { name: /Brainstorm/ }))
+  expect(await screen.findByText('Este Brainstorm precisa refletir a última mudança da SPEC.')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Editar Brainstorm' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Salvar Brainstorm' }))
+  await waitFor(() => expect(fixture.read().documents.brainstorm.stale).toBe(false))
   await userEvent.click(screen.getByRole('tab', { name: /Plan/ }))
   expect(screen.getByText('Este documento precisa ser atualizado.')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Editar Plan' }))
@@ -110,7 +120,7 @@ it('saves manual SPEC without a provider, marks Plan stale and blocks approval u
 })
 
 it('restores an archived version as a new version and approves current document hashes', async () => {
-  const { backend, pipeline, fixture } = setup(true), changed = vi.fn(), approve = vi.fn(backend.approvePipelineDesign)
+  const { backend, pipeline, fixture } = setup(true, 'plan'), changed = vi.fn(), approve = vi.fn(backend.approvePipelineDesign)
   backend.approvePipelineDesign = approve
   const current = fixture.read(); current.documents.plan.version = 2; current.documents.plan.content = '# Plan novo'; current.documents.plan.contentDigest = 'b'.repeat(64); current.versions.plan.push({ ...current.documents.plan, reason: 'manual', restoredFromVersion: 0, createdAt: current.updatedAt }); fixture.writeDesign(current)
   render(<PipelineDesignStudio backend={backend} pipeline={pipeline} onPipelineChange={changed} />)
@@ -119,7 +129,7 @@ it('restores an archived version as a new version and approves current document 
   await userEvent.click(screen.getByRole('button', { name: 'Restaurar versão 1' }))
   expect(await screen.findByRole('heading', { name: 'Implementação' })).toBeInTheDocument()
   expect(fixture.read().documents.plan.version).toBe(3)
-  const digests = Object.fromEntries(['discovery', 'spec', 'plan'].map(stage => [stage, fixture.read().documents[stage].contentDigest]))
+  const digests = Object.fromEntries(['discovery', 'spec', 'brainstorm', 'plan'].map(stage => [stage, fixture.read().documents[stage].contentDigest]))
   await userEvent.click(screen.getByRole('button', { name: 'Aprovar documentos e continuar para Code' }))
   await waitFor(() => expect(changed).toHaveBeenCalledWith(expect.objectContaining({ currentStage: 'code' })))
   expect(approve).toHaveBeenCalledWith(expect.objectContaining({ digests }))
@@ -159,7 +169,7 @@ it('ignores preparation and readback results from the previous project', async (
   const nextPipeline = designPipeline('design-other', 'workspace-other'), next = designReadback(nextPipeline)
   fixture.writeDesign(next)
   view.rerender(<PipelineDesignStudio backend={backend} pipeline={nextPipeline} onPipelineChange={changed} />)
-  await screen.findByRole('button', { name: 'Preparar SPEC e Plan' })
+  await screen.findByRole('button', { name: 'Preparar SPEC e Brainstorm' })
   await act(async () => resolve(fixture.read(pipeline.id)))
   expect(screen.queryByText('Pedido antigo')).not.toBeInTheDocument()
   expect(screen.getByLabelText('Pedido para a IA')).toHaveValue('')
@@ -263,7 +273,7 @@ it('admits Codex for Code only when the backend declares Professional capabiliti
 })
 
 it('reads the committed pipeline after losing an approval response and publishes its current revision', async () => {
-  const { backend, pipeline, fixture } = setup(true), changed = vi.fn(), approve = backend.approvePipelineDesign
+  const { backend, pipeline, fixture } = setup(true, 'plan'), changed = vi.fn(), approve = backend.approvePipelineDesign
   backend.approvePipelineDesign = vi.fn(async input => { await approve(input); throw new Error('Resposta da aprovação perdida') })
   backend.getPipeline = vi.fn(backend.getPipeline)
   render(<PipelineDesignStudio backend={backend} pipeline={pipeline} onPipelineChange={changed} />)
@@ -275,7 +285,7 @@ it('reads the committed pipeline after losing an approval response and publishes
 })
 
 it.each(['unavailable', 'wrong-identity', 'old-revision'] as const)('blocks derivation until pipeline readback confirms an approval (%s)', async problem => {
-  const { backend, pipeline } = setup(true), changed = vi.fn(), approve = backend.approvePipelineDesign, getPipeline = backend.getPipeline
+  const { backend, pipeline } = setup(true, 'plan'), changed = vi.fn(), approve = backend.approvePipelineDesign, getPipeline = backend.getPipeline
   backend.approvePipelineDesign = vi.fn(async input => { await approve(input); throw new Error('Resposta perdida') })
   let valid = false
   backend.getPipeline = vi.fn(async id => {
@@ -296,7 +306,7 @@ it.each(['unavailable', 'wrong-identity', 'old-revision'] as const)('blocks deri
 })
 
 it('ignores a pipeline confirmation arriving after switching projects', async () => {
-  const { backend, pipeline, fixture } = setup(true), changed = vi.fn(), approve = backend.approvePipelineDesign
+  const { backend, pipeline, fixture } = setup(true, 'plan'), changed = vi.fn(), approve = backend.approvePipelineDesign
   let resolve!: (value: typeof pipeline) => void
   backend.approvePipelineDesign = async input => { await approve(input); throw new Error('Resposta perdida') }
   backend.getPipeline = vi.fn(() => new Promise<typeof pipeline>(done => { resolve = done }))
@@ -305,10 +315,10 @@ it('ignores a pipeline confirmation arriving after switching projects', async ()
   await waitFor(() => expect(backend.getPipeline).toHaveBeenCalled())
   const other = designPipeline('other-design', 'other-workspace'); fixture.writeDesign(designReadback(other))
   view.rerender(<PipelineDesignStudio backend={backend} pipeline={other} onPipelineChange={changed} />)
-  await screen.findByRole('button', { name: 'Preparar SPEC e Plan' })
+  await screen.findByRole('button', { name: 'Preparar SPEC e Brainstorm' })
   await act(async () => resolve(fixture.pipeline(pipeline.id)))
   expect(changed).not.toHaveBeenCalled()
-  expect(screen.getByRole('button', { name: 'Preparar SPEC e Plan' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Preparar SPEC e Brainstorm' })).toBeInTheDocument()
 })
 
 it('changes the inspected document from the top stage request without editing or inferring', async () => {
@@ -375,7 +385,7 @@ it('preserves an open manual edit when the top bar requests another document', a
 })
 
 it('reopens the manually edited Plan after navigation and keeps approval blocked until saving or cancelling', async () => {
-  const { backend, pipeline } = setup(true), user = userEvent.setup()
+  const { backend, pipeline } = setup(true, 'plan'), user = userEvent.setup()
   const view = render(<PipelineDesignStudio backend={backend} pipeline={pipeline} onPipelineChange={() => undefined} />)
   await user.click(await screen.findByRole('tab', { name: 'Plan' }))
   await user.click(screen.getByRole('button', { name: 'Editar Plan' }))
@@ -390,7 +400,7 @@ it('reopens the manually edited Plan after navigation and keeps approval blocked
 })
 
 it('confirms the published pipeline again by itself when a stale confirmation would fence every action', async () => {
-  const { backend, pipeline, fixture } = setup(true)
+  const { backend, pipeline, fixture } = setup(true, 'plan')
   const published = fixture.read()
   published.currentPipelineRevision = pipeline.revision + 1
   fixture.writeDesign(published)
@@ -426,4 +436,41 @@ it('shows the progress of the phase being prepared from its linked session', asy
   expect(progress).toHaveTextContent('Tokens: informados ao final')
   expect(backend.listEvents).toHaveBeenCalledWith('spec-session', 0, 1000)
   expect(screen.getByRole('button', { name: 'Cancelar preparação' })).toBeEnabled()
+})
+
+it('approves the flow and design on the Brainstorm tab, then prepares the Plan by itself', async () => {
+  const { backend, pipeline, fixture } = setup(true), changed = vi.fn(), approve = vi.fn(backend.approvePipelineBrainstorm), user = userEvent.setup()
+  backend.approvePipelineBrainstorm = approve
+  const before = fixture.read(); before.documents.plan = { ...before.documents.plan, version: 0, content: '', contentDigest: '' }; before.versions.plan = []; fixture.writeDesign(before)
+  render(<PipelineDesignStudio backend={backend} pipeline={pipeline} onPipelineChange={changed} />)
+  await user.click(await screen.findByRole('tab', { name: /Brainstorm/ }))
+  expect(screen.getByRole('region', { name: 'Fluxo' })).toBeInTheDocument()
+  expect(screen.getByRole('region', { name: 'Design' })).toBeInTheDocument()
+  expect(screen.getByRole('region', { name: 'Fluxo' }).closest('.brainstorm-left')).toContainElement(screen.getByLabelText('Pedido para a IA'))
+  expect(screen.queryByRole('button', { name: 'Aprovar documentos e continuar para Code' })).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Aprovar fluxo e design' }))
+  const current = fixture.read()
+  expect(approve).toHaveBeenCalledWith(expect.objectContaining({ digests: { discovery: current.documents.discovery.contentDigest, spec: current.documents.spec.contentDigest, brainstorm: current.documents.brainstorm.contentDigest } }))
+  await waitFor(() => expect(changed).toHaveBeenCalledWith(expect.objectContaining({ currentStage: 'plan' })))
+  await waitFor(() => expect(fixture.read().documents.plan.content).toContain('# Plan'), { timeout: 4000 })
+})
+
+it('calls it approving the flow when the solution has no screens', async () => {
+  const { backend, pipeline, fixture } = setup(true)
+  const current = fixture.read(); current.documents.brainstorm.content = JSON.stringify({ flow: 'flowchart TD\n  A --> B', design: null, noDesignReason: 'Só backend.', notes: '' }); fixture.writeDesign(current)
+  render(<PipelineDesignStudio backend={backend} pipeline={pipeline} onPipelineChange={() => undefined} />)
+  expect(await screen.findByRole('button', { name: 'Aprovar fluxo' })).toBeEnabled()
+  expect(screen.queryByRole('button', { name: 'Aprovar fluxo e design' })).not.toBeInTheDocument()
+})
+
+it('offers to change the phase model when the one chosen for Brainstorm is too small', async () => {
+  const { backend, pipeline, fixture } = setup(true), user = userEvent.setup()
+  const current = fixture.read(); current.state = 'paused'
+  current.attempts.push({ id: 'attempt-small', requestId: 'request-small', target: 'all', status: 'failed', phase: 'brainstorm', selections: {}, sessionIds: {}, errorCode: 'brainstorm_model_too_small', createdAt: current.createdAt, updatedAt: current.updatedAt })
+  fixture.writeDesign(current)
+  const { container } = render(<PipelineDesignStudio backend={backend} pipeline={pipeline} onPipelineChange={() => undefined} />)
+  expect(await screen.findByText('O modelo escolhido para o Brainstorm não comporta um documento deste tamanho. Escolha outro modelo para a fase.')).toBeInTheDocument()
+  expect(container.querySelector('details.design-models')).not.toHaveAttribute('open')
+  await user.click(screen.getByRole('button', { name: 'Trocar o modelo da fase' }))
+  expect(container.querySelector('details.design-models')).toHaveAttribute('open')
 })
