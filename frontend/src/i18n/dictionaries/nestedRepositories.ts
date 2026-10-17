@@ -11,6 +11,7 @@ export const en: Record<string, string> = {
   'passou do limite de 60 repositórios': 'is past the 60-repository limit',
   'não pôde ser lido': 'could not be read',
   'Repositório': 'Repository',
+  'Ver a saída': 'Show the output',
 }
 
 export const es: Record<string, string> = {
@@ -25,4 +26,5 @@ export const es: Record<string, string> = {
   'passou do limite de 60 repositórios': 'superó el límite de 60 repositorios',
   'não pôde ser lido': 'no se pudo leer',
   'Repositório': 'Repositorio',
+  'Ver a saída': 'Ver la salida',
 }

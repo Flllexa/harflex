@@ -1217,3 +1217,125 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: var
 .is-spinning { animation: activity-spin 900ms linear infinite; }
 .nav-item, .workspace-tab, .side-panel-tab { transition: background-color 160ms ease, color 160ms ease; }
 .primary-button, .secondary-button, .icon-button { transition: background-color 160ms ease, color 160ms ease, opacity 160ms ease, border-color 160ms ease; }
+
+/* ───────────── Layout refresh ─────────────
+   One canvas instead of frames inside frames. Regions separate by surface tone and space; the few lines left are
+   hairlines. The conversation reads as a centered column, the composer floats as the one raised card, and the run's
+   progress sits on it as a quiet status line. */
+body, .workspace { background: var(--canvas); }
+.sidebar { background: var(--surface-1); border-right: 1px solid var(--hairline); }
+.shell-header { background: var(--canvas); border-bottom: 1px solid var(--hairline); }
+.compact-toolbar { border-bottom: 0; }
+.project-header { border-bottom: 0; }
+.workspace-footer { border-top: 0; color: color-mix(in srgb, var(--muted) 80%, transparent); font-size: 10.5px; padding-block: var(--space-1) var(--space-2); }
+
+/* The work panel is the canvas, not a framed box. */
+.work-area.is-conversation .work-panel { margin: 0; border: 0; border-radius: 0; background: transparent; }
+.work-area.is-conversation .workspace-tabs { border-bottom: 1px solid var(--hairline); }
+.conversation-actions { border-bottom: 0; padding: var(--space-3) var(--space-6) 0; }
+.conversation-actions .secondary-button { min-height: 32px; padding-inline: var(--space-3); border-color: transparent; background: var(--surface-2); color: var(--muted); font-size: 12px; border-radius: 999px; }
+.conversation-actions .secondary-button:hover:not(:disabled) { color: var(--paper); background: color-mix(in srgb, var(--surface-2) 70%, var(--paper) 8%); }
+
+/* The conversation: a centered reading column with air around every turn. */
+.conversation-log, .mode-casual .conversation-log { width: min(100%, 780px); align-self: center; padding: var(--space-6) var(--space-6) var(--space-4); gap: 22px;
+  mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 20px), transparent 100%); }
+.turn { position: relative; min-width: 0; }
+.turn-author { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; letter-spacing: .02em; margin-bottom: 6px; }
+.turn-assistant .turn-author::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--mint); }
+.turn-text { line-height: 1.65; }
+.turn-assistant .turn-text { max-width: 68ch; }
+/* The person's words: a bubble on the right, so who said what reads at a glance. */
+.turn-user, .mode-casual .turn-user { align-self: flex-end; max-width: min(78%, 620px); padding: 10px 14px; background: var(--surface-2); border-radius: var(--radius-bubble) var(--radius-bubble) 4px var(--radius-bubble); }
+.turn-user .turn-author { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.turn-user .turn-text { max-width: none; }
+
+/* Tool calls: compact rows that open on demand, not stacked boxes. */
+.turn-tool { margin-block: -10px; }
+.tool-card { border: 0; padding: 8px 12px; background: color-mix(in srgb, var(--surface-1) 70%, transparent); border-radius: 10px; box-shadow: inset 2px 0 0 var(--hairline); }
+.tool-card.tool-running { box-shadow: inset 2px 0 0 var(--cyan); }
+.tool-card.tool-failed, .tool-card.tool-denied { box-shadow: inset 2px 0 0 var(--danger); }
+.tool-card-header { font-size: 12px; gap: 6px 10px; }
+.tool-card-header strong { font-weight: 600; }
+.tool-card-header svg { width: 14px; height: 14px; }
+.tool-output { margin-top: 4px; }
+.tool-output > summary { display: inline-flex; min-height: 24px; align-items: center; font-size: 11px; color: var(--muted); cursor: pointer; }
+.tool-output > summary:hover { color: var(--paper); }
+.tool-output pre { margin: 6px 0 0; padding: var(--space-2) var(--space-3); max-height: 260px; overflow: auto; border-radius: 8px; background: var(--canvas); font-size: 11.5px; }
+
+/* Markdown: tables read as data — words never break mid-word, a narrow column scrolls instead of shredding. */
+.markdown p { line-height: 1.65; }
+.md-table { margin: var(--space-2) 0 var(--space-4); border: 1px solid var(--hairline); border-radius: 12px; background: var(--surface-1); }
+.md-table table { font-size: 12.5px; }
+.md-table th, .md-table td { padding: 9px 14px; border-bottom: 1px solid var(--hairline); overflow-wrap: normal; word-break: normal; hyphens: manual; }
+.md-table td { min-width: 10ch; }
+.md-table th { white-space: nowrap; background: transparent; font-size: 11px; letter-spacing: .03em; text-transform: uppercase; }
+.md-table tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--surface-2) 45%, transparent); }
+.md-table tbody tr:hover td { background: color-mix(in srgb, var(--mint) 5%, transparent); }
+.md-code { border-color: var(--hairline); border-radius: 12px; }
+.md-code figcaption { border-bottom-color: var(--hairline); }
+.md-inline-code { border-color: var(--hairline); background: var(--surface-2); }
+
+/* The dock: the run's progress as a status line on top of a floating composer card. */
+.composer-meta, .mode-casual .conversation .composer-meta { border-top: 0; width: min(100%, 812px); align-self: center; padding-inline: var(--space-4); }
+.composer-meta > .run-progress { margin-bottom: -10px; padding: 8px 14px 18px; border: 0; border-radius: 14px 14px 0 0; background: color-mix(in srgb, var(--surface-2) 75%, transparent); }
+.composer-meta > .run-progress.is-live { background: color-mix(in srgb, var(--surface-2) 75%, color-mix(in srgb, var(--mint) 6%, transparent)); }
+.run-progress { border-color: var(--hairline); }
+.composer, .mode-casual .conversation .composer { width: min(100%, 812px); align-self: center; padding: 0 var(--space-4) var(--space-3); }
+.composer-card { position: relative; z-index: 1; border: 1px solid var(--hairline) !important; border-radius: 18px !important; background: var(--surface-1) !important; box-shadow: var(--shadow-float); transition: border-color 160ms ease, box-shadow 160ms ease; }
+.composer-card:focus-within { border-color: color-mix(in srgb, var(--mint) 45%, var(--hairline)) !important; box-shadow: var(--shadow-float), 0 0 0 3px color-mix(in srgb, var(--mint) 12%, transparent); }
+.composer-card .composer-input, .mode-casual .conversation .composer-card .composer-input { border: 0; background: transparent; box-shadow: none; outline: 0; }
+.continuity-note, .chat-model-note { width: min(100%, 812px); align-self: center; padding-inline: var(--space-6); }
+
+/* Casual sidebar: groups by space and type, not by boxes and rules. */
+.casual-project { border: 0; padding: var(--space-2) var(--space-2) var(--space-1); background: transparent; }
+.casual-search { border-color: transparent; background: var(--canvas); border-radius: 12px; }
+.casual-search:focus-within { border-color: color-mix(in srgb, var(--mint) 40%, transparent); }
+.casual-chat-item { border-radius: 10px; }
+.casual-chat-item[aria-current] { background: color-mix(in srgb, var(--mint) 12%, var(--surface-2)); box-shadow: inset 2px 0 0 var(--mint); }
+.casual-chat-item:hover:not([aria-current]):not(:disabled) { background: var(--surface-2); }
+.casual-tools, .casual-sidebar-footer { border-top: 0; }
+.casual-sidebar-footer .secondary-button { border-color: transparent; background: var(--canvas); border-radius: 12px; }
+.mode-casual .sidebar .new-work { border-radius: 12px; }
+
+/* Side panel: an elevated surface, without a frame inside it. */
+.side-panel { background: var(--surface-1); border-left: 1px solid var(--hairline); }
+.activity-panel { background: transparent; }
+.panel-heading { border-bottom: 0; }
+
+@media (max-width: 767px) {
+  .conversation-log, .mode-casual .conversation-log { padding: var(--space-4) var(--space-3) var(--space-3); }
+  .conversation-actions { padding-inline: var(--space-3); }
+  .composer-meta, .mode-casual .conversation .composer-meta, .composer, .mode-casual .conversation .composer { padding-inline: var(--space-2); }
+  .turn-user, .mode-casual .turn-user { max-width: 88%; }
+}
+/* The dock keeps its distance from the area's edges: margins outside the card, padding inside it. */
+.composer.composer-card, .mode-casual .conversation .composer.composer-card { width: min(calc(100% - 2 * var(--space-4)), 780px); margin: 0 auto var(--space-3); padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4); }
+.composer-meta, .mode-casual .conversation .composer-meta { width: min(calc(100% - 2 * var(--space-4)), 780px); margin-inline: auto; padding-inline: 0; }
+.composer-meta > .run-progress { margin-inline: var(--space-3); }
+.composer:not(.composer-card) { width: min(calc(100% - 2 * var(--space-4)), 780px); margin-inline: auto; padding-inline: 0; }
+@media (max-width: 767px) {
+  .composer.composer-card, .mode-casual .conversation .composer.composer-card, .composer-meta, .mode-casual .conversation .composer-meta, .composer:not(.composer-card) { width: calc(100% - 2 * var(--space-2)); }
+}
+.tool-disclosure > summary { list-style: none; cursor: pointer; border-radius: 6px; }
+.tool-disclosure > summary::-webkit-details-marker { display: none; }
+.tool-disclosure > summary:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+.tool-chevron { width: 14px; height: 14px; color: var(--muted); transition: transform 160ms ease; }
+.tool-disclosure[open] .tool-chevron { transform: rotate(90deg); }
+.tool-disclosure-output { margin: 8px 0 2px; padding: var(--space-2) var(--space-3); max-height: 260px; overflow: auto; border-radius: 8px; background: var(--canvas); font-size: 11.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (min-width: 768px) {
+  /* The window-drag strip stays (no control may live there), but as part of one header, without a rule of its own. */
+  .toolbar-title { border-bottom: 0; color: color-mix(in srgb, var(--muted) 85%, transparent); }
+  .workspace-footer { background: var(--canvas); }
+}
+/* Professional's composer floats the same way: one raised card holding the input and the send button. */
+.composer:not(.composer-card) { align-items: center; margin-bottom: var(--space-3); padding: 6px 6px 6px var(--space-2); border: 1px solid var(--hairline); border-radius: 18px; background: var(--surface-1); box-shadow: var(--shadow-float); transition: border-color 160ms ease, box-shadow 160ms ease; }
+.composer:not(.composer-card):focus-within { border-color: color-mix(in srgb, var(--mint) 45%, var(--hairline)); box-shadow: var(--shadow-float), 0 0 0 3px color-mix(in srgb, var(--mint) 12%, transparent); }
+.composer:not(.composer-card) .composer-input { border: 0; background: transparent; box-shadow: none; outline: 0; }
+.composer:not(.composer-card) button { border-radius: 12px; }
+.composer-toolbar { padding-inline: 0; }
+/* Only in Casual does the composer card follow the progress line directly, so only there does the line tuck under it. */
+.app-shell:not(.mode-casual) .composer-meta > .run-progress { margin-bottom: var(--space-2); padding-bottom: 8px; border-radius: 14px; }
+/* Touch surfaces keep the 44px target; the compact 32px pill is for a mouse in a wide window. */
+@media (max-width: 767px), (pointer: coarse), (hover: none) {
+  .conversation-actions .secondary-button { min-height: 44px; }
+}

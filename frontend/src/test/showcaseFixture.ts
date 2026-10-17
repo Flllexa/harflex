@@ -200,7 +200,7 @@ function chatJournal(): AgentEvent[] {
   push('tool.completed', { toolCallId: 'c1', name: 'ls', content: { text: 'index.html\nstyles.css\npackage.json' } })
   push('tool.called', { toolCallId: 'c2', name: 'harflex_create_pipeline' })
   push('tool.completed', { toolCallId: 'c2', name: 'harflex_create_pipeline', content: { text: 'Pipeline created: To-do list with localStorage' } })
-  push('message.assistant', { role: 'assistant', content: 'Done! I created the work item **To-do list with localStorage**. It has already been through Discovery, SPEC and Plan, and it is now in Code.\n\nYou can follow each stage in **Pipelines**, and I can keep going here if you want to change anything.' })
+  push('message.assistant', { role: 'assistant', content: 'Done! I created the work item **To-do list with localStorage**. It has already been through Discovery, SPEC and Plan, and it is now in Code.\n\n| Stage | Status | What it holds |\n| --- | --- | --- |\n| Discovery | Done | The request in your words |\n| SPEC | Done | Scope and acceptance criteria |\n| Plan | Done | The steps and the files to change |\n| Code | Running | The change, file by file, on a private copy |\n\nYou can follow each stage in **Pipelines**, and I can keep going here if you want to change anything.' })
   push('run.completed', {})
   return events
 }

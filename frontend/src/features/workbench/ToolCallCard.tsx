@@ -1,4 +1,4 @@
-import { Check, CircleDashed, CircleSlash, LoaderCircle, ShieldAlert, TriangleAlert, Wrench } from 'lucide-react'
+import { Check, ChevronRight, CircleDashed, CircleSlash, LoaderCircle, ShieldAlert, TriangleAlert, Wrench } from 'lucide-react'
 import type { ToolCallView, ToolStatus } from '../../state/session'
 import { DiffView } from '../../components/DiffView'
 import { t, useT } from '../../i18n'
@@ -58,15 +58,21 @@ export function ToolCallCard({ call }: { call: ToolCallView }) {
   const output = call.output || call.result
   const failure = toolFailureText(call)
   const diffLines = call.diff ? call.diff.split('\n').length : 0
+  const heading = <>
+    <Wrench aria-hidden="true" />
+    <strong className="mono">{call.name}</strong>
+    {target && <span className="mono tool-target">{target}</span>}
+    <span className="tool-status"><Icon aria-hidden="true" />{t(statusCopy[call.status])}</span>
+  </>
+  // A call that went well is one row; the row itself opens what the tool printed.
+  const quiet = !!output && !failure
   return <article className={`tool-card tool-${call.status}`} aria-label={t('Ferramenta {name}', { name: call.name })}>
-    <header className="tool-card-header">
-      <Wrench aria-hidden="true" />
-      <strong className="mono">{call.name}</strong>
-      {target && <span className="mono tool-target">{target}</span>}
-      <span className="tool-status"><Icon aria-hidden="true" />{t(statusCopy[call.status])}</span>
-    </header>
+    {quiet ? <details className="tool-disclosure" open={call.status === 'running'}>
+      <summary className="tool-card-header" title={t('Ver a saída')}>{heading}<ChevronRight className="tool-chevron" aria-hidden="true" /></summary>
+      <pre className="mono tool-disclosure-output">{output}</pre>
+    </details> : <header className="tool-card-header">{heading}</header>}
     {failure && <p className="tool-error">{failure.summary}{failure.detail && <> <span className="mono tool-error-detail">{failure.detail}</span></>}{failure.note && <span className="muted tool-error-note"> {failure.note}</span>}</p>}
     {call.diff && <details className="tool-output tool-diff" open={diffLines <= 30}><summary>{call.path ? t('Alterações em {path}', { path: call.path }) : t('Alterações')}</summary><DiffView diff={call.diff} /></details>}
-    {output && <details className="tool-output" open={call.status === 'running' || call.status === 'failed'}><summary>{t('Saída')}</summary><pre className="mono">{output}</pre></details>}
+    {output && !quiet && <details className="tool-output" open={call.status === 'running' || call.status === 'failed'}><summary>{t('Saída')}</summary><pre className="mono">{output}</pre></details>}
   </article>
 }

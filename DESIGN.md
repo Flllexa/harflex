@@ -147,6 +147,8 @@ From 768 px the shell fills the window exactly: the center, the navigation, and 
 
 **A Drag Strip Is Not A Toolbar Rule.** The desktop app hides the native title bar and treats the top 50 px as a drag strip (`InvisibleTitleBarHeight`): no interactive control may sit in that strip. The first line of the header only names the destination; the Casual/Professional selector and the activity button sit on the next line, together with the pipeline. On macOS, the window's traffic-light buttons float over the top-left corner, so navigation reserves a safe area (`html[data-platform="mac"]`).
 
+**One Canvas, Not Frames.** The work area is a single canvas (`--canvas`). Regions separate by surface tone (`--surface-1`, `--surface-2`) and by space; the few lines left are hairlines (`--hairline`), never a frame around a frame. The conversation is a centered reading column of at most 780 px with 22 px between turns; the person's messages are bubbles on the right (`--radius-bubble`), the agent's read as plain text under a small mint marker. The composer and the run's progress share one dock, at most 780 px wide and kept 16 px from the area's edges (8 px below 768 px).
+
 Grouped navigation (work, automation, context, system) fits in 900 px without scrolling. 44 px targets apply to touch and below 768 px; with a mouse on wide windows, compact 32 px rows keep the 17 destinations in view.
 
 The center uses `minmax(0, 1fr)`; the pipeline supports internal scrolling and keeps the current stage visible after a resize. Spacing follows the frontmatter scale. Primary actions are at least 44 × 44 px; titles and paths wrap. The dialog measures at most 440 px, keeps a 16 px margin, and scrolls vertically when needed.
@@ -155,7 +157,7 @@ The center uses `minmax(0, 1fr)`; the pipeline supports internal scrolling and k
 
 The system is flat by default. Depth comes from tonal layers, thin borders, and clear occlusion; shadows appear only on temporary surfaces such as menus, dialogs, and floating drawers. There is no frosted glass, ambient glow, or permanent neon halo.
 
-**The Flat Until Lifted Rule.** A surface only receives a shadow when it actually moves above another surface.
+**The Flat Until Lifted Rule.** A surface only receives a shadow when it actually moves above another surface. The composer is the one lasting case: the conversation scrolls beneath it, so it floats as a card with `--shadow-float`, and its focus ring is a soft mint outline.
 
 Observed shadows: left drawer (`12px 0 40px var(--shadow)`), right drawer (`-12px 0 40px var(--shadow)`), and dialog (`0 24px 64px var(--shadow)`). The scrim uses `var(--shadow)`; the token changes with the light or dark theme.
 
@@ -171,9 +173,9 @@ Fields: ion-void background, Interface Border, the padding of the input variant,
 
 Navigation: soft-mint selection with mint text. The rail hides only the visual label; the drawer keeps the accessible name, Escape, and focus return. Local chip: mint text and soft-mint border, with no interaction.
 
-Tool card: forge surface, name, path, status, and an expandable output; the recorded diff appears inside the card. Approval separates the risk, the target, **what will be done** (the content to write, the replacement, or the full command), and the decision, and stays fixed above the composer. The diff uses mint for additions, danger for removals, and cyan for hunks.
+Tool call: a compact row (name, target, status) on a faint surface with a 2 px left accent that turns cyan while it runs and danger when it fails. A call that went well is one row that opens its output on click; a failure shows its explanation and its output already open; the recorded diff appears inside the card. Approval separates the risk, the target, **what will be done** (the content to write, the replacement, or the full command), and the decision, and stays fixed above the composer. The diff uses mint for additions, danger for removals, and cyan for hunks.
 
-Agent responses use Markdown rendered as elements (no raw HTML): headings from h3, lists, tables, quotes, code blocks with a copy button, and external links that open in the system browser.
+Agent responses use Markdown rendered as elements (no raw HTML): headings from h3, lists, tables, quotes, code blocks with a copy button, and external links that open in the system browser. Tables read as data: words never break inside themselves (a narrow table scrolls instead), headers are small uppercase labels, rows alternate a faint tone and hairlines separate them. The run's progress sits on top of the composer as a quiet status line, not as a separate box.
 
 Worktrees: each row is a forge card with a 3 px left border that gives the verdict at a glance (mint for can delete, danger for cannot, cyan for the main one), the branch name, a short path, facts (changes, commits ahead, merged) and, in its own column, the verdict written out with its reasons as a list. Buttons sit on the right on wide screens and below the text on narrow ones; delete uses the danger button (soft-danger border, danger text), and **Save and merge with AI…** is the only primary button in the row. Git-ignored items appear in a danger block with explicit confirmation before any deletion. The project header repeats the worktree state on one line (branch, facts, verdict, actions) and shows a run notice with the `status` role while the AI works or has finished, or the `alert` role when something remained pending.
 

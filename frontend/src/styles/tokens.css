@@ -24,6 +24,13 @@
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
   --focus-ring: 2px solid var(--mint);
+  /* Layout refresh: surfaces separate by tone and space; lines are hairlines, never frames. */
+  --canvas: #0a0d0f;
+  --surface-1: #11161a;
+  --surface-2: #161c21;
+  --hairline: #1e262b;
+  --shadow-float: 0 1px 0 #ffffff08 inset, 0 12px 32px -12px #000c, 0 2px 8px -2px #0008;
+  --radius-bubble: 16px;
 }
 
 /* The light theme keeps the same roles; accents darken so they read as text on white and carry white text as fills. */
@@ -41,4 +48,9 @@
   --soft-danger: #fbe4e4;
   --amber: #9a6500;
   --shadow: #1a2a2433;
+  --canvas: #f6f8f7;
+  --surface-1: #ffffff;
+  --surface-2: #eef2f0;
+  --hairline: #e3e9e6;
+  --shadow-float: 0 12px 32px -14px #1a2a2440, 0 2px 6px -2px #1a2a2422;
 }
