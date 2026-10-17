@@ -73,7 +73,7 @@ func (s *Store) beginPipelineDesignTx(ctx context.Context) (*sql.Tx, error) {
 }
 
 func validPipelineDesignStage(stage sdd.Stage) bool {
-	return stage == sdd.Discovery || stage == sdd.Spec || stage == sdd.Plan
+	return stage == sdd.Discovery || stage == sdd.Spec || stage == sdd.Brainstorm || stage == sdd.Plan
 }
 
 func validPipelineDesignTarget(target string) bool {

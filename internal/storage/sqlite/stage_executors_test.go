@@ -96,3 +96,23 @@ func TestOpenCreatesTheStageExecutorTableEmpty(t *testing.T) {
 		t.Fatalf("migration 50 recorded %d times: %v", applied, err)
 	}
 }
+
+func TestBrainstormHasItsOwnPhaseExecutor(t *testing.T) {
+	store := stageExecutorStore(t)
+	at := time.Date(2026, 10, 17, 9, 0, 0, 0, time.UTC)
+	for _, stage := range []sdd.Stage{sdd.Plan, sdd.Brainstorm, sdd.Spec} {
+		if err := store.SaveWorkspaceStageExecutor(t.Context(), catalog.StageExecutor{WorkspaceID: "workspace-1", Stage: stage, BackendID: "claude", ModelID: "opus", UpdatedAt: at}); err != nil {
+			t.Fatalf("%s: %v", stage, err)
+		}
+	}
+	listed, err := store.ListWorkspaceStageExecutors(t.Context(), "workspace-1")
+	if err != nil || len(listed) != 3 || listed[0].Stage != sdd.Spec || listed[1].Stage != sdd.Brainstorm || listed[2].Stage != sdd.Plan {
+		t.Fatalf("executors in stage order = %+v, %v", listed, err)
+	}
+}
+
+func TestDesignStorageAcceptsBrainstorm(t *testing.T) {
+	if !validPipelineDesignStage(sdd.Brainstorm) || !validPipelineDesignTarget("brainstorm") {
+		t.Fatal("brainstorm must be a valid design stage and target")
+	}
+}
