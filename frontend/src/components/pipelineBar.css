@@ -21,7 +21,6 @@
 .stage-skipped .pipeline-stage-button { opacity: .5; }
 .stage-skipped .pipeline-stage-button strong { text-decoration: line-through; text-decoration-color: var(--muted); }
 .pipeline-now { flex: 0 1 38ch; min-width: 0; margin: 0; padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface-2); color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pipeline-now strong { color: var(--paper); font-weight: 650; }
 @container pipeline (max-width: 879px) {
   .pipeline-now { display: none; }
   .pipeline-line { justify-content: flex-start; gap: var(--space-1); }

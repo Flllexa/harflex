@@ -95,6 +95,6 @@ export function PipelineBar({ pipeline: currentPipeline, onViewStage, viewStage,
         </li>
       }))}
     </ol>
-    {current && currentStatus && <p className="pipeline-now" aria-hidden="true"><strong>{stageNames[current]}</strong> · {currentProgress?.text ?? t(labels[currentStatus as keyof typeof labels] ?? 'Pendente')} · {t('depois: {next}', { next: t(nextStep[current]) })}</p>}
+    {current && currentStatus && <p className="pipeline-now" aria-hidden="true">{`${stageNames[current]} · ${currentProgress?.text ?? t(labels[currentStatus as keyof typeof labels] ?? 'Pendente')} · ${t('depois: {next}', { next: t(nextStep[current]) })}`}</p>}
   </nav>
 }
