@@ -1358,7 +1358,31 @@ func TestSessionAnswersUnknownToolWithoutApproval(t *testing.T) {
 	}
 }
 
-func TestSessionBoundsProviderTurnsPerRun(t *testing.T) {
+// A long task is not cut by a turn count: without run limits a run goes on until the model answers.
+func TestSessionRunsAsManyTurnsAsTheTaskNeeds(t *testing.T) {
+	rounds := 0
+	p := &sessionProvider{stream: func(context.Context, ChatRequest) (<-chan StreamEvent, <-chan error) {
+		rounds++
+		if rounds > 120 {
+			return streamEvents(StreamEvent{Type: "text_delta", Delta: "done"})
+		}
+		return streamEvents(toolEvent(fmt.Sprintf("call-%d", rounds)))
+	}}
+	tools := &sessionTools{risk: "read_only", execute: func(context.Context, string, json.RawMessage, ToolUpdateSink) (ToolExecutionResult, error) {
+		return ToolExecutionResult{Content: json.RawMessage(`{}`)}, nil
+	}}
+	j := &sessionJournal{}
+	if err := NewSession("session-1", p, tools, j, security.Ask).Prompt(context.Background(), "long task"); err != nil || rounds != 121 {
+		t.Fatalf("error=%v rounds=%d", err, rounds)
+	}
+	items := j.snapshot()
+	if last := items[len(items)-1]; last.Type != "run.completed" {
+		t.Fatalf("terminal=%s %s", last.Type, last.Data)
+	}
+}
+
+// Limits a caller sets on purpose still hold.
+func TestSessionHonoursExplicitTurnLimits(t *testing.T) {
 	rounds := 0
 	p := &sessionProvider{stream: func(context.Context, ChatRequest) (<-chan StreamEvent, <-chan error) {
 		rounds++
@@ -1368,9 +1392,13 @@ func TestSessionBoundsProviderTurnsPerRun(t *testing.T) {
 		return ToolExecutionResult{Content: json.RawMessage(`{}`)}, nil
 	}}
 	j := &sessionJournal{}
-	err := NewSession("session-1", p, tools, j, security.Ask).Prompt(context.Background(), "loop")
+	session := NewSession("session-1", p, tools, j, security.Ask)
+	if err := session.SetRunLimits(5, 5*1024, 64); err != nil {
+		t.Fatal(err)
+	}
+	err := session.Prompt(context.Background(), "loop")
 	var runErr *RunError
-	if !errors.As(err, &runErr) || runErr.Reason != "turn_limit" || rounds != maxTurns {
+	if !errors.As(err, &runErr) || runErr.Reason != "turn_limit" || rounds != 5 {
 		t.Fatalf("error=%v rounds=%d", err, rounds)
 	}
 	items := j.snapshot()

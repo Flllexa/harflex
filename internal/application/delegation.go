@@ -20,10 +20,14 @@ var ErrDelegationRequestConflict = errors.New("delegation request ID was reused 
 
 var delegationRequestID = regexp.MustCompile(`^[A-Za-z0-9_-]{16,64}$`)
 
+// maxDelegationDepth stops agents from spawning agents without end (the catalog holds depth 1 to 3). How much one
+// subagent may work is not limited: maxDelegatedPrompts is zero, and a task goes on as long as it needs.
 const maxDelegationDepth = 3
-const maxChildDelegations = 5
-const maxDelegatedPrompts = 3
-const defaultDelegationTimeout = 5 * time.Minute
+const maxChildDelegations = 20
+const maxDelegatedPrompts = 0
+
+// defaultDelegationTimeout is zero: a subagent works until it finishes or is cancelled, like any run.
+const defaultDelegationTimeout time.Duration = 0
 
 type delegationCreation struct {
 	link    catalog.Delegation

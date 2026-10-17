@@ -14,15 +14,10 @@ import (
 
 const codexHostRevisionPrefix = "codex-host-v1:"
 const claudeHostRevisionPrefix = "claude-host-v1:"
-const codexHostRunTimeout = 10 * time.Minute
 
-// QA installs dependencies and runs builds and E2E tests, which take longer than writing a document or code.
-func hostRunTimeout(mode string) time.Duration {
-	if mode == "evaluation" {
-		return 40 * time.Minute
-	}
-	return codexHostRunTimeout
-}
+// hostRunTimeout is zero: Code and QA run until they finish or the person cancels them. A complex task must not be cut
+// by a clock.
+func hostRunTimeout(string) time.Duration { return 0 }
 
 // documentCLISources lists the CLIs that can work as a model only, for the SDD phases, with the catalog source that
 // lists their models. The Harflex keeps the tools; the CLI gets none of its own.
@@ -96,14 +91,14 @@ func (s *Service) makeCodexHostRunner(record *catalog.SessionRecord, workspace c
 		items = append(items, tools.NewWriteTool(guard), tools.NewEditTool(guard))
 	}
 	if record.Mode == "evaluation" && isQALabRoot(executionRoot) {
-		items = append(items, tools.NewShellTool(tools.ShellConfig{CWD: executionRoot, DefaultTimeout: 10 * time.Minute}))
+		items = append(items, tools.NewShellTool(tools.ShellConfig{CWD: executionRoot, DefaultTimeout: shellCommandTimeout}))
 	}
 	registry, err := tools.NewRegistry(items...)
 	if err != nil {
 		return nil, safe("create isolated Code tools", err)
 	}
 	provider := externalagent.NewDocumentProvider(generator, externalagent.DocumentRequest{Model: selection.ModelID, ReasoningEffort: selection.ReasoningEffort,
-		ExpectedExecutablePath: selection.ExecutablePath, ExpectedExecutableVersion: selection.ExecutableVersion, MaxAssistantOutputBytes: catalog.MaxPipelineDesignDocumentBytes})
+		ExpectedExecutablePath: selection.ExecutablePath, ExpectedExecutableVersion: selection.ExecutableVersion, MaxAssistantOutputBytes: catalog.MaxPipelineRoleOutputBytes})
 	core, err := agentcore.RestoreSessionWithLimit(record.ID, modelProvider{Provider: provider, model: selection.ModelID}, registry, journal, pipelinePolicyProfile(record.Mode, security.Profile(workspace.Profile)), history.messages, pipelineRoleOutputTokens)
 	if err != nil {
 		return nil, ErrSessionCorrupt
@@ -119,6 +114,10 @@ func (s *Service) makeCodexHostRunner(record *catalog.SessionRecord, workspace c
 	})
 	record.BackendRevision = backendRevision
 	selection.MaxOutputTokens = pipelineRoleOutputTokens
-	selection.MaxAssistantOutputBytes = catalog.MaxPipelineDesignDocumentBytes
+	selection.MaxAssistantOutputBytes = catalog.MaxPipelineRoleOutputBytes
 	return &selectedCLIRunner{base: core, service: s, selection: *selection, workspace: workspace, timeout: hostRunTimeout(record.Mode)}, nil
 }
+
+// shellCommandTimeout is how long one shell command may run when the model does not say: long enough for a full
+// install, build or test suite. The model can still ask for more in the call.
+const shellCommandTimeout = time.Hour

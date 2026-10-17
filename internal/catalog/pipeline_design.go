@@ -9,7 +9,11 @@ import (
 	"github.com/persioflexa/harflex/internal/sdd"
 )
 
-const MaxPipelineDesignDocumentBytes = 64 * 1024
+const MaxPipelineDesignDocumentBytes = 256 * 1024
+
+// MaxPipelineRoleOutputBytes bounds one answer of a CLI working as Code's or QA's model: the CLI protocol's line limit,
+// so a large file written in one call fits.
+const MaxPipelineRoleOutputBytes = 1024 * 1024
 const MaxPipelineDesignMessageBytes = 16 * 1024
 
 // PipelineDesignRef binds an explicit command to both aggregate revisions.

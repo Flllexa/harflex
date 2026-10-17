@@ -126,7 +126,7 @@ export function ConversationPane({ sessionKey, state, loadingHistory, permission
   const progress = useMemo(() => buildRunProgress(state.events ?? []), [state.events])
   const showProgress = !!state.events?.length && !loadingHistory && !state.error && !cancelPending && (liveWork ? progress.live || state.activeRun === 'awaiting_approval' : !!progress.startedAt && !!state.outcome)
   const displayedStatus = loadingHistory ? t('Carregando histórico') : cancelPending ? t('Confirmando cancelamento…') : state.error ?? (liveWork ? liveStatus : statusText(state))
-  const exhausted = !!delegation && delegation.promptCount >= delegation.promptLimit
+  const exhausted = !!delegation && delegation.promptLimit > 0 && delegation.promptCount >= delegation.promptLimit
   const lastUserRequest = requestOf([...state.messages].reverse().find(message => message.kind === 'user')?.text ?? '')
   const carriedRequest = draft.trim() || (state.readOnly ? lastUserRequest : '')
   const executionBusy = runIsLive(state) || state.calling && !loadingHistory

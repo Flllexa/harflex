@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -155,14 +156,15 @@ func validSessionModelSelection(session catalog.SessionRecord, selection catalog
 		}
 		// Only a CLI that can work as a model alone runs the SDD modes, each with its fixed answer limit.
 		documentCLI := selection.Status == "listed" && (selection.BackendID == "codex" || selection.BackendID == "claude")
+		// The limits older sessions were made with stay valid, so they reopen as they were.
 		if session.Mode == "sdd_readonly" {
-			return documentCLI && (selection.MaxAssistantOutputBytes == 2*1024 || selection.MaxAssistantOutputBytes == 64*1024)
+			return documentCLI && slices.Contains([]int{2 * 1024, 64 * 1024, catalog.MaxPipelineDesignDocumentBytes}, selection.MaxAssistantOutputBytes)
 		}
 		if session.Mode == "sdd_code" {
-			return documentCLI && selection.MaxAssistantOutputBytes == 64*1024
+			return documentCLI && slices.Contains([]int{64 * 1024, catalog.MaxPipelineRoleOutputBytes}, selection.MaxAssistantOutputBytes)
 		}
 		if session.Mode == "evaluation" && selection.MaxAssistantOutputBytes > 0 {
-			return documentCLI && selection.MaxAssistantOutputBytes == 64*1024
+			return documentCLI && slices.Contains([]int{64 * 1024, catalog.MaxPipelineRoleOutputBytes}, selection.MaxAssistantOutputBytes)
 		}
 		return selection.MaxAssistantOutputBytes == 0
 	}

@@ -42,9 +42,9 @@ const (
 	// A maximum-sized result includes up to 32 MiB before redaction/encoding.
 	// Keep that durability path bounded without applying the small-event deadline.
 	toolResultPersistTimeout = 10 * time.Second
-	// Safety bound for one in-process run, including approval continuations.
-	// Configurable limits and persisted budgets are a future increment.
-	maxTurns = 50
+	// maxTurns bounds only the run limits a caller sets on purpose (SetRunLimits). A run without them has no turn
+	// limit: a long task goes on until it finishes or the person cancels it.
+	maxTurns = 10_000
 )
 
 type pendingApproval struct {
@@ -594,11 +594,7 @@ func (s *Session) drive(ctx context.Context) error {
 			}
 			continue
 		}
-		turnLimit := s.maxTurns
-		if turnLimit == 0 {
-			turnLimit = maxTurns
-		}
-		if s.turns++; s.turns > turnLimit {
+		if s.turns++; s.maxTurns > 0 && s.turns > s.maxTurns {
 			return errTurnLimit
 		}
 		calls, err := s.respond(ctx)

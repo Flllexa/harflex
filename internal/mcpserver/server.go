@@ -24,7 +24,7 @@ import (
 const (
 	protocolVersion = "2025-06-18"
 	maxRequestBytes = 4 << 20
-	callTimeout     = 2 * time.Minute
+	callTimeout     = time.Hour
 )
 
 type Server struct {

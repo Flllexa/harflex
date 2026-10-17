@@ -67,17 +67,17 @@ func TestDelegatedPromptBudgetSurvivesRestartAndDoesNotConstrainParent(t *testin
 		t.Fatal(err)
 	}
 	links, err := next.ListDelegations(parent.ID)
-	if err != nil || len(links) != 1 || links[0].PromptCount != 2 || links[0].PromptLimit != 3 || links[0].TimeoutSeconds != 300 {
+	// The count survives the restart; there is no limit on calls or time (zero), so a long task keeps going.
+	if err != nil || len(links) != 1 || links[0].PromptCount != 2 || links[0].PromptLimit != 0 || links[0].TimeoutSeconds != 0 {
 		t.Fatalf("budget readback: %+v %v", links, err)
 	}
-	if result, err := next.Prompt(PromptInput{SessionID: child.Session.ID, Text: "Última rodada"}); err != nil || result.Status != RunCompleted {
-		t.Fatalf("third prompt: %+v %v", result, err)
-	}
-	if _, err := next.Prompt(PromptInput{SessionID: child.Session.ID, Text: "Proibida"}); !errors.Is(err, ErrDelegationBudgetExceeded) {
-		t.Fatalf("fourth prompt: %v", err)
+	for i := 0; i < 3; i++ {
+		if result, err := next.Prompt(PromptInput{SessionID: child.Session.ID, Text: "Mais uma rodada"}); err != nil || result.Status != RunCompleted {
+			t.Fatalf("prompt after the old limit %d: %+v %v", i, result, err)
+		}
 	}
 	links, err = next.ListDelegations(parent.ID)
-	if err != nil || len(links) != 1 || links[0].PromptCount != 3 {
+	if err != nil || len(links) != 1 || links[0].PromptCount != 5 {
 		t.Fatalf("final budget readback: %+v %v", links, err)
 	}
 	if result, err := next.Prompt(PromptInput{SessionID: parent.ID, Text: "Quarta livre"}); err != nil || result.Status != RunCompleted {
@@ -305,7 +305,7 @@ func TestConcurrentDuplicateDelegationHasOneChild(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const attempts = 8
+	const attempts = maxChildDelegations + 3
 	results := make([]DelegatedSessionDTO, attempts)
 	errors := make([]error, attempts)
 	var wg sync.WaitGroup
@@ -352,7 +352,7 @@ func TestConcurrentDistinctDelegationsRespectChildLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const attempts = 8
+	const attempts = maxChildDelegations + 3
 	errResults := make([]error, attempts)
 	var wg sync.WaitGroup
 	for index := range errResults {
@@ -374,11 +374,11 @@ func TestConcurrentDistinctDelegationsRespectChildLimit(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	}
-	if created != 5 || limited != attempts-5 {
+	if created != maxChildDelegations || limited != attempts-maxChildDelegations {
 		t.Fatalf("created=%d limited=%d", created, limited)
 	}
 	links, err := s.ListDelegations(parent.ID)
-	if err != nil || len(links) != 5 {
+	if err != nil || len(links) != maxChildDelegations {
 		t.Fatalf("children: %+v %v", links, err)
 	}
 }

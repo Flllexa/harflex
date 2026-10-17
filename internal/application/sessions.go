@@ -658,7 +658,7 @@ func (s *Service) makeRunnerAt(record *catalog.SessionRecord, workspace catalog.
 			if record.Mode == "sdd_code" {
 				toolItems = append(toolItems, tools.NewWriteTool(guard), tools.NewEditTool(guard), tools.NewPlanTool())
 			} else if record.Mode == "evaluation" && isQALabRoot(toolRoot) {
-				toolItems = append(toolItems, tools.NewShellTool(tools.ShellConfig{CWD: toolRoot, DefaultTimeout: 10 * time.Minute}), tools.NewPlanTool())
+				toolItems = append(toolItems, tools.NewShellTool(tools.ShellConfig{CWD: toolRoot, DefaultTimeout: shellCommandTimeout}), tools.NewPlanTool())
 			} else if record.Mode == "" {
 				toolItems = append(toolItems, tools.NewWriteTool(guard), tools.NewEditTool(guard), tools.NewShellTool(tools.ShellConfig{CWD: workspace.Path}), tools.NewPlanTool())
 				toolItems = append(toolItems, s.harflexTools(workspace.ID, record.ID)...)
@@ -808,7 +808,7 @@ func (s *Service) Prompt(in PromptInput) (RunResultDTO, error) {
 	runCtx := s.ctx
 	if delegated {
 		var cancel context.CancelFunc
-		runCtx, cancel = context.WithTimeout(s.ctx, s.delegationTimeout)
+		runCtx, cancel = delegationContext(s.ctx, s.delegationTimeout)
 		defer cancel()
 	}
 	runErr := runner.Prompt(runCtx, in.Text)
@@ -853,7 +853,7 @@ func (s *Service) Approve(in ApprovalInput) (RunResultDTO, error) {
 	runCtx := s.ctx
 	if _, err := s.store.GetParentDelegation(s.ctx, in.SessionID); err == nil {
 		var cancel context.CancelFunc
-		runCtx, cancel = context.WithTimeout(s.ctx, s.delegationTimeout)
+		runCtx, cancel = delegationContext(s.ctx, s.delegationTimeout)
 		defer cancel()
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return RunResultDTO{}, safe("read delegated approval budget", err)
@@ -1204,4 +1204,12 @@ func (s *Service) followWorkspaceProfile(runner sessionRunner, record catalog.Se
 		return
 	}
 	follower.SetFullAccess(security.Profile(workspace.Profile) == security.FullAccess)
+}
+
+// delegationContext bounds a subagent's run only when a timeout is set; with none, it runs until done or cancelled.
+func delegationContext(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout <= 0 {
+		return context.WithCancel(parent)
+	}
+	return context.WithTimeout(parent, timeout)
 }

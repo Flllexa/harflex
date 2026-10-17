@@ -27,6 +27,8 @@ export const en: Record<string, string> = {
   '{commits}, que não estão no remoto nem em {target}.': '{commits}, which are neither on the remote nor in {target}.',
   'No remoto ({remote})': 'On the remote ({remote})',
   'No remoto': 'On the remote',
+  '{count} chamada · sem limite de chamadas ou de tempo': '{count} call · no limit on calls or time',
+  '{count} chamadas · sem limite de chamadas ou de tempo': '{count} calls · no limit on calls or time',
 }
 
 export const es: Record<string, string> = {
@@ -57,4 +59,6 @@ export const es: Record<string, string> = {
   '{commits}, que não estão no remoto nem em {target}.': '{commits}, que no están en el remoto ni en {target}.',
   'No remoto ({remote})': 'En el remoto ({remote})',
   'No remoto': 'En el remoto',
+  '{count} chamada · sem limite de chamadas ou de tempo': '{count} llamada · sin límite de llamadas ni de tiempo',
+  '{count} chamadas · sem limite de chamadas ou de tempo': '{count} llamadas · sin límite de llamadas ni de tiempo',
 }

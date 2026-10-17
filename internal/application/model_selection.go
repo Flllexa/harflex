@@ -81,7 +81,10 @@ type APIModelSelectionInput struct {
 }
 
 const apiCatalogMaxAge = 5 * time.Minute
-const pipelineRoleOutputTokens = 4096
+
+// pipelineRoleOutputTokens is the answer size Code and QA ask for: room for a large file in one write, the same the
+// PRs conversation uses.
+const pipelineRoleOutputTokens = 16384
 
 var ErrSDDCLIReadIsolationUnavailable = errors.New("Codex CLI does not restrict reads to the SDD workspace")
 

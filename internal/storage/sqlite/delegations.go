@@ -143,8 +143,9 @@ func (s *Store) GetDelegationByRequestID(ctx context.Context, parentSessionID, r
 
 // ReserveDelegationPrompt counts an attempt before the runner receives it. A
 // crash after reservation consumes the attempt rather than silently replaying.
+// ReserveDelegationPrompt counts one more prompt of a subagent. A limit of zero counts without refusing any.
 func (s *Store) ReserveDelegationPrompt(ctx context.Context, childSessionID string, limit int) (int, bool, bool, error) {
-	if limit <= 0 {
+	if limit < 0 {
 		return 0, false, false, fmt.Errorf("invalid delegation prompt limit")
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -159,7 +160,7 @@ func (s *Store) ReserveDelegationPrompt(ctx context.Context, childSessionID stri
 		}
 		return 0, false, false, fmt.Errorf("read prompt budget: %w", err)
 	}
-	if count >= limit {
+	if limit > 0 && count >= limit {
 		return count, true, false, nil
 	}
 	if _, err := tx.ExecContext(ctx, "UPDATE session_delegations SET prompt_count=prompt_count+1 WHERE child_session_id=? AND prompt_count=?", childSessionID, count); err != nil {
