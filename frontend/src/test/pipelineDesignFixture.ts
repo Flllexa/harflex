@@ -1,7 +1,10 @@
+import { stageNames } from '../lib/pipelineStages'
 import type { Backend, Pipeline, PipelineDesign, PipelineDesignDocument, PipelineDesignStage, PreparePipelineDesignInput } from '../lib/backend'
 
 export const designFixtureKey = 'harflex:conversational-design'
-export const designStages = ['discovery', 'spec', 'plan'] as const
+export const designStages = ['discovery', 'spec', 'brainstorm', 'plan'] as const
+/** A Brainstorm as the synthetic AI writes it: the flow and one screen. */
+export const fixtureBrainstorm = JSON.stringify({ flow: 'flowchart TD\n  A[Abrir faturas] --> B[Filtrar período]\n  B --> C[Exportar CSV]', design: { screens: [{ name: 'Exportar faturas', purpose: 'Escolher o período e baixar o CSV', html: '<!doctype html><html><head><style>body{font-family:system-ui;margin:24px}button{min-height:44px}</style></head><body><h1>Exportar faturas</h1><label>Período <input type="month"></label><button>Exportar CSV</button></body></html>' }] }, noDesignReason: '', notes: '## Decisões\n\n| # | Questão | Decisão | Justificativa |\n|---|---|---|---|\n| D1 | Formato | CSV | Pedido no Discovery |' })
 const now = () => new Date().toISOString()
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 // Synthetic provenance for browser fixtures; provider and native hashes are tested by Go.
@@ -14,7 +17,7 @@ export function designPipeline(id = 'design-1', workspaceId = 'workspace-1'): Pi
 
 export function designReadback(pipeline = designPipeline(), complete = false): PipelineDesign {
   const documents = Object.fromEntries(designStages.map(stage => {
-    const content = stage === 'discovery' ? pipeline.artifacts.discovery?.content ?? '' : complete ? stage === 'spec' ? '# SPEC\n\n## Critérios de aceite\n\n- Exportar faturas filtradas em CSV.' : '# Plan\n\n## Implementação\n\n1. Criar exportação.\n2. Verificar filtros.' : ''
+    const content = stage === 'discovery' ? pipeline.artifacts.discovery?.content ?? '' : complete ? stage === 'spec' ? '# SPEC\n\n## Critérios de aceite\n\n- Exportar faturas filtradas em CSV.' : stage === 'brainstorm' ? fixtureBrainstorm : '# Plan\n\n## Implementação\n\n1. Criar exportação.\n2. Verificar filtros.' : ''
     return [stage, { stage, version: content ? 1 : 0, content, contentDigest: content ? digest(content) : '', author: stage === 'discovery' ? 'user' : 'ai', sourceSessionId: content && stage !== 'discovery' ? `session-${stage}` : '', sourceDigest: '', selection: null, stale: false, updatedAt: now() } satisfies PipelineDesignDocument]
   }))
   return { pipelineId: pipeline.id, workspaceId: pipeline.workspaceId, pipelineRevision: pipeline.revision, currentPipelineRevision: pipeline.revision, revision: 1, state: 'ready', phase: '', activeAttemptId: '', needsDerivation: false, documents,
@@ -56,7 +59,7 @@ export function installPipelineDesignFixture(backend: Backend, persistence?: Per
     const existing = saved.designs[input.ref.pipelineId]?.attempts.find(item => item.requestId === input.ref.requestId)
     if (existing) return read(input.ref.pipelineId)
     const value = check(input.ref)
-    const stages = input.target === 'plan' ? ['plan'] as const : input.target === 'spec' || input.target === 'all' && !value.documents.spec.content && !value.documents.plan.content ? ['spec', 'plan'] as const : designStages
+    const stages: readonly PipelineDesignStage[] = input.target === 'plan' ? ['plan'] : input.target === 'brainstorm' ? ['brainstorm'] : input.target === 'spec' || input.target === 'all' && !value.documents.spec.content && !value.documents.plan.content ? ['spec', 'brainstorm', 'plan'] : designStages
     const attempt = { id: `attempt-${input.ref.requestId}`, requestId: input.ref.requestId, target: input.target, status: 'running', phase: stages[0], selections: {}, sessionIds: {}, errorCode: '', createdAt: now(), updatedAt: now() }
     value.state = 'running'; value.activeAttemptId = attempt.id; value.phase = stages[0]; value.revision++; value.attempts.push(attempt); saved.prepareCount++
     if (input.message.trim()) value.messages.push({ id: `message-${input.ref.requestId}`, role: 'user', content: input.message, target: input.target, attemptId: attempt.id, createdAt: now() })
@@ -64,10 +67,10 @@ export function installPipelineDesignFixture(backend: Backend, persistence?: Per
     await new Promise(resolve => setTimeout(resolve, 120))
     if (attempt.status !== 'running') return read(value.pipelineId)
     for (const stage of stages) {
-      const content = written && stage !== 'discovery' ? written[stage] : stage === 'discovery' ? `# Discovery\n\n${value.documents.discovery.content}\n\n${input.message}` : stage === 'spec' ? `# SPEC\n\n## Escopo\n\nExportar faturas em CSV.\n\n## Critérios de aceite\n\n- Respeitar filtros e usar datas ISO.\n${input.message ? `- ${input.message}` : ''}` : `# Plan\n\n## Implementação\n\n1. Criar exportação com filtros.\n2. Verificar o formato das datas.\n${input.message ? `3. ${input.message}` : ''}`
+      const content = stage === 'brainstorm' ? fixtureBrainstorm : written && stage !== 'discovery' ? written[stage] : stage === 'discovery' ? `# Discovery\n\n${value.documents.discovery.content}\n\n${input.message}` : stage === 'spec' ? `# SPEC\n\n## Escopo\n\nExportar faturas em CSV.\n\n## Critérios de aceite\n\n- Respeitar filtros e usar datas ISO.\n${input.message ? `- ${input.message}` : ''}` : `# Plan\n\n## Implementação\n\n1. Criar exportação com filtros.\n2. Verificar o formato das datas.\n${input.message ? `3. ${input.message}` : ''}`
       publish(value, stage, content, 'ai', 'generated')
     }
-    value.messages.push({ id: `reply-${input.ref.requestId}`, role: 'assistant', content: `${stages.map(stage => stage === 'spec' ? 'SPEC' : stage === 'plan' ? 'Plan' : 'Discovery').join(' e ')} preparados para revisão.`, target: input.target, attemptId: attempt.id, createdAt: now() })
+    value.messages.push({ id: `reply-${input.ref.requestId}`, role: 'assistant', content: `${stages.map(stage => stageNames[stage]).join(', ')} preparados para revisão.`, target: input.target, attemptId: attempt.id, createdAt: now() })
     attempt.status = 'completed'; attempt.updatedAt = now(); value.state = 'ready'; value.phase = ''; value.activeAttemptId = ''; value.revision++; persist(); return read(value.pipelineId)
   }
   backend.editPipelineDesignDocument = async input => {
@@ -103,7 +106,7 @@ export function installPipelineDesignFixture(backend: Backend, persistence?: Per
     const created = await backend.createAuthoringPipeline({ workspaceId: parent.workspaceId, requestId: input.requestId, discovery: input.discovery })
     const next = saved.pipelines.find(item => item.id === created.id)!, design = saved.designs[next.id]
     next.derivedFromPipelineId = parent.id
-    for (const stage of ['spec', 'plan'] as const) { const source = read(parent.id).documents[stage]; if (source.content) publish(design, stage, source.content, source.author, 'derived') }
+    for (const stage of ['spec', 'brainstorm', 'plan'] as const) { const source = read(parent.id).documents[stage]; if (source.content) publish(design, stage, source.content, source.author, 'derived') }
     persist(); return clone(next)
   }
   backend.previewPipelineCodeWorkspace = async () => ({ isGit: true, fileCount: 5, totalBytes: 2048, excludedPaths: [], unsafePaths: [], repositories: [], skippedRepositories: [] })

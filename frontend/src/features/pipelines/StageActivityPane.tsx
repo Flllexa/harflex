@@ -3,11 +3,12 @@ import { Activity, RefreshCw } from 'lucide-react'
 import { errorMessage, type AgentEvent, type Backend, type Pipeline, type PipelineStage, type PipelineStageActivity } from '../../lib/backend'
 import { localeTag, useT } from '../../i18n'
 import { DesignMarkdown } from './PipelineDesignDocument'
+import { stageNames } from '../../lib/pipelineStages'
 import './stageActivity.css'
 
 type Translate = ReturnType<typeof useT>
 
-const names = { discovery: 'Discovery', spec: 'SPEC', plan: 'Plan', code: 'Code', eval: 'QA', prs: 'PRs' }
+const names = stageNames
 const busy = (value?: PipelineStageActivity) => !!value && (value.phase !== '' || ['running','awaiting_approval','cancellation_pending'].includes(value.status))
 const follow = (value?:PipelineStageActivity) => busy(value) || !!value?.sessionId && value.status==='ready'
 

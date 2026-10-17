@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { errorMessage, type Backend, type Pipeline } from '../../lib/backend'
 import { localeTag, useT } from '../../i18n'
+import { stageNames } from '../../lib/pipelineStages'
 
 type ReviewStage = 'code' | 'eval'
 type Props = { backend: Backend; run: Pipeline; stage: ReviewStage; onPipelineChange: (run: Pipeline) => void }
@@ -11,7 +12,7 @@ type EvaluationEvidence = {
   criteriaSource?: { sourceStage?: string; sourceVersion?: number; sourceDigest?: string; synthesisVersion?: number; synthesisDigest?: string; bypasses?: { stage: string; reason: string }[] }
 }
 const stageLabel: Record<ReviewStage, string> = { code: 'Code', eval: 'QA' }
-const sourceStageLabel = (stage: string) => ({ discovery: 'Discovery', spec: 'SPEC', plan: 'Plan' }[stage] ?? stage)
+const sourceStageLabel = (stage: string) => stageNames[stage as keyof typeof stageNames] ?? stage
 
 function evaluationEvidence(content: string): EvaluationEvidence | undefined {
   try {

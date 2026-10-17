@@ -6,7 +6,7 @@ import { CasualSidebar } from './CasualSidebar'
 import { PipelineBar } from './PipelineBar'
 import { useStageActivity } from '../features/pipelines/useStageActivity'
 import { useCoderStatus } from '../features/pipelines/CoderTalk'
-import { stageNames } from '../lib/pipelineStages'
+import { isDesignStage, stageNames } from '../lib/pipelineStages'
 import { ActivityPanel } from './ActivityPanel'
 import { maxSidePanelWidth, minSidePanelWidth, useSidePanelWidth } from './sidePanelWidth'
 import { WorkArea } from './WorkArea'
@@ -36,7 +36,7 @@ export function AppShell({ initialActivityOpen, workState = 'empty', backend, re
   const stageViewSequence = useRef(0)
   const stageActivity = useStageActivity(backend, currentPipeline)
   const coderStatus = useCoderStatus(backend, currentPipeline, `${stageActivity?.sessionId ?? ''}:${stageActivity?.status ?? ''}`)
-  const preparingDocuments = selected === 'Pipelines' && currentPipeline?.preparationExperience === 'conversational' && ['discovery', 'spec', 'plan'].includes(currentPipeline.currentStage)
+  const preparingDocuments = selected === 'Pipelines' && currentPipeline?.preparationExperience === 'conversational' && isDesignStage(currentPipeline.currentStage)
   const [newChatPrompt, setNewChatPrompt] = useState('')
   const [workbenchContext, setWorkbenchContext] = useState<WorkbenchContext>({ busy: false, loadingHistory: false, hasDraft: false, historyHasUserMessage: false, readOnly: false, recoveryPrompt: '' })
   const [historyRequest, setHistoryRequest] = useState<HistoryOpenRequest>()

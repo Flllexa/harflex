@@ -13,8 +13,8 @@ export function PipelineDesignModel({ backend, design, stageExecutors = [], disa
   const t = useT()
   const [open, setOpen] = useState(false), [settings, setSettings] = useState<Settings>(), [settingsError, setSettingsError] = useState(false)
   const [profiles, setProfiles] = useState<ProviderProfile[]>([]), [providers, setProviders] = useState<BackendOption[]>([]), [providersError, setProvidersError] = useState('')
-  const [choices, setChoices] = useState<Record<PipelineDesignStage, Choice>>({ discovery: { ...inheritedChoice }, spec: { ...inheritedChoice }, plan: { ...inheritedChoice } })
-  const requests = useRef<Record<PipelineDesignStage, number>>({ discovery: 0, spec: 0, plan: 0 }), alive = useRef(true), callback = useRef(onChange)
+  const [choices, setChoices] = useState<Record<PipelineDesignStage, Choice>>({ discovery: { ...inheritedChoice }, spec: { ...inheritedChoice }, brainstorm: { ...inheritedChoice }, plan: { ...inheritedChoice } })
+  const requests = useRef<Record<PipelineDesignStage, number>>({ discovery: 0, spec: 0, brainstorm: 0, plan: 0 }), alive = useRef(true), callback = useRef(onChange)
   callback.current = onChange
   useEffect(() => {
     alive.current = true; let active = true

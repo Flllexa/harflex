@@ -735,7 +735,7 @@ it('says that the choices could not be read even while the card is closed, and k
   await user.click(within(card).getByText('Provedor e modelo por fase'))
   await waitFor(() => expect(card).toHaveAttribute('open'))
   await user.click(within(failure.parentElement!).getByRole('button', { name: 'Tentar de novo' }))
-  await waitFor(() => expect(screen.getByText('1 de 6 com escolha própria')).toBeInTheDocument())
+  await waitFor(() => expect(screen.getByText('1 de 7 com escolha própria')).toBeInTheDocument())
   expect(card).toHaveAttribute('open')
   expect(screen.queryByText(/Não foi possível ler as escolhas por fase/)).not.toBeInTheDocument()
   await waitFor(() => expect(within(screen.getByTestId('picker-pipeline-backend')).getByRole('button')).toHaveTextContent('Outra API'))

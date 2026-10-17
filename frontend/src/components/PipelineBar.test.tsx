@@ -70,7 +70,7 @@ it('ends the bar with the pull request stage and follows the agent that opens th
   const prs: Pipeline = { ...codeRun(), currentStage: 'prs', stageStatus: { discovery: 'completed', spec: 'completed', plan: 'completed', code: 'completed', eval: 'completed', prs: 'active' } }
   render(<PipelineBar pipeline={prs} activity={activity('completed', 'prs')} onViewStage={() => undefined} />)
   const stages = screen.getAllByRole('listitem').map(item => within(item).getByRole('button').getAttribute('aria-label'))
-  expect(stages).toEqual(['Ver Discovery e sua atividade', 'Ver SPEC e sua atividade', 'Ver Plan e sua atividade', 'Ver Code e sua atividade', 'Ver QA e sua atividade', 'Ver PRs e sua atividade'])
+  expect(stages).toEqual(['Ver Discovery e sua atividade', 'Ver SPEC e sua atividade', 'Ver Brainstorm e sua atividade', 'Ver Plan e sua atividade', 'Ver Code e sua atividade', 'Ver QA e sua atividade', 'Ver PRs e sua atividade'])
   expect(within(stageItem('PRs')).getByRole('status')).toHaveTextContent('Executado · concluir')
   expect(within(stageItem('QA')).getByText('Concluído')).toBeInTheDocument()
 })

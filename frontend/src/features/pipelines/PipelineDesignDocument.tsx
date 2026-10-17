@@ -2,9 +2,10 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { FileText, History, Pencil, Save, X } from 'lucide-react'
 import type { Backend, PipelineDesign, PipelineDesignDocument as DesignDocument, PipelineDesignStage } from '../../lib/backend'
 import { localeTag, useT } from '../../i18n'
+import { designStageOrder as stageOrderOfDesign, stageNames } from '../../lib/pipelineStages'
 
-export const designLabels: Record<PipelineDesignStage, string> = { discovery: 'Discovery', spec: 'SPEC', plan: 'Plan' }
-export const designStageOrder: PipelineDesignStage[] = ['discovery', 'spec', 'plan']
+export const designLabels: Record<PipelineDesignStage, string> = { discovery: stageNames.discovery, spec: stageNames.spec, brainstorm: stageNames.brainstorm, plan: stageNames.plan }
+export const designStageOrder: PipelineDesignStage[] = [...stageOrderOfDesign]
 
 function inline(text: string): ReactNode[] {
   return text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((part, index) => part.startsWith('**') && part.endsWith('**') ? <strong key={index}>{part.slice(2, -2)}</strong> : part.startsWith('`') && part.endsWith('`') ? <code key={index}>{part.slice(1, -1)}</code> : part)

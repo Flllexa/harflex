@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Backend, Pipeline } from '../../lib/backend'
 import { t } from '../../i18n'
-
-const stageNames: Record<string, string> = { discovery: 'Discovery', spec: 'SPEC', plan: 'Plan', code: 'Code', eval: 'QA', prs: 'PRs' }
+import { stageNames } from '../../lib/pipelineStages'
 // Read at call time: the language is chosen on screen, not at startup.
 function statusNames(): Record<string, string> { return { active: t('em andamento'), waiting_user: t('aguardando você'), failed: t('falhou'), paused: t('pausado'), pending: t('pendente'), completed: t('concluído'), skipped: t('pulado') } }
 
@@ -15,7 +14,7 @@ export function workProgress(run: Pipeline) {
 export function workProgressOf(currentStage: string, stageStatus: Record<string, string>) {
   if (!currentStage) return t('Concluído')
   const status = statusNames()[stageStatus[currentStage] ?? ''] ?? stageStatus[currentStage]
-  return `${stageNames[currentStage] ?? currentStage}${status ? ` · ${status}` : ''}`
+  return `${stageNames[currentStage as keyof typeof stageNames] ?? currentStage}${status ? ` · ${status}` : ''}`
 }
 
 /** The project's SDD work, newest first, read again when a work item is created or the open one changes. */

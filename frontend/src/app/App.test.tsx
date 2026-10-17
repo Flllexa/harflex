@@ -313,7 +313,7 @@ describe('Harflex control room', () => {
     await user.click(within(screen.getByRole('navigation', { name: 'Navegação principal' })).getByRole('button', { name: 'Pipelines' }))
     expect(await screen.findByRole('heading', { name: 'Artefatos salvos' })).toBeInTheDocument()
     expect(screen.getByText('{"passed":true,"findings":[]}')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Ver Spec' }))
+    await user.click(screen.getByRole('button', { name: 'Ver SPEC' }))
     expect(screen.getByText('Critério CSV correto')).toBeInTheDocument()
   })
 
@@ -699,12 +699,12 @@ describe('Harflex control room', () => {
     }
   })
 
-  it('shows six ordered pipeline stages without inventing progress', () => {
+  it('shows seven ordered pipeline stages without inventing progress', () => {
     render(<App />)
     const pipeline = screen.getByRole('navigation', { name: 'SDD Pipeline' })
     const stages = within(pipeline).getAllByRole('listitem')
-    expect(stages).toHaveLength(6)
-    for (const [index, name] of ['Discovery', 'SPEC', 'Plan', 'Code', 'QA', 'PRs'].entries()) {
+    expect(stages).toHaveLength(7)
+    for (const [index, name] of ['Discovery', 'SPEC', 'Brainstorm', 'Plan', 'Code', 'QA', 'PRs'].entries()) {
       expect(stages[index]).toHaveTextContent(name)
     }
     for (const stage of stages) expect(stage).toHaveTextContent('Pendente')

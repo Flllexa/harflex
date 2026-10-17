@@ -71,12 +71,12 @@ describe('what each phase can run on', () => {
 })
 
 describe('the card of phases', () => {
-  it('lists the six phases and says each follows the default until it is chosen', async () => {
+  it('lists the seven phases, Brainstorm between SPEC and Plan, and says each follows the default until it is chosen', async () => {
     const { backend } = fixture()
     render(<Harness backend={backend} />)
     const list = await screen.findByRole('list', { name: 'Executor de cada fase' })
-    expect(within(list).getAllByRole('listitem').map(item => item.querySelector('strong')?.textContent)).toEqual(['Discovery', 'SPEC', 'Plan', 'Code', 'QA', 'PRs'])
-    expect(within(list).getAllByText('Segue o padrão: API local · api-model.')).toHaveLength(6)
+    expect(within(list).getAllByRole('listitem').map(item => item.querySelector('strong')?.textContent)).toEqual(['Discovery', 'SPEC', 'Brainstorm', 'Plan', 'Code', 'QA', 'PRs'])
+    expect(within(list).getAllByText('Segue o padrão: API local · api-model.')).toHaveLength(7)
     expect(screen.getByText('Todas seguem o padrão das Configurações')).toBeInTheDocument()
     expect(backend.queryHTTPModelCatalog).not.toHaveBeenCalled()
   })
@@ -104,9 +104,9 @@ describe('the card of phases', () => {
     await choose(user, 'phase-executor-spec', 'Outra API · API')
     await waitFor(() => expect(save).toHaveBeenCalledWith({ workspaceId: 'workspace-1', stage: 'spec', backendId: 'other', modelId: '' }))
     expect(await screen.findByText('Salvo · Outra API · modelo do perfil')).toBeInTheDocument()
-    expect(screen.getByText('1 de 6 com escolha própria')).toBeInTheDocument()
+    expect(screen.getByText('1 de 7 com escolha própria')).toBeInTheDocument()
     // The other phases are untouched.
-    expect(screen.getAllByText('Segue o padrão: API local · api-model.')).toHaveLength(5)
+    expect(screen.getAllByText('Segue o padrão: API local · api-model.')).toHaveLength(6)
     // The models of that provider are read to be offered.
     await waitFor(() => expect(backend.queryHTTPModelCatalog).toHaveBeenCalledWith(expect.objectContaining({ profileId: 'other' })))
   })
@@ -126,9 +126,9 @@ describe('the card of phases', () => {
     await choose(user, 'phase-executor-spec', 'Outra API · API')
     await waitFor(() => expect(backend.saveStageExecutor).toHaveBeenCalledTimes(1))
     await choose(user, 'phase-executor-plan', 'API local · API')
-    expect(await screen.findByText('1 de 6 com escolha própria')).toBeInTheDocument()
+    expect(await screen.findByText('1 de 7 com escolha própria')).toBeInTheDocument()
     finishSpec()
-    expect(await screen.findByText('2 de 6 com escolha própria')).toBeInTheDocument()
+    expect(await screen.findByText('2 de 7 com escolha própria')).toBeInTheDocument()
     expect(screen.getByText('Salvo · Outra API · modelo do perfil')).toBeInTheDocument()
     expect(screen.getByText('Salvo · API local · modelo do perfil')).toBeInTheDocument()
   })
@@ -182,7 +182,7 @@ describe('the card of phases', () => {
   it('reads no catalog while it is closed', async () => {
     const { backend } = fixture([executor('spec', 'other')])
     render(<Harness backend={backend} initial={[executor('spec', 'other')]} open={false} />)
-    await waitFor(() => expect(screen.getByText('1 de 6 com escolha própria')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('1 de 7 com escolha própria')).toBeInTheDocument())
     expect(backend.queryHTTPModelCatalog).not.toHaveBeenCalled()
   })
 })
@@ -261,7 +261,7 @@ describe('what the card does not take for granted', () => {
     const saved = [executor('spec', 'gone', 'm'), executor('plan', 'api'), executor('code', 'gone-too')]
     const { backend } = fixture(saved)
     const first = render(<Harness backend={backend} initial={saved} />)
-    expect(await screen.findByText('3 de 6 com escolha própria')).toBeInTheDocument()
+    expect(await screen.findByText('3 de 7 com escolha própria')).toBeInTheDocument()
     expect(screen.getByText('2 indisponíveis')).toBeInTheDocument()
     first.unmount()
     const second = render(<Harness backend={backend} initial={[executor('spec', 'gone', 'm')]} />)
@@ -301,19 +301,19 @@ describe('what the card does not take for granted', () => {
     const { backend } = fixture(saved)
     backend.queryHTTPModelCatalog = vi.fn(async query => listing(query, 'openrouter_general_unfiltered', [{ id: 'x-model' }]))
     render(<Harness backend={backend} backends={[router]} profiles={[routerProfile]} initial={saved} defaults={{ backendId: 'router', modelBackendId: '', modelId: '' }} />)
-    expect(await within(rowOf(2)).findByText(/A lista geral da OpenRouter pede uma confirmação a cada uso/)).toBeInTheDocument()
-    expect(within(rowOf(3)).getByText('Salvo · OpenRouter · x-model')).toBeInTheDocument()
-    expect(within(rowOf(3)).queryByText(/lista geral da OpenRouter/)).not.toBeInTheDocument()
+    expect(await within(rowOf(3)).findByText(/A lista geral da OpenRouter pede uma confirmação a cada uso/)).toBeInTheDocument()
+    expect(within(rowOf(4)).getByText('Salvo · OpenRouter · x-model')).toBeInTheDocument()
+    expect(within(rowOf(4)).queryByText(/lista geral da OpenRouter/)).not.toBeInTheDocument()
   })
 
   it('says when the default of Settings cannot serve a phase, and when there is no default at all', async () => {
     const { backend } = fixture()
     const generic = render(<Harness backend={backend} defaults={{ backendId: 'plain', modelBackendId: '', modelId: '' }} />)
-    expect(await screen.findAllByText(/O padrão \(Servidor genérico · plain-model\) não serve a /)).toHaveLength(5)
-    expect(within(rowOf(5)).getByText('Segue o padrão: Servidor genérico · plain-model.')).toBeInTheDocument()
+    expect(await screen.findAllByText(/O padrão \(Servidor genérico · plain-model\) não serve a /)).toHaveLength(6)
+    expect(within(rowOf(6)).getByText('Segue o padrão: Servidor genérico · plain-model.')).toBeInTheDocument()
     generic.unmount()
     render(<Harness backend={backend} defaults={{ backendId: '', modelBackendId: '', modelId: '' }} />)
-    expect(await screen.findAllByText(/Não há padrão definido nas Configurações\. Escolha um executor para /)).toHaveLength(6)
+    expect(await screen.findAllByText(/Não há padrão definido nas Configurações\. Escolha um executor para /)).toHaveLength(7)
   })
 
   it('claims nothing about an executor, and changes nothing, while the profiles are still being read', async () => {

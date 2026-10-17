@@ -2,9 +2,10 @@ import { useEffect, useRef } from 'react'
 import { Check, Circle, CircleAlert, CircleDot } from 'lucide-react'
 import { t, useT } from '../i18n'
 import type { CoderStatus, Pipeline, PipelineStage, PipelineStageActivity } from '../lib/backend'
+import { stageNames, stageOrder } from '../lib/pipelineStages'
 import './pipelineBar.css'
 
-const stageDefinitions = [['discovery', 'Discovery'], ['spec', 'SPEC'], ['plan', 'Plan'], ['code', 'Code'], ['eval', 'QA'], ['prs', 'PRs']] as const
+const stageDefinitions = stageOrder.map(stage => [stage, stageNames[stage]] as const)
 const labels = { pending: 'Pendente', active: 'Em andamento', completed: 'Concluído', skipped: 'Pulada', failed: 'Falhou', paused: 'Pausada', waiting_user: 'Aguardando decisão' } as const
 
 type Progress = { text: string; hint?: string; tone?: 'working' | 'ready' | 'failed' }

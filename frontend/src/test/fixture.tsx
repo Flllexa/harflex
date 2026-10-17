@@ -10,6 +10,7 @@ import { installPipelineDesignFixture } from './pipelineDesignFixture'
 import { installWorktrees } from './worktreeFixture'
 import { installShowcase, showcaseDocuments, type ShowcaseView } from './showcaseFixture'
 import type { Agent, AgentEvent, Brainstorm, ChannelMessage, ChatCommandEvent, Delegation, KnowledgeDocument, KnowledgeEmbeddingProfile, LocalChannel, MCPServer, Pipeline, PipelineStage, ProviderProfile, Schedule, ScheduleJob, Skill, Workflow, WorkflowRun } from '../lib/backend'
+import { stageOrder } from '../lib/pipelineStages'
 
 const scenario = new URLSearchParams(window.location.search).get('scenario')
 const foundation = scenario === 'foundation' || scenario === 'foundation-readonly' || scenario === 'foundation-replay-recovery'
@@ -266,7 +267,7 @@ if (scenario === 'pipelines') {
   const key = 'harflex:synthetic-pipeline'
   let pipeline: Pipeline | undefined = JSON.parse(sessionStorage.getItem(key) ?? 'null') ?? undefined
   const persist = (next: Pipeline) => { pipeline = next; sessionStorage.setItem(key, JSON.stringify(next)); return next }
-  const stages: PipelineStage[] = ['discovery', 'spec', 'plan', 'code', 'eval']
+  const stages: PipelineStage[] = stageOrder.filter(stage => stage !== 'prs')
   backend.listPipelines = async () => pipeline ? [pipeline] : []
   backend.getPipeline = async () => { if (!pipeline) throw new Error('Pipeline absent'); return pipeline }
   backend.createPipeline = async input => persist({ id: 'pipeline-1', workspaceId: input.workspaceId, title: input.title, objective: input.objective, currentStage: 'discovery', stageStatus: { discovery: 'active', spec: 'pending', plan: 'pending', code: 'pending', eval: 'pending' }, revision: 1, artifacts: {}, createdAt: '2026-09-25T10:00:00Z', updatedAt: '2026-09-25T10:00:00Z' })

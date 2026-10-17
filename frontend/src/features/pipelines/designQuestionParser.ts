@@ -1,4 +1,5 @@
 import type { PipelineDesignStage } from '../../lib/backend'
+import { stageNames } from '../../lib/pipelineStages'
 
 /**
  * The decisions and open questions a document records, read from its Markdown so the person can answer them as cards. The
@@ -127,7 +128,6 @@ export function answered(item: DesignQuestion, answer?: DesignAnswer): boolean {
   return true
 }
 
-const stageNames: Record<PipelineDesignStage, string> = { discovery: 'Discovery', spec: 'SPEC', plan: 'Plan' }
 
 export const answersHeader = 'Respostas às decisões e perguntas dos documentos:'
 const keepText = 'manter como está'

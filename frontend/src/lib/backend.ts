@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { t } from '../i18n'
+import { stageNames } from './pipelineStages'
 import { pipelineDesignSchema, type PipelineDesign, type PreparePipelineDesignInput, type EditPipelineDesignDocumentInput, type RestorePipelineDesignDocumentInput, type ApprovePipelineDesignInput } from './pipelineDesign'
 export type { PipelineDesign, PipelineDesignDocument, PipelineDesignStage, PipelineDesignRef, PreparePipelineDesignInput, EditPipelineDesignDocumentInput, RestorePipelineDesignDocumentInput, ApprovePipelineDesignInput } from './pipelineDesign'
 
@@ -41,7 +42,7 @@ const worktreeSavePlan = z.object({
   workspace,
   path: z.string().min(1), branch: z.string(), base: z.string(), snapshotRef: z.string(), snapshotCommit: z.string(), hadPending: z.boolean(), reason: z.string().min(1), prompt: z.string().min(1),
 })
-const pipelineStage = z.enum(['discovery', 'spec', 'plan', 'code', 'eval', 'prs'])
+const pipelineStage = z.enum(['discovery', 'spec', 'brainstorm', 'plan', 'code', 'eval', 'prs'])
 /** Who works on one phase of a project's pipelines: a provider profile or a CLI, and a model ('' = the executor's own). */
 const stageExecutor = z.strictObject({ workspaceId: z.string().min(1), stage: pipelineStage, backendId: z.string().min(1).max(128), modelId: z.string().max(512), updatedAt: z.iso.datetime({ offset: true }) })
 const stageExecutors = z.array(stageExecutor).nullish().transform(value => value ?? [])
@@ -783,11 +784,9 @@ function errorStage(error: unknown): string {
   return typeof stage === 'string' ? stage : ''
 }
 
-const phaseNames: Record<string, string> = { discovery: 'Discovery', spec: 'SPEC', plan: 'Plan', code: 'Code', eval: 'QA', prs: 'PRs' }
-
 export function errorMessage(error: unknown): string {
   const code = errorCode(error)
-  if (code === 'pipeline_design_phase_executor_unusable') return t('O provedor ou o modelo escolhido para {phase} não está disponível agora. Abra "Provedor e modelo por fase", no alto desta página, e escolha outro ou volte ao padrão.', { phase: phaseNames[errorStage(error)] ?? t('uma das fases') })
+  if (code === 'pipeline_design_phase_executor_unusable') return t('O provedor ou o modelo escolhido para {phase} não está disponível agora. Abra "Provedor e modelo por fase", no alto desta página, e escolha outro ou volte ao padrão.', { phase: stageNames[errorStage(error) as PipelineStage] ?? t('uma das fases') })
   return t(errorMessages[code] ?? 'A operação falhou. Consulte os eventos da sessão.')
 }
 

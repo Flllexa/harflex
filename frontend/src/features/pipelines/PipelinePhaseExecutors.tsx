@@ -3,15 +3,17 @@ import { SlidersHorizontal } from 'lucide-react'
 import { IonPicker, type IonOption } from '../../components/IonPicker'
 import { cliCatalogProblem, errorMessage, isDocumentCLI, type Backend, type BackendOption, type PipelineStage, type ProviderProfile, type StageExecutor } from '../../lib/backend'
 import { useT } from '../../i18n'
+import { designStageOrder, stageOrder } from '../../lib/pipelineStages'
 
 type Translate = ReturnType<typeof useT>
 
-export const phaseOrder: readonly PipelineStage[] = ['discovery', 'spec', 'plan', 'code', 'eval', 'prs']
+export const phaseOrder = stageOrder
 /** The phase names and what each phase does, read when shown so the language on screen is the one used. */
 export function phaseText(translate: Translate): Record<PipelineStage, { label: string; what: string }> {
   return {
     discovery: { label: 'Discovery', what: translate('Delimita o problema') },
     spec: { label: 'SPEC', what: translate('Escreve a especificação') },
+    brainstorm: { label: 'Brainstorm', what: translate('Desenha o fluxo e as telas') },
     plan: { label: 'Plan', what: translate('Planeja a implementação') },
     code: { label: 'Code', what: translate('Escreve o código numa cópia isolada') },
     eval: { label: 'QA', what: translate('Confere o resultado, sem escrever') },
@@ -19,7 +21,7 @@ export function phaseText(translate: Translate): Record<PipelineStage, { label: 
   }
 }
 /** The phases whose document the backend writes from the saved choice alone, with nobody there to confirm anything. */
-const documentPhases = new Set<PipelineStage>(['discovery', 'spec', 'plan'])
+const documentPhases = new Set<PipelineStage>(designStageOrder)
 
 /** An API profile the phases can call: a real catalog to choose from and a credential, or a local server that needs none. */
 export const usableProfile = (profile: ProviderProfile) => !profile.endpointBlocked && profile.providerType !== 'generic' &&

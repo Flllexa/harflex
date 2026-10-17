@@ -1,4 +1,5 @@
-import type { AgentEvent, AuthoringStageModelPreference, Backend, PipelineStage, RunResult, SaveAuthoringStageModelPreferenceInput, StageExecutor } from '../lib/backend'
+import type { AgentEvent, AuthoringStageModelPreference, Backend, RunResult, SaveAuthoringStageModelPreferenceInput, StageExecutor } from '../lib/backend'
+import { stageOrder } from '../lib/pipelineStages'
 
 export const diff = '--- a/notes.md\n+++ b/notes.md\n@@ -0,0 +1 @@\n+olá'
 export const sessionMetadata = { resumable: true, createdAt: '2026-09-25T10:00:00Z', updatedAt: '2026-09-25T10:00:00Z' }
@@ -16,7 +17,6 @@ export function createFakeBackend() {
   }
   // The executor each project chose per phase, kept in pipeline order like the Go service lists it.
   const stageExecutors = new Map<string, StageExecutor>()
-  const stageOrder: PipelineStage[] = ['discovery', 'spec', 'plan', 'code', 'eval', 'prs']
   const authoringPreferences = new Map<string, AuthoringStageModelPreference>()
   const preferenceKey = (pipelineId: string, stage: 'spec' | 'plan') => `${pipelineId}:${stage}`
   const getAuthoringStageModelPreference = async (input: { pipelineId: string; stage: 'spec' | 'plan' }): Promise<AuthoringStageModelPreference> => {
