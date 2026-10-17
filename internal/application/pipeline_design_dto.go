@@ -122,4 +122,6 @@ func pipelineDesignDTO(workspace catalog.PipelineDesignWorkspace) PipelineDesign
 	}
 	return result
 }
-func designStages() []sdd.Stage { return []sdd.Stage{sdd.Discovery, sdd.Spec, sdd.Plan} }
+func designStages() []sdd.Stage {
+	return []sdd.Stage{sdd.Discovery, sdd.Spec, sdd.Brainstorm, sdd.Plan}
+}

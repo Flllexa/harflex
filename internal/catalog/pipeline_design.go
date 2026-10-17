@@ -14,6 +14,18 @@ const MaxPipelineDesignDocumentBytes = 256 * 1024
 // MaxPipelineRoleOutputBytes bounds one answer of a CLI working as Code's or QA's model: the CLI protocol's line limit,
 // so a large file written in one call fits.
 const MaxPipelineRoleOutputBytes = 1024 * 1024
+
+// MaxBrainstormDocumentBytes bounds the Brainstorm document: the flow plus every screen's HTML. It is its own limit,
+// larger than the other preparation documents', because screens are full pages.
+const MaxBrainstormDocumentBytes = 512 * 1024
+
+// MaxPipelineDesignDocumentBytesFor is the size limit of one preparation document.
+func MaxPipelineDesignDocumentBytesFor(stage sdd.Stage) int {
+	if stage == sdd.Brainstorm {
+		return MaxBrainstormDocumentBytes
+	}
+	return MaxPipelineDesignDocumentBytes
+}
 const MaxPipelineDesignMessageBytes = 16 * 1024
 
 // PipelineDesignRef binds an explicit command to both aggregate revisions.
@@ -171,14 +183,19 @@ func PipelineDesignContentDigest(content string) string {
 	return hex.EncodeToString(digest[:])
 }
 
-// SourceDigest is independent of local versions: it records exact upstream text.
+// SourceDigest is independent of local versions: it records exact upstream text. SPEC comes from Discovery, Brainstorm
+// from Discovery and SPEC, Plan from those and the Brainstorm. A Plan prepared before the Brainstorm stage existed has
+// no Brainstorm, and its digest stays what it was.
 func PipelineDesignSourceDigest(stage sdd.Stage, documents map[sdd.Stage]PipelineDesignDocument) string {
 	if stage == sdd.Discovery {
 		return ""
 	}
 	sources := []string{documents[sdd.Discovery].ContentDigest}
-	if stage == sdd.Plan {
+	if stage == sdd.Brainstorm || stage == sdd.Plan {
 		sources = append(sources, documents[sdd.Spec].ContentDigest)
+	}
+	if stage == sdd.Plan && documents[sdd.Brainstorm].ContentDigest != "" {
+		sources = append(sources, documents[sdd.Brainstorm].ContentDigest)
 	}
 	digest, _ := pipelineDesignHash(sources)
 	return digest

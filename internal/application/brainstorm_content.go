@@ -7,11 +7,12 @@ import (
 	"regexp"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/persioflexa/harflex/internal/catalog"
 )
 
-// MaxBrainstormDocumentBytes bounds the Brainstorm document: the flow plus every screen's HTML. It is its own limit,
-// larger than the other preparation documents', because screens are full pages.
-const MaxBrainstormDocumentBytes = 512 * 1024
+// MaxBrainstormDocumentBytes bounds the Brainstorm document: the flow plus every screen's HTML.
+const MaxBrainstormDocumentBytes = catalog.MaxBrainstormDocumentBytes
 
 const maxBrainstormScreens = 12
 

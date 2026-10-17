@@ -19,7 +19,7 @@ import (
 var ErrPipelineDesignDerivationRequired = errors.New("pipeline design requires a derived pipeline after Code starts")
 var ErrPipelineDesignSpecStale = errors.New("pipeline design SPEC is stale or missing")
 
-var pipelineDesignStages = [...]sdd.Stage{sdd.Discovery, sdd.Spec, sdd.Plan}
+var pipelineDesignStages = [...]sdd.Stage{sdd.Discovery, sdd.Spec, sdd.Brainstorm, sdd.Plan}
 
 func pipelineDesignOwnsAuthoring(ctx context.Context, tx *sql.Tx, pipelineID string) (bool, error) {
 	var owned bool
@@ -356,7 +356,7 @@ func (s *Store) OpenPipelineDesign(ctx context.Context, pipelineID string, expec
 		if input.Content == "" {
 			continue
 		}
-		if !validPipelineDesignText(input.Content, catalog.MaxPipelineDesignDocumentBytes) {
+		if !validPipelineDesignText(input.Content, catalog.MaxPipelineDesignDocumentBytesFor(stage)) {
 			return catalog.PipelineDesignWorkspace{}, sdd.ErrInvalidDocument
 		}
 		if input.Author == "" {
@@ -384,7 +384,7 @@ func (s *Store) OpenPipelineDesign(ctx context.Context, pipelineID string, expec
 		}
 		document := catalog.PipelineDesignDocument{Stage: stage, Version: 1, Content: input.Content, ContentDigest: catalog.PipelineDesignContentDigest(input.Content), Author: input.Author, SourceSessionID: input.SourceSessionID, Selection: input.Selection, UpdatedAt: now}
 		document.SourceDigest = catalog.PipelineDesignSourceDigest(stage, documents)
-		if stage != sdd.Discovery && documents[sdd.Discovery].Version == 0 || stage == sdd.Plan && documents[sdd.Spec].Version == 0 {
+		if pipelineDesignWrittenOverStaleSource(stage, documents) {
 			document.Stale = true
 		}
 		if input.SourceDigest != "" && input.SourceDigest != document.SourceDigest {
@@ -536,11 +536,13 @@ func (s *Store) BeginPipelineDesignAttempt(ctx context.Context, in catalog.Pipel
 		return empty, noAttempt, false, sdd.ErrInvalidTransition
 	}
 	requiredStages := []sdd.Stage{sdd.Plan}
-	if in.Target != "plan" {
-		requiredStages = append(requiredStages, sdd.Spec)
-	}
-	if in.Target == "discovery" {
-		requiredStages = append(requiredStages, sdd.Discovery)
+	switch in.Target {
+	case "all", "brainstorm":
+		requiredStages = []sdd.Stage{sdd.Brainstorm}
+	case "spec":
+		requiredStages = []sdd.Stage{sdd.Spec, sdd.Brainstorm}
+	case "discovery":
+		requiredStages = []sdd.Stage{sdd.Discovery, sdd.Spec, sdd.Brainstorm}
 	}
 	for _, stage := range requiredStages {
 		if _, selected := in.Selections[stage]; !selected {
@@ -549,7 +551,10 @@ func (s *Store) BeginPipelineDesignAttempt(ctx context.Context, in catalog.Pipel
 	}
 	phase := sdd.Stage(in.Target)
 	if in.Target == "all" {
-		phase = sdd.Spec
+		phase = sdd.Brainstorm
+		if _, spec := in.Selections[sdd.Spec]; spec {
+			phase = sdd.Spec
+		}
 	}
 	now := time.Now().UTC()
 	attempt := catalog.PipelineDesignAttempt{ID: id.New(), PipelineID: in.Ref.PipelineID, RequestID: in.Ref.RequestID, IntentHash: in.IntentHash, Target: in.Target, Status: "running", Phase: phase,
@@ -618,7 +623,7 @@ func (s *Store) SetPipelineDesignPhase(ctx context.Context, pipelineID, attemptI
 	if err != nil {
 		return workspace, err
 	}
-	if _, ok := attempt.Selections[phase]; !ok || attempt.Target == "plan" && phase != sdd.Plan || attempt.Target == "spec" && phase == sdd.Discovery {
+	if _, ok := attempt.Selections[phase]; !ok || !pipelineDesignTargetWrites(attempt.Target, phase) {
 		return workspace, sdd.ErrInvalidTransition
 	}
 	if attempt.Phase == phase && workspace.Phase == phase {
@@ -698,7 +703,7 @@ func (s *Store) LinkPipelineDesignSession(ctx context.Context, pipelineID, attem
 		return workspace, err
 	}
 	choice, exists := attempt.Selections[stage]
-	if !exists || attempt.Target == "plan" && stage != sdd.Plan || attempt.Target == "spec" && stage == sdd.Discovery {
+	if !exists || !pipelineDesignTargetWrites(attempt.Target, stage) {
 		return workspace, sdd.ErrInvalidTransition
 	}
 	var workspaceID, backendID string
@@ -731,38 +736,79 @@ func pipelineDesignCompleteHash(in catalog.PipelineDesignCompleteRequest) (strin
 	return catalog.PipelineDesignContentDigest(string(encoded)), nil
 }
 
-func validPipelineDesignGeneratedSet(target string, documents map[sdd.Stage]catalog.PipelineDesignDocumentInput) bool {
-	for stage := range documents {
-		if !validPipelineDesignStage(stage) {
-			return false
-		}
-	}
-	_, discovery := documents[sdd.Discovery]
-	_, spec := documents[sdd.Spec]
-	_, plan := documents[sdd.Plan]
+// pipelineDesignTargetWrites says whether a preparation for target may write stage. Preparation stops at Brainstorm;
+// only a Plan preparation writes the Plan.
+func pipelineDesignTargetWrites(target string, stage sdd.Stage) bool {
 	switch target {
-	case "all":
-		return spec && plan
-	case "discovery":
-		return discovery && spec && plan
-	case "spec":
-		return !discovery && spec && plan
 	case "plan":
-		return !discovery && !spec && plan
+		return stage == sdd.Plan
+	case "brainstorm":
+		return stage == sdd.Brainstorm
+	case "spec":
+		return stage == sdd.Spec || stage == sdd.Brainstorm
+	case "all", "discovery":
+		return stage != sdd.Plan && validPipelineDesignStage(stage)
 	default:
 		return false
 	}
 }
 
-func stalePipelineDesignDependents(ctx context.Context, tx *sql.Tx, pipelineID string, stage sdd.Stage, now time.Time) error {
-	if stage == sdd.Plan {
+func validPipelineDesignGeneratedSet(target string, documents map[sdd.Stage]catalog.PipelineDesignDocumentInput) bool {
+	for stage := range documents {
+		if !validPipelineDesignStage(stage) || !pipelineDesignTargetWrites(target, stage) {
+			return false
+		}
+	}
+	_, discovery := documents[sdd.Discovery]
+	_, spec := documents[sdd.Spec]
+	_, brainstorm := documents[sdd.Brainstorm]
+	_, plan := documents[sdd.Plan]
+	switch target {
+	case "all", "brainstorm":
+		return brainstorm
+	case "discovery":
+		return discovery && spec && brainstorm
+	case "spec":
+		return spec && brainstorm
+	case "plan":
+		return plan
+	default:
+		return false
+	}
+}
+
+// pipelineDesignDependents are the documents written from stage, which an edit of stage leaves stale.
+func pipelineDesignDependents(stage sdd.Stage) []sdd.Stage {
+	switch stage {
+	case sdd.Discovery:
+		return []sdd.Stage{sdd.Spec, sdd.Brainstorm, sdd.Plan}
+	case sdd.Spec:
+		return []sdd.Stage{sdd.Brainstorm, sdd.Plan}
+	case sdd.Brainstorm:
+		return []sdd.Stage{sdd.Plan}
+	default:
 		return nil
 	}
-	stages := []sdd.Stage{sdd.Plan}
-	if stage == sdd.Discovery {
-		stages = append(stages, sdd.Spec)
+}
+
+// pipelineDesignWrittenOverStaleSource says a document written now starts stale: a source it needs is missing or stale.
+// A Plan without a Brainstorm is not: work prepared before the stage existed has none.
+func pipelineDesignWrittenOverStaleSource(stage sdd.Stage, documents map[sdd.Stage]catalog.PipelineDesignDocument) bool {
+	spec := documents[sdd.Spec]
+	switch stage {
+	case sdd.Discovery:
+		return false
+	case sdd.Spec:
+		return documents[sdd.Discovery].Version == 0
+	case sdd.Brainstorm:
+		return documents[sdd.Discovery].Version == 0 || spec.Version == 0 || spec.Stale
+	default:
+		return documents[sdd.Discovery].Version == 0 || spec.Version == 0 || spec.Stale || documents[sdd.Brainstorm].Stale
 	}
-	for _, dependent := range stages {
+}
+
+func stalePipelineDesignDependents(ctx context.Context, tx *sql.Tx, pipelineID string, stage sdd.Stage, now time.Time) error {
+	for _, dependent := range pipelineDesignDependents(stage) {
 		if _, err := tx.ExecContext(ctx, `UPDATE pipeline_design_documents SET stale=1,updated_at=? WHERE pipeline_id=? AND stage=?`, formatCatalogTime(now), pipelineID, dependent); err != nil {
 			return err
 		}
@@ -819,7 +865,7 @@ func (s *Store) CompletePipelineDesignAttempt(ctx context.Context, in catalog.Pi
 		}
 		sourceSessionID := attempt.SessionIDs[stage]
 		selection, selected := attempt.Selections[stage]
-		if !validPipelineDesignText(input.Content, catalog.MaxPipelineDesignDocumentBytes) || (input.Author != "" && input.Author != "ai") || sourceSessionID == "" || input.SourceSessionID != sourceSessionID || !selected ||
+		if !validPipelineDesignText(input.Content, catalog.MaxPipelineDesignDocumentBytesFor(stage)) || (input.Author != "" && input.Author != "ai") || sourceSessionID == "" || input.SourceSessionID != sourceSessionID || !selected ||
 			(input.Selection.BackendID != "" && !pipelineDesignSelectionsMatch(selection, input.Selection)) || (input.Selection.SessionID != "" && input.Selection.SessionID != sourceSessionID) {
 			return workspace, sdd.ErrInvalidDocument
 		}
@@ -974,7 +1020,7 @@ func (s *Store) FailPipelineDesignAttempt(ctx context.Context, in catalog.Pipeli
 }
 
 func (s *Store) EditPipelineDesignDocument(ctx context.Context, in catalog.PipelineDesignEditRequest) (catalog.PipelineDesignWorkspace, error) {
-	if !validPipelineDesignRef(in.Ref) || !validPipelineDesignStage(in.Stage) || !validPipelineDesignText(in.Content, catalog.MaxPipelineDesignDocumentBytes) {
+	if !validPipelineDesignRef(in.Ref) || !validPipelineDesignStage(in.Stage) || !validPipelineDesignText(in.Content, catalog.MaxPipelineDesignDocumentBytesFor(in.Stage)) {
 		return catalog.PipelineDesignWorkspace{}, sdd.ErrInvalidDocument
 	}
 	intentHash, err := in.Hash()
@@ -1034,7 +1080,7 @@ func (s *Store) mutatePipelineDesignDocument(ctx context.Context, ref catalog.Pi
 	}
 	document.ContentDigest = catalog.PipelineDesignContentDigest(document.Content)
 	document.SourceDigest = catalog.PipelineDesignSourceDigest(stage, workspace.Documents)
-	if stage == sdd.Plan && (workspace.Documents[sdd.Spec].Version == 0 || workspace.Documents[sdd.Spec].Stale) || stage != sdd.Discovery && workspace.Documents[sdd.Discovery].Version == 0 {
+	if pipelineDesignWrittenOverStaleSource(stage, workspace.Documents) {
 		document.Stale = true
 	}
 	if err := pipelineDesignCAS(ctx, tx, workspace, workspace.State, workspace.Phase, workspace.ActiveAttemptID, now); err != nil {
@@ -1103,7 +1149,7 @@ func (s *Store) ApprovePipelineDesign(ctx context.Context, in catalog.PipelineDe
 	}
 	for _, stage := range pipelineDesignStages {
 		document := workspace.Documents[stage]
-		if document.Version < 1 || !validPipelineDesignText(document.Content, catalog.MaxPipelineDesignDocumentBytes) || document.Stale || document.ContentDigest != in.Digests[stage] ||
+		if document.Version < 1 || !validPipelineDesignText(document.Content, catalog.MaxPipelineDesignDocumentBytesFor(stage)) || document.Stale || document.ContentDigest != in.Digests[stage] ||
 			document.SourceDigest != catalog.PipelineDesignSourceDigest(stage, workspace.Documents) {
 			return catalog.PipelineRun{}, sdd.ErrEvidenceRequired
 		}

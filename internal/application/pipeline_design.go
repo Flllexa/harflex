@@ -25,7 +25,7 @@ func validPipelineDesignRef(ref PipelineDesignRefInput) bool {
 	return validSelectionText(ref.PipelineID, 128) && authoringRequestID.MatchString(ref.RequestID) && ref.PipelineRevision > 0 && ref.DesignRevision > 0
 }
 func designStage(stage string) bool {
-	return stage == "discovery" || stage == "spec" || stage == "plan"
+	return stage == "discovery" || stage == "spec" || stage == "brainstorm" || stage == "plan"
 }
 
 func (s *Service) OpenPipelineDesign(pipelineID string) (PipelineDesignDTO, error) {
@@ -94,7 +94,7 @@ func (s *Service) openPipelineDesign(ctx context.Context, pipelineID string) (ca
 			continue
 		}
 		content = designMarkdown(stage, content)
-		if len(content) > catalog.MaxPipelineDesignDocumentBytes || !utf8.ValidString(content) {
+		if len(content) > catalog.MaxPipelineDesignDocumentBytesFor(stage) || !utf8.ValidString(content) {
 			return catalog.PipelineDesignWorkspace{}, ErrInvalidInput
 		}
 		if stage == sdd.Discovery || author != "ai" || source == "" {
@@ -207,7 +207,7 @@ func (s *Service) EditPipelineDesignDocument(in EditPipelineDesignDocumentInput)
 		return PipelineDesignDTO{}, err
 	}
 	defer s.endCall()
-	if !validPipelineDesignRef(in.Ref) || !designStage(in.Stage) || strings.TrimSpace(in.Content) == "" || len(in.Content) > catalog.MaxPipelineDesignDocumentBytes || !utf8.ValidString(in.Content) || strings.ContainsRune(in.Content, 0) {
+	if !validPipelineDesignRef(in.Ref) || !designStage(in.Stage) || strings.TrimSpace(in.Content) == "" || len(in.Content) > catalog.MaxPipelineDesignDocumentBytesFor(sdd.Stage(in.Stage)) || !utf8.ValidString(in.Content) || strings.ContainsRune(in.Content, 0) {
 		return PipelineDesignDTO{}, ErrInvalidInput
 	}
 	workspace, err := s.store.EditPipelineDesignDocument(s.ctx, catalog.PipelineDesignEditRequest{Ref: in.Ref.request(), Stage: sdd.Stage(in.Stage), Content: in.Content})

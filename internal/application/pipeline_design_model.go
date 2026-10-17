@@ -27,19 +27,26 @@ func (e phaseExecutorError) Error() string {
 }
 func (e phaseExecutorError) Is(target error) bool { return target == ErrPipelineDesignPhaseExecutor }
 
+// pipelineDesignStagesFor says which documents one preparation writes, in order. Preparation stops at Brainstorm: the
+// Plan is written only after the person approves the flow and design, so it is never part of a broader target.
 func pipelineDesignStagesFor(target string, workspace catalog.PipelineDesignWorkspace) []sdd.Stage {
 	switch target {
 	case "discovery":
-		return designStages()
+		return []sdd.Stage{sdd.Discovery, sdd.Spec, sdd.Brainstorm}
 	case "spec":
-		return []sdd.Stage{sdd.Spec, sdd.Plan}
+		return []sdd.Stage{sdd.Spec, sdd.Brainstorm}
+	case "brainstorm":
+		return []sdd.Stage{sdd.Brainstorm}
 	case "plan":
 		return []sdd.Stage{sdd.Plan}
 	case "all":
-		if workspace.Documents[sdd.Spec].Content == "" && workspace.Documents[sdd.Plan].Content == "" {
-			return []sdd.Stage{sdd.Spec, sdd.Plan}
+		switch {
+		case workspace.Documents[sdd.Spec].Content == "" && workspace.Documents[sdd.Brainstorm].Content == "":
+			return []sdd.Stage{sdd.Spec, sdd.Brainstorm}
+		case workspace.Documents[sdd.Brainstorm].Content == "":
+			return []sdd.Stage{sdd.Brainstorm}
 		}
-		return designStages()
+		return []sdd.Stage{sdd.Discovery, sdd.Spec, sdd.Brainstorm}
 	default:
 		return nil
 	}

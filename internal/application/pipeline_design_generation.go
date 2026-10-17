@@ -23,7 +23,7 @@ const designSystemPrompt = `Você é o autor de documentos de desenvolvimento do
 var designOutputSchema = json.RawMessage(`{"type":"object","properties":{"document":{"type":"string"},"reply":{"type":"string"}},"required":["document","reply"],"additionalProperties":false}`)
 
 func pipelineDesignIntent(in PreparePipelineDesignInput) (string, error) {
-	if !validPipelineDesignRef(in.Ref) || !validPipelineDesignMessage(in.Message) || (in.Target != "all" && !designStage(in.Target)) || len(in.Selections) > 3 {
+	if !validPipelineDesignRef(in.Ref) || !validPipelineDesignMessage(in.Message) || (in.Target != "all" && !designStage(in.Target)) || len(in.Selections) > len(designStages()) {
 		return "", ErrInvalidInput
 	}
 	choices := map[string]APIModelSelectionInput{}
