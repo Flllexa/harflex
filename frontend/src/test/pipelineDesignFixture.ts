@@ -113,6 +113,7 @@ export function installPipelineDesignFixture(backend: Backend, persistence?: Per
     const value = check(input.ref), parent = saved.pipelines.find(item => item.id === value.pipelineId)!
     const stages: readonly PipelineDesignStage[] = parent.stageStatus.brainstorm === 'skipped' && !value.documents.brainstorm.content ? ['discovery', 'spec', 'plan'] : designStages
     if (parent.currentStage !== 'plan' || !approvable(value, stages, input.digests)) throw new Error('Documentos incompletos ou desatualizados')
+    if (stages.includes('brainstorm') && (['discovery', 'spec', 'brainstorm'] as const).some(stage => parent.artifacts[stage]?.content !== value.documents[stage].content)) throw new Error('Aprove o fluxo e o design de novo antes do Plan')
     publishApproved(value, parent, stages)
     parent.currentStage = 'code'; parent.stageStatus.code = 'active'; parent.revision++; parent.discoveryFrozenVersion = value.documents.discovery.version
     value.needsDerivation = true; value.state = 'approved'; value.currentPipelineRevision = parent.revision; value.revision++; persist(); return clone(parent)

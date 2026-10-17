@@ -7,14 +7,12 @@ type Screens = NonNullable<BrainstormContent['design']>['screens']
 
 const policy = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:">`
 
-/** The screen's HTML with a content security policy as the first thing in its head: nothing loads from outside, nothing
- * runs. The frame's empty sandbox already forbids scripts; the policy also stops fetches the markup might ask for. */
+/** The screen's HTML behind a content security policy that comes before anything the screen wrote: nothing loads from
+ * outside, nothing runs. A <meta> before <html> lands in the head the parser opens for it, so the policy rules the whole
+ * document whatever the markup holds (a <head> in a comment, content ahead of the head). The frame's empty sandbox
+ * already forbids scripts; the policy also stops the fetches the markup might ask for. */
 export function sandboxedDocument(html: string): string {
-  const head = /<head(\s[^>]*)?>/i.exec(html)
-  if (head) return html.slice(0, head.index + head[0].length) + policy + html.slice(head.index + head[0].length)
-  const root = /<html(\s[^>]*)?>/i.exec(html)
-  if (root) return html.slice(0, root.index + root[0].length) + `<head>${policy}</head>` + html.slice(root.index + root[0].length)
-  return `<!doctype html><html><head>${policy}</head><body>${html}</body></html>`
+  return `<!doctype html>${policy}${html.replace(/^\s*<!doctype[^>]*>/i, '')}`
 }
 
 function Frame({ name, html }: { name: string; html: string }) {

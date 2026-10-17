@@ -51,7 +51,7 @@ test('design: Discovery, SPEC and Brainstorm written with the AI', async ({ page
   await page.waitForTimeout(400)
   await page.screenshot({ path: out('02-design') })
   await page.getByRole('tab', { name: /Brainstorm/ }).click()
-  await expect(page.getByRole('region', { name: 'Flow' }).locator('.flow-svg svg')).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Flow' }).locator('.react-flow__node').first()).toBeVisible()
   await expect(page.getByRole('region', { name: 'Design' }).frameLocator('iframe').getByRole('heading', { name: 'My tasks' })).toBeVisible()
   await page.locator('.brainstorm-stage').first().evaluate(element => element.scrollIntoView({ block: 'start' }))
   await page.waitForTimeout(600)

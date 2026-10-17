@@ -19,8 +19,12 @@ const initialPreparation = 'Prepare a SPEC e o Brainstorm para o Discovery salvo
 /** The documents an approval publishes. Before the flow and design are approved: Discovery, SPEC and Brainstorm. Then the
  * Plan with its sources, without Brainstorm for work prepared before the stage existed. */
 function gateStages(design: PipelineDesign, run: Pipeline): PipelineDesignStage[] {
-  if (run.currentStage !== 'plan') return ['discovery', 'spec', 'brainstorm']
-  return run.stageStatus.brainstorm === 'skipped' && !design.documents.brainstorm.content ? ['discovery', 'spec', 'plan'] : ['discovery', 'spec', 'brainstorm', 'plan']
+  const flow: PipelineDesignStage[] = ['discovery', 'spec', 'brainstorm']
+  if (run.currentStage !== 'plan') return flow
+  if (run.stageStatus.brainstorm === 'skipped' && !design.documents.brainstorm.content) return ['discovery', 'spec', 'plan']
+  // A flow or design changed after its approval goes through that approval again before the Plan can be approved.
+  if (flow.some(stage => design.documents[stage].content !== (run.artifacts[stage]?.content ?? ''))) return flow
+  return [...flow, 'plan']
 }
 type ComposerDraft = { message: string; target: PipelineDesignStage | 'all' }
 // Navigation drafts live only in this renderer's memory, scoped to a backend and work.

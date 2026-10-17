@@ -1037,3 +1037,13 @@ it('does not offer to approve a version the Coder did not say it finished, and s
   await user.click(within(talk).getByRole('button', { name: 'Pedir revisão com esta resposta' }))
   expect(decide).toHaveBeenCalledWith(expect.objectContaining({ decision: 'request_revision', feedback: 'Implemente o código, não só as pendências.', stage: 'code' }))
 })
+
+it('lets a manual pipeline write its Brainstorm and move on, like any other preparation stage', async () => {
+  const { backend } = createFakeBackend()
+  const date = '2026-10-17T10:00:00Z'
+  const run: Pipeline = { id: 'pipeline-1', workspaceId: 'workspace-1', title: 'Manual', objective: 'Exportar CSV', currentStage: 'brainstorm', stageStatus: { discovery: 'completed', spec: 'completed', brainstorm: 'active', plan: 'pending', code: 'pending', eval: 'pending' }, revision: 4, artifacts: {}, createdAt: date, updatedAt: date }
+  backend.listPipelines = async () => [run]
+  backend.getPipeline = async () => run
+  render(<PipelinesPage backend={backend} backends={[]} workspaceId="workspace-1" selectedPipeline={run} onSelectPipeline={() => undefined} onProjects={() => undefined} onStartRole={async () => undefined} />)
+  expect(await screen.findByLabelText('Artefato da fase')).toBeInTheDocument()
+})

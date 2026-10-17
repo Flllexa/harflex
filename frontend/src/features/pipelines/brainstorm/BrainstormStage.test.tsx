@@ -2,14 +2,12 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
 
-vi.mock('mermaid', () => ({ default: { initialize: vi.fn(), parse: vi.fn(async () => ({})), render: vi.fn(async () => ({ svg: '<svg><text>fluxo desenhado</text></svg>' })) } }))
-
 import type { PipelineDesignDocument } from '../../../lib/backend'
 import { BrainstormStage } from './BrainstormStage'
 
 afterEach(cleanup)
 
-const withDesign = JSON.stringify({ flow: 'flowchart TD\n  A --> B', design: { screens: [{ name: 'Lista', purpose: 'Ver contratos', html: '<html><body>Lista</body></html>' }] }, noDesignReason: '', notes: '## Decisões\n\nD1 manter CSV.' })
+const withDesign = JSON.stringify({ flow: 'flowchart TD\n  A[fluxo desenhado] --> B[fim]', design: { screens: [{ name: 'Lista', purpose: 'Ver contratos', html: '<html><body>Lista</body></html>' }] }, noDesignReason: '', notes: '## Decisões\n\nD1 manter CSV.' })
 const withoutDesign = JSON.stringify({ flow: 'flowchart TD\n  A --> B', design: null, noDesignReason: 'Só backend: sem telas novas.', notes: '' })
 const document = (content: string, over: Partial<PipelineDesignDocument> = {}): PipelineDesignDocument => ({ stage: 'brainstorm', version: content ? 1 : 0, content, contentDigest: content ? 'a'.repeat(64) : '', author: 'ai', sourceSessionId: 's1', sourceDigest: '', selection: null, stale: false, updatedAt: '2026-10-17T10:00:00Z', ...over })
 const props = { conversation: <div>conversa de ajustes</div>, generating: false, canRefresh: true, onRefresh: () => undefined, onAskFix: () => undefined }

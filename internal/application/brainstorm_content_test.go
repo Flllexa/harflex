@@ -4,6 +4,9 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/persioflexa/harflex/internal/catalog"
+	"github.com/persioflexa/harflex/internal/sdd"
 )
 
 const brainstormPage = `<!doctype html><html><head><style>body{font-family:system-ui}</style></head><body><h1>Contratos</h1></body></html>`
@@ -68,6 +71,21 @@ func TestValidateBrainstormHTML(t *testing.T) {
 		{"external css url", page(`<div style="background:url(https://x.test/y.png)"></div>`), false},
 		{"protocol relative", page(`<img src="//x.test/y.png">`), false},
 		{"uppercase script", page(`<SCRIPT>alert(1)</SCRIPT>`), false},
+		{"handler after slash", page(`<img/src="x"/onerror=alert(1)>`), false},
+		{"handler glued to a quote", page(`<p title="a"onclick="go()">x</p>`), false},
+		{"entity-encoded scheme", page(`<a href="&#104;ttps://x.test">x</a>`), false},
+		{"tab inside javascript", page(`<a href="java&#x09;script:go()">x</a>`), false},
+		{"encoded colon", page(`<a href="javascript&colon;go()">x</a>`), false},
+		{"body background", `<!doctype html><html><body background="https://x.test/a.png"></body></html>`, false},
+		{"meta refresh after charset", `<!doctype html><html><head><meta charset="utf-8" http-equiv="refresh" content="0;url=https://x.test"></head></html>`, false},
+		{"css image-set", page(`<div style="background:image-set('https://x.test/a.png' 1x)"></div>`), false},
+		{"css escaped url", `<!doctype html><html><head><style>div{background:url(\68ttps://x.test/a.png)}</style></head></html>`, false},
+		{"css escaped import", `<!doctype html><html><head><style>@\69mport "https://x.test/a.css";</style></head></html>`, false},
+		{"svg use href", page(`<svg><use href="https://x.test/s.svg#a"/></svg>`), false},
+		{"srcdoc", page(`<div srcdoc="<script>1</script>"></div>`), false},
+		{"local anchor", page(`<a href="#detalhe">Detalhe</a><p id="detalhe">ok</p>`), true},
+		{"meta charset", `<!doctype html><html><head><meta charset="utf-8"><title>Lista</title></head><body>ok</body></html>`, true},
+		{"words that look like handlers", page(`<p>Clique em salvar; o botão online=sim continua.</p>`), true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := validateBrainstormHTML(tc.html)
@@ -95,4 +113,23 @@ func quoteJSON(value string) string {
 	}
 	out.WriteByte('"')
 	return out.String()
+}
+
+func TestBrainstormCanonicalKeepsHTMLReadable(t *testing.T) {
+	content := BrainstormContent{Flow: "flowchart TD\n A[Início] --> B", Design: &BrainstormDesign{Screens: []BrainstormScreen{{Name: "Lista", HTML: brainstormPage}}}}
+	canonical := content.Canonical()
+	if !strings.Contains(canonical, `<!doctype html>`) || strings.Contains(canonical, `\u003c`) || strings.Contains(canonical, `\u0026`) {
+		t.Fatalf("the stored Brainstorm must keep its HTML as written: %s", canonical)
+	}
+	if strings.HasSuffix(canonical, "\n") {
+		t.Fatal("the canonical form must not end with a newline")
+	}
+	again, _, err := parseBrainstormOutput(`{"brainstorm":` + canonical + `,"reply":"."}`)
+	if err != nil || again.Canonical() != canonical {
+		t.Fatalf("canonical form does not round-trip: %v", err)
+	}
+	prompt, err := brainstormPrompt("Ajustar", map[sdd.Stage]catalog.PipelineDesignDocument{sdd.Brainstorm: {Content: canonical}}, nil, "", "", "")
+	if err != nil || strings.Contains(prompt, `\u003c`) {
+		t.Fatalf("the prompt must not inflate the HTML with escapes: %v", err)
+	}
 }

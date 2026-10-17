@@ -190,3 +190,18 @@ func TestBrainstormSelectionFits(t *testing.T) {
 		}
 	}
 }
+
+func TestBrainstormPromptFitsCountsTokensNotBytes(t *testing.T) {
+	prompt := strings.Repeat("<div>tela</div>", 100*1024/15)
+	large := catalog.ModelSelection{MaxOutputTokens: brainstormOutputTokens, ContextLength: 128000}
+	if !brainstormPromptFits(large, brainstormSystemPrompt, prompt) {
+		t.Fatal("a 100 KB prompt fits a 128k-token context with room for the answer")
+	}
+	small := catalog.ModelSelection{MaxOutputTokens: brainstormOutputTokens, ContextLength: 49152}
+	if brainstormPromptFits(small, brainstormSystemPrompt, prompt) {
+		t.Fatal("a 100 KB prompt and a 32k-token answer do not fit a 49k-token context")
+	}
+	if !brainstormPromptFits(catalog.ModelSelection{MaxOutputTokens: brainstormOutputTokens}, brainstormSystemPrompt, prompt) {
+		t.Fatal("an unknown context length is not a reason to refuse")
+	}
+}

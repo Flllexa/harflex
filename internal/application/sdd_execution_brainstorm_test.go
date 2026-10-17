@@ -58,7 +58,17 @@ func TestBrainstormContextRespectsBudget(t *testing.T) {
 	if len(context) > 200*1024+4096 {
 		t.Fatalf("context is %d bytes, over the budget", len(context))
 	}
-	if brainstormExecutionContext("", 200*1024) != "" || brainstormExecutionContext("not json", 200*1024) != "" {
+	if brainstormExecutionContext("", 200*1024) != "" {
 		t.Fatal("no Brainstorm gives no context")
+	}
+	// A manual pipeline writes its Brainstorm as free text: the Coder gets it as written, within the budget.
+	if got := brainstormExecutionContext("Fluxo: abrir, filtrar, exportar.", 200*1024); got != "Fluxo: abrir, filtrar, exportar." {
+		t.Fatalf("free-text Brainstorm = %q", got)
+	}
+	if got := brainstormExecutionContext(strings.Repeat("a", 300), 100); len(got) > 100 {
+		t.Fatalf("free-text Brainstorm over the budget = %d bytes", len(got))
+	}
+	if got := brainstormSummary("Fluxo: abrir, filtrar, exportar."); got != "Fluxo: abrir, filtrar, exportar." {
+		t.Fatalf("free-text Brainstorm summary = %q", got)
 	}
 }

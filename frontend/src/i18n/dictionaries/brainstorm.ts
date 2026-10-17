@@ -53,6 +53,7 @@ export const en: Record<string, string> = {
   'Aprovar fluxo': 'Approve flow',
   'Discovery, SPEC, Brainstorm e Plan aprovados': 'Discovery, SPEC, Brainstorm and Plan approved',
   'A IA prepara a SPEC e o Brainstorm com base no Discovery; depois que você aprovar o fluxo e o design, ela prepara o Plan. Peça ajustes por aqui.': 'The AI prepares the SPEC and the Brainstorm from the Discovery; once you approve the flow and design, it prepares the Plan. Ask for changes here.',
+  'Fluxo ampliado': 'Enlarged flow',
 }
 
 export const es: Record<string, string> = {
@@ -109,4 +110,5 @@ export const es: Record<string, string> = {
   'Aprovar fluxo': 'Aprobar flujo',
   'Discovery, SPEC, Brainstorm e Plan aprovados': 'Discovery, SPEC, Brainstorm y Plan aprobados',
   'A IA prepara a SPEC e o Brainstorm com base no Discovery; depois que você aprovar o fluxo e o design, ela prepara o Plan. Peça ajustes por aqui.': 'La IA prepara la SPEC y el Brainstorm a partir del Discovery; cuando apruebes el flujo y el diseño, prepara el Plan. Pide ajustes aquí.',
+  'Fluxo ampliado': 'Flujo ampliado',
 }

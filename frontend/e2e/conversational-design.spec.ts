@@ -58,7 +58,7 @@ for (const width of [320, 768, 900, 1024, 1440]) {
     await expect(page.getByText('Este Brainstorm precisa refletir a última mudança da SPEC.')).toBeVisible()
     await page.getByRole('button', { name: 'Atualizar o Brainstorm' }).click()
     await expect.poll(async () => { const design = Object.values((await saved(page)).designs as Record<string, { state: string; documents: Record<string, { stale: boolean }> }>)[0]; return design.state === 'ready' && !design.documents.brainstorm.stale }).toBe(true)
-    await expect(page.getByRole('region', { name: 'Fluxo' }).locator('.flow-svg svg')).toContainText('Filtrar período')
+    await expect(page.getByRole('region', { name: 'Fluxo' }).locator('.react-flow')).toContainText('Filtrar período')
     await dimensions(page, width)
     const before = await saved(page)
     await page.reload()

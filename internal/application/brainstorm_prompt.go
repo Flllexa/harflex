@@ -95,7 +95,7 @@ func brainstormPrompt(message string, documents map[sdd.Stage]catalog.PipelineDe
 	if len(conversation) > 12 {
 		conversation = conversation[len(conversation)-12:]
 	}
-	encoded, err := json.Marshal(struct {
+	encoded := marshalReadable(struct {
 		Target                string                          `json:"target"`
 		OutputDocument        string                          `json:"outputDocument"`
 		Request               string                          `json:"request"`
@@ -118,10 +118,10 @@ func brainstormPrompt(message string, documents map[sdd.Stage]catalog.PipelineDe
 		ProjectDesign:         projectDesign,
 		PreviousAnswerRefused: refusedReason(refused),
 	})
-	if err != nil || len(encoded) > maxBrainstormPromptBytes {
+	if encoded == "" || len(encoded) > maxBrainstormPromptBytes {
 		return "", ErrInvalidInput
 	}
-	return string(encoded), nil
+	return encoded, nil
 }
 
 func refusedReason(reason string) string {
@@ -138,8 +138,8 @@ func brainstormSummary(content string) string {
 		return ""
 	}
 	var brainstorm BrainstormContent
-	if err := json.Unmarshal([]byte(content), &brainstorm); err != nil {
-		return ""
+	if err := json.Unmarshal([]byte(content), &brainstorm); err != nil || strings.TrimSpace(brainstorm.Flow) == "" {
+		return freeTextBrainstorm(content, brainstormCodeBudget)
 	}
 	var text strings.Builder
 	fmt.Fprintf(&text, "## Fluxo\n\n```mermaid\n%s\n```\n", strings.TrimSpace(brainstorm.Flow))
@@ -168,7 +168,7 @@ func brainstormExecutionContext(content string, budget int) string {
 	}
 	var brainstorm BrainstormContent
 	if err := json.Unmarshal([]byte(content), &brainstorm); err != nil || strings.TrimSpace(brainstorm.Flow) == "" {
-		return ""
+		return freeTextBrainstorm(content, budget)
 	}
 	var text strings.Builder
 	fmt.Fprintf(&text, "## Fluxo\n\n```mermaid\n%s\n```\n", strings.TrimSpace(brainstorm.Flow))
@@ -197,4 +197,28 @@ func brainstormExecutionContext(content string, budget int) string {
 		fmt.Fprintf(&text, "\n%s\n", notes)
 	}
 	return strings.TrimSpace(text.String())
+}
+
+// brainstormPromptFits says whether the model's context holds a document call's prompt and answer (every document
+// phase uses it; Brainstorm also checks before its session exists, to say the model is too small). The context is counted in
+// tokens; the prompt is estimated at three bytes a token, which errs on the side of a fit for HTML and Portuguese text.
+func brainstormPromptFits(choice catalog.ModelSelection, systemPrompt, prompt string) bool {
+	if choice.ContextLength <= 0 {
+		return true
+	}
+	return (len(prompt)+len(systemPrompt))/3+2048+choice.MaxOutputTokens <= choice.ContextLength
+}
+
+// freeTextBrainstorm is a Brainstorm a manual pipeline wrote as plain text: kept as written, cut to the budget on a
+// character boundary.
+func freeTextBrainstorm(content string, budget int) string {
+	text := strings.TrimSpace(content)
+	if len(text) <= budget {
+		return text
+	}
+	text = text[:budget]
+	for len(text) > 0 && !utf8.ValidString(text) {
+		text = text[:len(text)-1]
+	}
+	return text
 }

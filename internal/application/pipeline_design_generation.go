@@ -307,7 +307,7 @@ func (s *Service) runPipelineDesignPhase(ctx context.Context, workspace catalog.
 	if err != nil {
 		return "", "", choice, err
 	}
-	if stage == sdd.Brainstorm && choice.ContextLength > 0 && len(prompt)+len(systemPrompt)+2048+choice.MaxOutputTokens > choice.ContextLength {
+	if stage == sdd.Brainstorm && !brainstormPromptFits(choice, systemPrompt, prompt) {
 		return "", "", choice, ErrBrainstormModelTooSmall
 	}
 	record, choice, err := s.createDocumentSession(ctx, registered, choice, systemPrompt, prompt)
@@ -358,7 +358,7 @@ func (s *Service) runBrainstormPhase(ctx context.Context, workspace catalog.Pipe
 
 // createDocumentSession records the read-only session one document call runs in, with the selection it was made for.
 func (s *Service) createDocumentSession(ctx context.Context, registered catalog.Workspace, choice catalog.ModelSelection, systemPrompt, prompt string) (catalog.SessionRecord, catalog.ModelSelection, error) {
-	if choice.ContextLength > 0 && len(prompt)+len(systemPrompt)+2048+choice.MaxOutputTokens > choice.ContextLength {
+	if !brainstormPromptFits(choice, systemPrompt, prompt) {
 		return catalog.SessionRecord{}, choice, ErrInvalidInput
 	}
 	revision := "cli:" + choice.BackendID

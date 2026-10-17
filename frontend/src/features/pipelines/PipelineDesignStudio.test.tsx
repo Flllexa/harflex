@@ -9,12 +9,13 @@ import { PipelineDesignStudio } from './PipelineDesignStudio'
 import { DesignMarkdown } from './PipelineDesignDocument'
 import { PipelinesPage } from './PipelinesPage'
 
-vi.mock('mermaid', () => ({ default: { initialize: vi.fn(), parse: vi.fn(async () => ({})), render: vi.fn(async () => ({ svg: '<svg><text>fluxo desenhado</text></svg>' })) } }))
-
 /** A work at the given gate: before the flow and design are approved, or at the Plan after it. */
 function setup(complete = false, gate: 'flow' | 'plan' = 'flow') {
   const { backend } = createFakeBackend(), base = designPipeline()
-  const pipeline: Pipeline = gate === 'plan' ? { ...base, currentStage: 'plan', stageStatus: { ...base.stageStatus, discovery: 'completed', spec: 'completed', brainstorm: 'completed', plan: 'active' } } : base
+  const readback = designReadback(base, complete)
+  // At the Plan, the first approval already published Discovery, SPEC and Brainstorm as they are.
+  const published = Object.fromEntries((['discovery', 'spec', 'brainstorm'] as const).map(stage => [stage, { stage, version: readback.documents[stage].version || 1, content: readback.documents[stage].content, author: 'ai' as const, contentDigest: readback.documents[stage].contentDigest, updatedAt: readback.updatedAt }]))
+  const pipeline: Pipeline = gate === 'plan' ? { ...base, currentStage: 'plan', stageStatus: { ...base.stageStatus, discovery: 'completed', spec: 'completed', brainstorm: 'completed', plan: 'active' }, artifacts: { ...base.artifacts, ...published } } : base
   const fixture = installPipelineDesignFixture(backend, undefined, { pipeline, design: designReadback(pipeline, complete) })
   return { backend, pipeline, fixture }
 }
@@ -106,7 +107,8 @@ it('saves manual SPEC without a provider, marks Brainstorm and Plan stale and bl
   expect(await screen.findByText('SPEC manual')).toBeInTheDocument()
   expect(fixture.read().documents.plan.stale).toBe(true)
   expect(fixture.read().documents.brainstorm.stale).toBe(true)
-  expect(screen.getByRole('button', { name: 'Aprovar documentos e continuar para Code' })).toBeDisabled()
+  // The SPEC changed after the flow and design were approved: that approval comes first again.
+  expect(screen.getByRole('button', { name: 'Aprovar fluxo e design' })).toBeDisabled()
   await userEvent.click(screen.getByRole('tab', { name: /Brainstorm/ }))
   expect(await screen.findByText('Este Brainstorm precisa refletir a última mudança da SPEC.')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Editar Brainstorm' }))
@@ -116,7 +118,7 @@ it('saves manual SPEC without a provider, marks Brainstorm and Plan stale and bl
   expect(screen.getByText('Este documento precisa ser atualizado.')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Editar Plan' }))
   await userEvent.click(screen.getByRole('button', { name: 'Salvar Plan' }))
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Aprovar documentos e continuar para Code' })).toBeEnabled())
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Aprovar fluxo e design' })).toBeEnabled())
 })
 
 it('restores an archived version as a new version and approves current document hashes', async () => {
@@ -473,4 +475,27 @@ it('offers to change the phase model when the one chosen for Brainstorm is too s
   expect(container.querySelector('details.design-models')).not.toHaveAttribute('open')
   await user.click(screen.getByRole('button', { name: 'Trocar o modelo da fase' }))
   expect(container.querySelector('details.design-models')).toHaveAttribute('open')
+})
+
+it('lets the Brainstorm editor hold a document as large as the Brainstorm allows', async () => {
+  const { backend, pipeline } = setup(true), user = userEvent.setup()
+  render(<PipelineDesignStudio backend={backend} pipeline={pipeline} onPipelineChange={() => undefined} />)
+  await user.click(await screen.findByRole('tab', { name: /Brainstorm/ }))
+  await user.click(screen.getByRole('button', { name: 'Editar Brainstorm' }))
+  expect(screen.getByLabelText('Texto de Brainstorm')).toHaveAttribute('maxlength', String(512 * 1024))
+  await user.click(screen.getByRole('button', { name: 'Cancelar edição' }))
+  await user.click(screen.getByRole('tab', { name: 'SPEC' }))
+  await user.click(screen.getByRole('button', { name: 'Editar SPEC' }))
+  expect(screen.getByLabelText('Texto de SPEC')).toHaveAttribute('maxlength', '131072')
+})
+
+it('asks to approve the flow and design again when the Brainstorm changed after its approval', async () => {
+  const { backend, pipeline, fixture } = setup(true, 'plan'), approveFlow = vi.fn(backend.approvePipelineBrainstorm), approvePlan = vi.fn(backend.approvePipelineDesign)
+  backend.approvePipelineBrainstorm = approveFlow; backend.approvePipelineDesign = approvePlan
+  const current = fixture.read(); current.documents.brainstorm = { ...current.documents.brainstorm, version: 2, content: current.documents.brainstorm.content.replace('Exportar CSV', 'Baixar CSV'), contentDigest: 'c'.repeat(64) }; fixture.writeDesign(current)
+  render(<PipelineDesignStudio backend={backend} pipeline={pipeline} onPipelineChange={() => undefined} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Aprovar fluxo e design' }))
+  expect(screen.queryByRole('button', { name: 'Aprovar documentos e continuar para Code' })).not.toBeInTheDocument()
+  await waitFor(() => expect(approveFlow).toHaveBeenCalledWith(expect.objectContaining({ digests: expect.objectContaining({ brainstorm: 'c'.repeat(64) }) })))
+  expect(approvePlan).not.toHaveBeenCalled()
 })

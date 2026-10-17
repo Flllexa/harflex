@@ -140,6 +140,13 @@ func TestPipelineDesignManualChangesInvalidateDependenciesAndPublishExactApprove
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := s.ApprovePipelineDesign(ApprovePipelineDesignInput{Ref: designRefForTest(design, "approve_plan_over_old_flow_01"), Digests: designDigests(design, "discovery", "spec", "brainstorm", "plan")}); err == nil {
+		t.Fatal("the Plan was approved over a SPEC changed after the flow and design approval")
+	}
+	if _, err := s.ApprovePipelineBrainstorm(ApprovePipelineDesignInput{Ref: designRefForTest(design, "approve_design_flow_02"), Digests: designDigests(design, "discovery", "spec", "brainstorm")}); err != nil {
+		t.Fatal(err)
+	}
+	design = waitForPipelineDesign(t, s, pipeline.ID)
 	approved, err := s.ApprovePipelineDesign(ApprovePipelineDesignInput{Ref: designRefForTest(design, "approve_current_design_01"), Digests: designDigests(design, "discovery", "spec", "brainstorm", "plan")})
 	if err != nil || approved.CurrentStage != "code" || approved.Artifacts["spec"].Content != revisedSpec || approved.Artifacts["plan"].Content != revisedPlan || approved.Artifacts["spec"].Author != "user" {
 		t.Fatalf("approved content was not published exactly: %+v %v", approved, err)

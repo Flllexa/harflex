@@ -11,10 +11,12 @@ const screens = [
   { name: 'Detalhe', purpose: 'Ver um contrato', html: '<html><body><h1>Detalhe</h1></body></html>' },
 ]
 
-it('puts the content security policy first in every document', () => {
-  expect(sandboxedDocument(screens[0].html)).toBe(`<!doctype html><html><head>${csp}<title>Lista</title></head><body><h1>Lista</h1></body></html>`)
-  expect(sandboxedDocument(screens[1].html)).toBe(`<html><head>${csp}</head><body><h1>Detalhe</h1></body></html>`)
-  expect(sandboxedDocument('<p>solto</p>')).toBe(`<!doctype html><html><head>${csp}</head><body><p>solto</p></body></html>`)
+it('puts the content security policy first in every document, before anything the screen wrote', () => {
+  expect(sandboxedDocument(screens[0].html)).toBe(`<!doctype html>${csp}<html><head><title>Lista</title></head><body><h1>Lista</h1></body></html>`)
+  expect(sandboxedDocument(screens[1].html)).toBe(`<!doctype html>${csp}<html><body><h1>Detalhe</h1></body></html>`)
+  expect(sandboxedDocument('<p>solto</p>')).toBe(`<!doctype html>${csp}<p>solto</p>`)
+  // A <head> inside a comment, or markup before the real head, must not end up ahead of the policy.
+  expect(sandboxedDocument('<!-- <head> --><img src="https://x.test/a.png"><head></head>').startsWith(`<!doctype html>${csp}<!--`)).toBe(true)
 })
 
 it('shows each screen in a frame that cannot run code', () => {

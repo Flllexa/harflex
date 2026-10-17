@@ -136,3 +136,20 @@ func approveBrainstormGate(t *testing.T, store *Store, workspace catalog.Pipelin
 	}
 	return run, updated
 }
+
+func TestPlanApprovalNeedsTheApprovedFlowAndDesign(t *testing.T) {
+	store, _, workspace := designFixture(t)
+	workspace = editDesign(t, store, workspace, sdd.Spec, "SPEC v1")
+	workspace = editDesign(t, store, workspace, sdd.Brainstorm, brainstormDocumentForTest)
+	_, workspace = approveBrainstormGate(t, store, workspace)
+	workspace = editDesign(t, store, workspace, sdd.Brainstorm, strings.Replace(brainstormDocumentForTest, "TD", "LR", 1))
+	workspace = editDesign(t, store, workspace, sdd.Plan, "Plan v1")
+	if _, err := store.ApprovePipelineDesign(t.Context(), designApproval(workspace, "approve_plan_unapproved_flow", sdd.Discovery, sdd.Spec, sdd.Brainstorm, sdd.Plan)); !errors.Is(err, sdd.ErrEvidenceRequired) {
+		t.Fatalf("the Plan was approved with a Brainstorm that never went through the flow approval: %v", err)
+	}
+	_, workspace = approveBrainstormGate(t, store, workspace)
+	run, err := store.ApprovePipelineDesign(t.Context(), designApproval(workspace, "approve_plan_approved_flow", sdd.Discovery, sdd.Spec, sdd.Brainstorm, sdd.Plan))
+	if err != nil || run.Current != sdd.Code {
+		t.Fatalf("Plan approval after approving the flow again = %+v, %v", run.Current, err)
+	}
+}

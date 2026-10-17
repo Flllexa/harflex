@@ -1235,6 +1235,19 @@ func (s *Store) approvePipelineDesignGate(ctx context.Context, in catalog.Pipeli
 			}
 		}
 	}
+	// The Plan is approved over the flow and design the person approved: Discovery, SPEC and Brainstorm must still be
+	// what the first approval published. A change after it goes through that approval again.
+	if gate.name == planGate.name && status[sdd.Brainstorm] != sdd.Skipped {
+		for _, stage := range []sdd.Stage{sdd.Discovery, sdd.Spec, sdd.Brainstorm} {
+			var published string
+			if err := tx.QueryRowContext(ctx, `SELECT COALESCE((SELECT content FROM pipeline_artifacts WHERE pipeline_id=? AND stage=?),'')`, in.Ref.PipelineID, stage).Scan(&published); err != nil {
+				return catalog.PipelineRun{}, err
+			}
+			if published != workspace.Documents[stage].Content {
+				return catalog.PipelineRun{}, sdd.ErrEvidenceRequired
+			}
+		}
+	}
 	now := time.Now().UTC()
 	publishedVersions := make(map[sdd.Stage]int64, len(stages))
 	for _, stage := range stages {
