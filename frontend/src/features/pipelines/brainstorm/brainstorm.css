@@ -1,0 +1,48 @@
+/* Layout B of the Brainstorm: the design in the highlight on the right, the flow and the conversation on the left. */
+.brainstorm-stage { display: grid; grid-template-columns: minmax(300px, 2fr) minmax(0, 3fr); gap: var(--space-4); align-items: start; min-width: 0; }
+.brainstorm-stage.brainstorm-no-design { grid-template-columns: minmax(0, 1fr); }
+.brainstorm-stage > .brainstorm-stale { grid-column: 1 / -1; }
+.brainstorm-left, .brainstorm-right { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.brainstorm-right { position: sticky; top: var(--space-2); }
+.brainstorm-box { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--border); border-radius: 12px; background: var(--surface-1); min-width: 0; }
+.brainstorm-box > header { display: flex; align-items: center; gap: var(--space-2); }
+.brainstorm-box > header svg { width: 16px; height: 16px; color: var(--muted); }
+.brainstorm-running { padding: var(--space-2); border-radius: var(--radius-control); background: var(--surface-2); }
+.brainstorm-stale { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3); border: 1px solid var(--amber, var(--border)); border-radius: var(--radius-control); background: var(--surface-2); }
+.brainstorm-stale p { margin: 0; }
+.brainstorm-no-design-reason { margin: 0; padding: var(--space-2) var(--space-3); border-left: 3px solid var(--mint); background: var(--surface-2); border-radius: 4px; }
+.brainstorm-notes summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+.brainstorm-skipped { display: block; padding: var(--space-4); color: var(--muted); }
+
+.flow-view { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.flow-view-tools, .design-view-device { display: flex; flex-wrap: wrap; gap: var(--space-1); justify-content: flex-end; }
+.flow-view-tools button, .design-view-device button, .design-view-tabs button { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface-2); color: inherit; font-size: 12px; }
+.flow-view-tools svg, .design-view-device svg { width: 14px; height: 14px; }
+.design-view-device button[aria-pressed='true'], .design-view-tabs button[aria-selected='true'] { border-color: var(--mint); background: var(--soft-mint); }
+.flow-canvas { overflow: auto; max-height: 420px; min-height: 160px; padding: var(--space-3); border-radius: 10px; background: var(--forge); cursor: grab; touch-action: none; }
+.flow-canvas:active { cursor: grabbing; }
+.flow-svg { transform-origin: top left; width: max-content; }
+.flow-svg svg { max-width: none; height: auto; }
+.flow-source { margin: 0; max-height: 420px; overflow: auto; padding: var(--space-3); border-radius: 10px; background: var(--forge); white-space: pre-wrap; }
+.flow-invalid { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--danger); border-radius: 10px; }
+.flow-invalid p { margin: 0; color: var(--danger); }
+
+.design-view { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.design-view-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.design-view-tabs { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.design-view-purpose { margin: 0; font-size: 12px; }
+.design-frame { display: flex; justify-content: center; border-radius: 10px; background: var(--surface-2); padding: var(--space-2); overflow: auto; }
+.design-frame iframe { width: 100%; height: 560px; border: 0; border-radius: 8px; background: #fff; }
+.design-frame[data-device='mobile'] iframe { width: 390px; max-width: 100%; height: 700px; }
+.design-frame-full { flex: 1; }
+.design-frame-full iframe { height: 100%; min-height: 70vh; }
+
+.brainstorm-dialog { position: fixed; inset: var(--space-4); z-index: 50; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--border); border-radius: 12px; background: var(--surface-1); box-shadow: 0 24px 64px rgb(0 0 0 / .45); }
+.brainstorm-dialog > header { display: flex; align-items: center; gap: var(--space-3); }
+.brainstorm-dialog > header button { margin-left: auto; }
+.brainstorm-dialog .flow-canvas { flex: 1; max-height: none; }
+
+@media (max-width: 900px) {
+  .brainstorm-stage { grid-template-columns: minmax(0, 1fr); }
+  .brainstorm-right { position: static; order: -1; }
+}

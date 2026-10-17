@@ -101,6 +101,7 @@ var errorCodes = []struct {
 	{ErrPipelineDesignModelRequired, "pipeline_design_model_required"},
 	{ErrPipelineDesignSpecStale, "pipeline_design_spec_stale"},
 	{ErrBrainstormModelTooSmall, "brainstorm_model_too_small"},
+	{ErrBrainstormDocumentInvalid, "brainstorm_document_invalid"},
 	{sqlite.ErrPipelineDesignSpecStale, "pipeline_design_spec_stale"},
 	{ErrPipelineDesignExecutorUnavailable, "pipeline_design_executor_unavailable"},
 	{sqlite.ErrPipelineDesignDerivationRequired, "pipeline_design_derivation_required"},

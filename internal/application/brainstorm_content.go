@@ -3,6 +3,7 @@ package application
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -34,6 +35,20 @@ type BrainstormContent struct {
 	Design         *BrainstormDesign `json:"design"`
 	NoDesignReason string            `json:"noDesignReason"`
 	Notes          string            `json:"notes"`
+}
+
+// ErrBrainstormDocumentInvalid says a Brainstorm the person wrote is not a valid flow and design, or a screen breaks the
+// rules that keep it inert.
+var ErrBrainstormDocumentInvalid = errors.New("the Brainstorm is not a valid flow and design")
+
+// validateBrainstormDocument checks a Brainstorm written by hand by the rules the AI's answer meets, and returns it in
+// canonical form.
+func validateBrainstormDocument(content string) (string, error) {
+	brainstorm, _, err := parseBrainstormOutput(`{"brainstorm":` + content + `,"reply":"."}`)
+	if err != nil {
+		return "", fmt.Errorf("%w: %s", ErrBrainstormDocumentInvalid, strings.TrimPrefix(err.Error(), errInvalidSDDOutput.Error()+": "))
+	}
+	return brainstorm.Canonical(), nil
 }
 
 // Canonical is the stable JSON stored as the document's content.

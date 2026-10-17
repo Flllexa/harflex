@@ -212,7 +212,15 @@ func (s *Service) EditPipelineDesignDocument(in EditPipelineDesignDocumentInput)
 	if !validPipelineDesignRef(in.Ref) || !designStage(in.Stage) || strings.TrimSpace(in.Content) == "" || len(in.Content) > catalog.MaxPipelineDesignDocumentBytesFor(sdd.Stage(in.Stage)) || !utf8.ValidString(in.Content) || strings.ContainsRune(in.Content, 0) {
 		return PipelineDesignDTO{}, ErrInvalidInput
 	}
-	workspace, err := s.store.EditPipelineDesignDocument(s.ctx, catalog.PipelineDesignEditRequest{Ref: in.Ref.request(), Stage: sdd.Stage(in.Stage), Content: in.Content})
+	content := in.Content
+	if sdd.Stage(in.Stage) == sdd.Brainstorm {
+		canonical, err := validateBrainstormDocument(content)
+		if err != nil {
+			return PipelineDesignDTO{}, err
+		}
+		content = canonical
+	}
+	workspace, err := s.store.EditPipelineDesignDocument(s.ctx, catalog.PipelineDesignEditRequest{Ref: in.Ref.request(), Stage: sdd.Stage(in.Stage), Content: content})
 	if err != nil {
 		return PipelineDesignDTO{}, safe("save document draft", err)
 	}

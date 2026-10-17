@@ -734,6 +734,7 @@ const errorMessages: Record<string, string> = {
   pipeline_design_model_required: 'Escolha o provedor e o modelo padrão em Configurações ou personalize o modelo deste documento em Modelos.',
   pipeline_design_spec_stale: 'Atualize a SPEC com o Discovery atual antes de preparar o Plan.',
   brainstorm_model_too_small: 'O modelo escolhido para o Brainstorm não comporta um documento deste tamanho. Escolha outro modelo para a fase.',
+  brainstorm_document_invalid: 'O Brainstorm editado não é um fluxo e design válidos: confira o JSON e tire das telas scripts, eventos e endereços externos.',
   pipeline_design_executor_unavailable: 'O executor configurado não está disponível para preparar documentos. No macOS, o modo controlado exige Codex CLI 0.157.0 em /opt/homebrew/bin/codex ou o Claude Code instalado. Confira a instalação ou escolha um provedor API.',
   claude_not_logged_in: 'O Claude Code não está autenticado. Faça o login no terminal com "claude auth login" e tente de novo.',
   pipeline_design_derivation_required: 'Estes documentos já foram aprovados. Crie uma continuação para editar e preservar a execução anterior.',
