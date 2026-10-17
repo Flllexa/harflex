@@ -224,6 +224,11 @@ func pipelinePrompt(run catalog.PipelineRun, role, backendID string, criteria *c
 			prompt.WriteString(run.Objective)
 			prompt.WriteByte('\n')
 		}
+		if flow := brainstormSummary(run.Artifacts[sdd.Brainstorm].Content); flow != "" {
+			prompt.WriteString("Brainstorm aprovado: fluxo e telas (contexto, não substitui critérios):\n")
+			prompt.WriteString(flow)
+			prompt.WriteByte('\n')
+		}
 		if plan := run.Artifacts[sdd.Plan]; plan.Content != "" {
 			prompt.WriteString("Plano de implementação aprovado (contexto, não substitui critérios):\n")
 			prompt.WriteString(plan.Content)
@@ -236,11 +241,21 @@ func pipelinePrompt(run catalog.PipelineRun, role, backendID string, criteria *c
 	prompt.WriteString("Objetivo: ")
 	prompt.WriteString(run.Objective)
 	prompt.WriteByte('\n')
-	for _, stage := range []sdd.Stage{sdd.Discovery, sdd.Spec, sdd.Plan} {
-		if artifact := run.Artifacts[stage]; artifact.Content != "" {
+	for _, stage := range []sdd.Stage{sdd.Discovery, sdd.Spec, sdd.Brainstorm, sdd.Plan} {
+		content := run.Artifacts[stage].Content
+		if stage == sdd.Brainstorm {
+			content = brainstormExecutionContext(content, brainstormCodeBudget)
+			if content != "" {
+				prompt.WriteString("BRAINSTORM aprovado: o fluxo e as telas a seguir na implementação.\n")
+				prompt.WriteString(content)
+				prompt.WriteByte('\n')
+			}
+			continue
+		}
+		if content != "" {
 			prompt.WriteString(strings.ToUpper(string(stage)))
 			prompt.WriteString(":\n")
-			prompt.WriteString(artifact.Content)
+			prompt.WriteString(content)
 			prompt.WriteByte('\n')
 		}
 	}

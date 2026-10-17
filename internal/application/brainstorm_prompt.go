@@ -156,3 +156,45 @@ func brainstormSummary(content string) string {
 	}
 	return strings.TrimSpace(text.String())
 }
+
+// brainstormCodeBudget bounds the approved screens the Coder receives in full.
+const brainstormCodeBudget = 200 * 1024
+
+// brainstormExecutionContext is the approved Brainstorm as the Coder reads it: the flow, then each screen's HTML while
+// they fit in budget, then the remaining screens by name and purpose.
+func brainstormExecutionContext(content string, budget int) string {
+	if content == "" {
+		return ""
+	}
+	var brainstorm BrainstormContent
+	if err := json.Unmarshal([]byte(content), &brainstorm); err != nil || strings.TrimSpace(brainstorm.Flow) == "" {
+		return ""
+	}
+	var text strings.Builder
+	fmt.Fprintf(&text, "## Fluxo\n\n```mermaid\n%s\n```\n", strings.TrimSpace(brainstorm.Flow))
+	if brainstorm.Design == nil || len(brainstorm.Design.Screens) == 0 {
+		if brainstorm.NoDesignReason != "" {
+			fmt.Fprintf(&text, "\n## Sem design\n\n%s\n", brainstorm.NoDesignReason)
+		}
+	} else {
+		text.WriteString("\n## Telas\n")
+		remaining := []BrainstormScreen{}
+		for _, screen := range brainstorm.Design.Screens {
+			if len(remaining) > 0 || text.Len()+len(screen.HTML) > budget {
+				remaining = append(remaining, screen)
+				continue
+			}
+			fmt.Fprintf(&text, "\n### %s\n\n%s\n\n```html\n%s\n```\n", screen.Name, screen.Purpose, screen.HTML)
+		}
+		if len(remaining) > 0 {
+			text.WriteString("\nTelas que não cabem aqui (por nome e propósito):\n")
+			for _, screen := range remaining {
+				fmt.Fprintf(&text, "- %s: %s\n", screen.Name, screen.Purpose)
+			}
+		}
+	}
+	if notes := strings.TrimSpace(brainstorm.Notes); notes != "" {
+		fmt.Fprintf(&text, "\n%s\n", notes)
+	}
+	return strings.TrimSpace(text.String())
+}
