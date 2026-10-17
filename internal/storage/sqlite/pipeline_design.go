@@ -1126,8 +1126,35 @@ func (s *Store) mutatePipelineDesignDocument(ctx context.Context, ref catalog.Pi
 	return workspace, tx.Commit()
 }
 
+// pipelineDesignGate is one of the two approvals of the preparation. The first publishes Discovery, SPEC and Brainstorm
+// and moves the work to Plan; the second publishes the Plan with its sources and moves the work to Code.
+type pipelineDesignGate struct {
+	name   string
+	stages []sdd.Stage
+	from   string // SQL list of the current stages the gate approves from
+	next   sdd.Stage
+	state  string // the workspace's state after the gate
+}
+
+var (
+	brainstormGate = pipelineDesignGate{name: "brainstorm", stages: []sdd.Stage{sdd.Discovery, sdd.Spec, sdd.Brainstorm}, from: `'discovery','spec','brainstorm','plan'`, next: sdd.Plan, state: "ready"}
+	planGate       = pipelineDesignGate{name: "plan", stages: []sdd.Stage{sdd.Discovery, sdd.Spec, sdd.Brainstorm, sdd.Plan}, from: `'plan'`, next: sdd.Code, state: "approved"}
+)
+
+// ApprovePipelineBrainstorm approves the flow and design: Discovery, SPEC and Brainstorm are published as they are and
+// the work moves to Plan, which the caller then prepares.
+func (s *Store) ApprovePipelineBrainstorm(ctx context.Context, in catalog.PipelineDesignApproveRequest) (catalog.PipelineRun, error) {
+	return s.approvePipelineDesignGate(ctx, in, brainstormGate)
+}
+
+// ApprovePipelineDesign approves the Plan: the four documents are published and the work moves to Code. Work prepared
+// before the Brainstorm stage existed has it skipped and approves without it.
 func (s *Store) ApprovePipelineDesign(ctx context.Context, in catalog.PipelineDesignApproveRequest) (catalog.PipelineRun, error) {
-	if !validPipelineDesignRef(in.Ref) || len(in.Digests) != 3 {
+	return s.approvePipelineDesignGate(ctx, in, planGate)
+}
+
+func (s *Store) approvePipelineDesignGate(ctx context.Context, in catalog.PipelineDesignApproveRequest, gate pipelineDesignGate) (catalog.PipelineRun, error) {
+	if !validPipelineDesignRef(in.Ref) || len(in.Digests) < 3 || len(in.Digests) > len(pipelineDesignStages) {
 		return catalog.PipelineRun{}, sdd.ErrInvalidTransition
 	}
 	for stage, digest := range in.Digests {
@@ -1139,6 +1166,9 @@ func (s *Store) ApprovePipelineDesign(ctx context.Context, in catalog.PipelineDe
 		}
 	}
 	intentHash, err := in.Hash()
+	if gate.name != planGate.name {
+		intentHash, err = catalog.PipelineDesignGateHash(gate.name, in)
+	}
 	if err != nil {
 		return catalog.PipelineRun{}, err
 	}
@@ -1168,7 +1198,22 @@ func (s *Store) ApprovePipelineDesign(ctx context.Context, in catalog.PipelineDe
 	if workspace.ActiveAttemptID != "" || workspace.State == "running" || workspace.State == "cancellation_pending" {
 		return catalog.PipelineRun{}, sdd.ErrAuthoringCancellationPending
 	}
-	for _, stage := range pipelineDesignStages {
+	var encodedCurrent []byte
+	if err := tx.QueryRowContext(ctx, `SELECT stage_status FROM pipeline_runs WHERE id=?`, in.Ref.PipelineID).Scan(&encodedCurrent); err != nil {
+		return catalog.PipelineRun{}, err
+	}
+	status := map[sdd.Stage]sdd.Status{}
+	if err := json.Unmarshal(encodedCurrent, &status); err != nil {
+		return catalog.PipelineRun{}, err
+	}
+	stages := gate.stages
+	if gate.name == planGate.name && status[sdd.Brainstorm] == sdd.Skipped && workspace.Documents[sdd.Brainstorm].Version == 0 {
+		stages = []sdd.Stage{sdd.Discovery, sdd.Spec, sdd.Plan}
+	}
+	if len(in.Digests) != len(stages) {
+		return catalog.PipelineRun{}, sdd.ErrEvidenceRequired
+	}
+	for _, stage := range stages {
 		document := workspace.Documents[stage]
 		if document.Version < 1 || !validPipelineDesignText(document.Content, catalog.MaxPipelineDesignDocumentBytesFor(stage)) || document.Stale || document.ContentDigest != in.Digests[stage] ||
 			document.SourceDigest != catalog.PipelineDesignSourceDigest(stage, workspace.Documents) {
@@ -1191,27 +1236,39 @@ func (s *Store) ApprovePipelineDesign(ctx context.Context, in catalog.PipelineDe
 		}
 	}
 	now := time.Now().UTC()
-	publishedVersions := make(map[sdd.Stage]int64, 3)
-	for _, stage := range pipelineDesignStages {
+	publishedVersions := make(map[sdd.Stage]int64, len(stages))
+	for _, stage := range stages {
 		var previousVersion int64
-		if err := tx.QueryRowContext(ctx, `SELECT COALESCE((SELECT version FROM pipeline_artifacts WHERE pipeline_id=? AND stage=?),0)`, in.Ref.PipelineID, stage).Scan(&previousVersion); err != nil {
+		var previousContent string
+		if err := tx.QueryRowContext(ctx, `SELECT COALESCE((SELECT version FROM pipeline_artifacts WHERE pipeline_id=? AND stage=?),0), COALESCE((SELECT content FROM pipeline_artifacts WHERE pipeline_id=? AND stage=?),'')`, in.Ref.PipelineID, stage, in.Ref.PipelineID, stage).Scan(&previousVersion, &previousContent); err != nil {
 			return catalog.PipelineRun{}, err
+		}
+		// A document the first approval already published unchanged keeps its version.
+		if previousVersion > 0 && previousContent == workspace.Documents[stage].Content {
+			publishedVersions[stage] = previousVersion
+			continue
 		}
 		publishedVersions[stage] = max(workspace.Documents[stage].Version, previousVersion+1)
 	}
-	status := map[sdd.Stage]sdd.Status{sdd.Discovery: sdd.Completed, sdd.Spec: sdd.Completed, sdd.Plan: sdd.Completed, sdd.Code: sdd.Active, sdd.Eval: sdd.Pending}
+	for _, stage := range stages {
+		status[stage] = sdd.Completed
+	}
+	status[gate.next] = sdd.Active
+	if gate.next == sdd.Code {
+		status[sdd.Eval] = sdd.Pending
+	}
 	encodedStatus, err := json.Marshal(status)
 	if err != nil {
 		return catalog.PipelineRun{}, err
 	}
-	result, err := tx.ExecContext(ctx, `UPDATE pipeline_runs SET current_stage='code',stage_status=?,revision=revision+1,discovery_frozen_version=?,updated_at=? WHERE id=? AND revision=? AND current_stage IN ('discovery','spec','plan')`, encodedStatus, publishedVersions[sdd.Discovery], formatCatalogTime(now), in.Ref.PipelineID, in.Ref.PipelineRevision)
+	result, err := tx.ExecContext(ctx, `UPDATE pipeline_runs SET current_stage=?,stage_status=?,revision=revision+1,discovery_frozen_version=?,updated_at=? WHERE id=? AND revision=? AND current_stage IN (`+gate.from+`)`, gate.next, encodedStatus, publishedVersions[sdd.Discovery], formatCatalogTime(now), in.Ref.PipelineID, in.Ref.PipelineRevision)
 	if err != nil {
 		return catalog.PipelineRun{}, err
 	}
 	if changed, err := result.RowsAffected(); err != nil || changed != 1 {
 		return catalog.PipelineRun{}, ErrPipelineConflict
 	}
-	for _, stage := range pipelineDesignStages {
+	for _, stage := range stages {
 		document := workspace.Documents[stage]
 		author, sourceSessionID := document.Author, document.SourceSessionID
 		if author == "legacy/manual" {
@@ -1227,10 +1284,10 @@ func (s *Store) ApprovePipelineDesign(ctx context.Context, in catalog.PipelineDe
 			return catalog.PipelineRun{}, err
 		}
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE pipeline_design_workspaces SET pipeline_revision=pipeline_revision+1,revision=revision+1,state='approved',phase='',active_attempt_id='',updated_at=? WHERE pipeline_id=? AND revision=? AND pipeline_revision=?`, formatCatalogTime(now), in.Ref.PipelineID, in.Ref.DesignRevision, in.Ref.PipelineRevision); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE pipeline_design_workspaces SET pipeline_revision=pipeline_revision+1,revision=revision+1,state=?,phase='',active_attempt_id='',updated_at=? WHERE pipeline_id=? AND revision=? AND pipeline_revision=?`, gate.state, formatCatalogTime(now), in.Ref.PipelineID, in.Ref.DesignRevision, in.Ref.PipelineRevision); err != nil {
 		return catalog.PipelineRun{}, err
 	}
-	if err := appendPipelineEvent(ctx, tx, in.Ref.PipelineID, "pipeline.design.approved", map[string]any{"requestId": in.Ref.RequestID, "digests": in.Digests, "actor": "local_user", "nextStage": sdd.Code}, now); err != nil {
+	if err := appendPipelineEvent(ctx, tx, in.Ref.PipelineID, "pipeline.design.approved", map[string]any{"requestId": in.Ref.RequestID, "gate": gate.name, "digests": in.Digests, "actor": "local_user", "nextStage": gate.next}, now); err != nil {
 		return catalog.PipelineRun{}, err
 	}
 	run, err := readPipelineSnapshot(ctx, tx, in.Ref.PipelineID)

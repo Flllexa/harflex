@@ -101,6 +101,7 @@ type Store interface {
 	EditPipelineDesignDocument(context.Context, catalog.PipelineDesignEditRequest) (catalog.PipelineDesignWorkspace, error)
 	RestorePipelineDesignDocument(context.Context, catalog.PipelineDesignRestoreRequest) (catalog.PipelineDesignWorkspace, error)
 	ApprovePipelineDesign(context.Context, catalog.PipelineDesignApproveRequest) (catalog.PipelineRun, error)
+	ApprovePipelineBrainstorm(context.Context, catalog.PipelineDesignApproveRequest) (catalog.PipelineRun, error)
 	RecoverPipelineDesignAttempts(context.Context, time.Time, []string) (int, error)
 	ListPipelines(context.Context, string) ([]catalog.PipelineRun, error)
 	SavePipelineArtifact(context.Context, string, sdd.Stage, string, int64) error

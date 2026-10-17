@@ -2,7 +2,9 @@ package application
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -138,7 +140,7 @@ func (s *Service) inheritedPipelineDesignDocuments(ctx context.Context, run cata
 			design.Documents[stage] = document
 		}
 	}
-	for _, stage := range []sdd.Stage{sdd.Spec, sdd.Plan} {
+	for _, stage := range []sdd.Stage{sdd.Spec, sdd.Brainstorm, sdd.Plan} {
 		document := design.Documents[stage]
 		if document.Content == "" {
 			continue
@@ -235,21 +237,54 @@ func (s *Service) ApprovePipelineDesign(in ApprovePipelineDesignInput) (Pipeline
 		return PipelineDTO{}, err
 	}
 	defer s.endCall()
-	if !validPipelineDesignRef(in.Ref) || len(in.Digests) != 3 {
-		return PipelineDTO{}, ErrInvalidInput
+	request, err := pipelineDesignApproval(in)
+	if err != nil {
+		return PipelineDTO{}, err
 	}
-	digests := map[sdd.Stage]string{}
-	for stage, digest := range in.Digests {
-		if !designStage(stage) || len(digest) != 64 {
-			return PipelineDTO{}, ErrInvalidInput
-		}
-		digests[sdd.Stage(stage)] = digest
-	}
-	run, err := s.store.ApprovePipelineDesign(s.ctx, catalog.PipelineDesignApproveRequest{Ref: in.Ref.request(), Digests: digests})
+	run, err := s.store.ApprovePipelineDesign(s.ctx, request)
 	if err != nil {
 		return PipelineDTO{}, safe("approve document snapshot", err)
 	}
 	return s.pipelineDTOWithCodeApplyStatus(run)
+}
+
+// planAfterBrainstormMessage is the request the Plan is prepared with once the flow and design are approved.
+const planAfterBrainstormMessage = "Prepare o Plan a partir da SPEC e do Brainstorm aprovados."
+
+// ApprovePipelineBrainstorm approves the flow and design and starts preparing the Plan from them. The approval stands
+// even when the Plan cannot start (no model, the app closing): the screen then offers to prepare it.
+func (s *Service) ApprovePipelineBrainstorm(in ApprovePipelineDesignInput) (PipelineDTO, error) {
+	if err := s.beginCall(); err != nil {
+		return PipelineDTO{}, err
+	}
+	defer s.endCall()
+	request, err := pipelineDesignApproval(in)
+	if err != nil {
+		return PipelineDTO{}, err
+	}
+	run, err := s.store.ApprovePipelineBrainstorm(s.ctx, request)
+	if err != nil {
+		return PipelineDTO{}, safe("approve flow and design", err)
+	}
+	if design, designErr := s.store.GetPipelineDesign(s.ctx, run.ID); designErr == nil && (design.Documents[sdd.Plan].Content == "" || design.Documents[sdd.Plan].Stale) {
+		digest := sha256.Sum256([]byte(in.Ref.RequestID))
+		_, _ = s.startPipelineDesign(PreparePipelineDesignInput{Ref: PipelineDesignRefInput{PipelineID: run.ID, RequestID: "plan_" + hex.EncodeToString(digest[:16]), PipelineRevision: design.PipelineRevision, DesignRevision: design.Revision}, Target: "plan", Message: planAfterBrainstormMessage})
+	}
+	return s.pipelineDTOWithCodeApplyStatus(run)
+}
+
+func pipelineDesignApproval(in ApprovePipelineDesignInput) (catalog.PipelineDesignApproveRequest, error) {
+	if !validPipelineDesignRef(in.Ref) || len(in.Digests) < 3 || len(in.Digests) > len(designStages()) {
+		return catalog.PipelineDesignApproveRequest{}, ErrInvalidInput
+	}
+	digests := map[sdd.Stage]string{}
+	for stage, digest := range in.Digests {
+		if !designStage(stage) || len(digest) != 64 {
+			return catalog.PipelineDesignApproveRequest{}, ErrInvalidInput
+		}
+		digests[sdd.Stage(stage)] = digest
+	}
+	return catalog.PipelineDesignApproveRequest{Ref: in.Ref.request(), Digests: digests}, nil
 }
 
 func (s *Service) CancelPipelineDesign(in CancelPipelineDesignInput) (PipelineDesignDTO, error) {

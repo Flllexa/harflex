@@ -59,10 +59,10 @@ func designRefForTest(design PipelineDesignDTO, requestID string) PipelineDesign
 func installDesignAnswers(t *testing.T, s *Service, db *sqlite.Store, pipelineID string) *[]*brainstormTestProvider {
 	t.Helper()
 	providers := []*brainstormTestProvider{}
-	replies := []string{`{"document":"# SPEC\n\n## Requisitos\nAdicionar, concluir e remover tarefas.\n\n## Critérios de aceite\nAs tarefas persistem em localStorage.","reply":"Preparei a SPEC com persistência local."}`, `{"document":"# Plan\n\n1. Criar o HTML.\n2. Implementar tarefas e filtros.\n3. Verificar persistência em localStorage.","reply":"O plano está pronto para revisão."}`}
+	replies := []string{`{"document":"# SPEC\n\n## Requisitos\nAdicionar, concluir e remover tarefas.\n\n## Critérios de aceite\nAs tarefas persistem em localStorage.","reply":"Preparei a SPEC com persistência local."}`, todoBrainstormAnswer, `{"document":"# Plan\n\n1. Criar o HTML.\n2. Implementar tarefas e filtros.\n3. Verificar persistência em localStorage.","reply":"O plano está pronto para revisão."}`}
 	s.providerFactory = func(openai.Config) (agentcore.Provider, error) {
 		stored, err := db.GetPipelineDesign(t.Context(), pipelineID)
-		if err != nil || len(stored.Attempts) != 1 || len(stored.Attempts[0].SessionIDs) == 0 {
+		if err != nil || len(stored.Attempts) == 0 || len(stored.Attempts[len(stored.Attempts)-1].SessionIDs) == 0 {
 			t.Fatalf("model was composed before its durable link: %+v %v", stored, err)
 		}
 		index := len(providers)
@@ -83,10 +83,10 @@ func TestPipelineDesignPreparesSpecAndPlanUsingDefaultWithoutIntermediateApprova
 	if err != nil || design.Documents["discovery"].Content != pipeline.Artifacts["discovery"].Content || len(*providers) != 0 {
 		t.Fatalf("opening draft workspace must not infer: %+v %v", design, err)
 	}
-	input := PreparePipelineDesignInput{Ref: designRefForTest(design, "prepare_design_default_01"), Target: "all", Message: "Prepare a SPEC e o Plan para o Discovery salvo."}
+	input := PreparePipelineDesignInput{Ref: designRefForTest(design, "prepare_design_default_01"), Target: "all", Message: "Prepare a SPEC e o Brainstorm para o Discovery salvo."}
 	prepared, err := s.PreparePipelineDesign(input)
-	if err != nil || prepared.State != "ready" || prepared.Documents["spec"].Content == "" || prepared.Documents["plan"].Content == "" || len(*providers) != 2 {
-		t.Fatalf("initial preparation did not generate both documents: %+v %v", prepared, err)
+	if err != nil || prepared.State != "ready" || prepared.Documents["spec"].Content == "" || prepared.Documents["brainstorm"].Content == "" || prepared.Documents["plan"].Content != "" || len(*providers) != 2 {
+		t.Fatalf("initial preparation did not stop after SPEC and Brainstorm: %+v %v", prepared, err)
 	}
 	for _, provider := range *providers {
 		if provider.calls.Load() != 1 || len(provider.requests) != 1 || len(provider.requests[0].Tools) != 0 || provider.requests[0].Model != "selected-model" {
@@ -119,27 +119,28 @@ func TestPipelineDesignManualChangesInvalidateDependenciesAndPublishExactApprove
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := s.ApprovePipelineBrainstorm(ApprovePipelineDesignInput{Ref: designRefForTest(design, "approve_design_flow_01"), Digests: designDigests(design, "discovery", "spec", "brainstorm")}); err != nil {
+		t.Fatal(err)
+	}
+	design = waitForPipelineDesign(t, s, pipeline.ID)
 	const revisedSpec = "# SPEC revisada pelo usuário\n\nPermitir também reativar tarefas."
 	design, err = s.EditPipelineDesignDocument(EditPipelineDesignDocumentInput{Ref: designRefForTest(design, "edit_design_spec_user_01"), Stage: "spec", Content: revisedSpec})
-	if err != nil || !design.Documents["plan"].Stale || design.Documents["spec"].Author != "user" {
-		t.Fatalf("manual SPEC did not invalidate Plan: %+v %v", design, err)
+	if err != nil || !design.Documents["plan"].Stale || !design.Documents["brainstorm"].Stale || design.Documents["spec"].Author != "user" {
+		t.Fatalf("manual SPEC did not invalidate Brainstorm and Plan: %+v %v", design, err)
 	}
-	digests := map[string]string{}
-	for stage, document := range design.Documents {
-		digests[stage] = document.ContentDigest
-	}
-	if _, err := s.ApprovePipelineDesign(ApprovePipelineDesignInput{Ref: designRefForTest(design, "approve_stale_design_01"), Digests: digests}); err == nil {
+	if _, err := s.ApprovePipelineDesign(ApprovePipelineDesignInput{Ref: designRefForTest(design, "approve_stale_design_01"), Digests: designDigests(design, "discovery", "spec", "brainstorm", "plan")}); err == nil {
 		t.Fatal("stale Plan was approved")
+	}
+	design, err = s.EditPipelineDesignDocument(EditPipelineDesignDocumentInput{Ref: designRefForTest(design, "edit_design_flow_user_01"), Stage: "brainstorm", Content: design.Documents["brainstorm"].Content})
+	if err != nil {
+		t.Fatal(err)
 	}
 	const revisedPlan = "# Plan revisado\n\nImplementar e testar conclusão e reativação."
 	design, err = s.EditPipelineDesignDocument(EditPipelineDesignDocumentInput{Ref: designRefForTest(design, "edit_design_plan_user_01"), Stage: "plan", Content: revisedPlan})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for stage, document := range design.Documents {
-		digests[stage] = document.ContentDigest
-	}
-	approved, err := s.ApprovePipelineDesign(ApprovePipelineDesignInput{Ref: designRefForTest(design, "approve_current_design_01"), Digests: digests})
+	approved, err := s.ApprovePipelineDesign(ApprovePipelineDesignInput{Ref: designRefForTest(design, "approve_current_design_01"), Digests: designDigests(design, "discovery", "spec", "brainstorm", "plan")})
 	if err != nil || approved.CurrentStage != "code" || approved.Artifacts["spec"].Content != revisedSpec || approved.Artifacts["plan"].Content != revisedPlan || approved.Artifacts["spec"].Author != "user" {
 		t.Fatalf("approved content was not published exactly: %+v %v", approved, err)
 	}
@@ -286,7 +287,7 @@ func TestPipelineDesignReopensOnlyAnAttemptWhoseOwnerProcessIsProvenDead(t *test
 			if err != nil {
 				t.Fatal(err)
 			}
-			request := catalog.PipelineDesignAttemptRequest{Ref: designRefForTest(design, "prepare_owner_proof_01").request(), Target: "all", Message: "Preparar documentos", OwnerPID: scenario.pid, Selections: map[sdd.Stage]catalog.ModelSelection{sdd.Spec: selection, sdd.Plan: selection}}
+			request := catalog.PipelineDesignAttemptRequest{Ref: designRefForTest(design, "prepare_owner_proof_01").request(), Target: "all", Message: "Preparar documentos", OwnerPID: scenario.pid, Selections: map[sdd.Stage]catalog.ModelSelection{sdd.Spec: selection, sdd.Brainstorm: selection}}
 			request.IntentHash, err = request.Hash()
 			if err != nil {
 				t.Fatal(err)
@@ -306,6 +307,22 @@ func TestPipelineDesignReopensOnlyAnAttemptWhoseOwnerProcessIsProvenDead(t *test
 	}
 }
 
+const todoBrainstormAnswer = `{"brainstorm":{"flow":"flowchart TD\n  A[Abrir a lista] --> B[Adicionar tarefa]","design":null,"noDesignReason":"A tela já existe; só muda o armazenamento.","notes":""},"reply":"Desenhei o fluxo."}`
+
+// approveDesignThroughPlan approves the flow and design, waits for the Plan the approval prepares and approves it.
+func approveDesignThroughPlan(t *testing.T, s *Service, design PipelineDesignDTO, requestID string) (PipelineDTO, PipelineDesignDTO) {
+	t.Helper()
+	if _, err := s.ApprovePipelineBrainstorm(ApprovePipelineDesignInput{Ref: designRefForTest(design, requestID+"_flow"), Digests: designDigests(design, "discovery", "spec", "brainstorm")}); err != nil {
+		t.Fatal(err)
+	}
+	settled := waitForPipelineDesign(t, s, design.PipelineID)
+	approved, err := s.ApprovePipelineDesign(ApprovePipelineDesignInput{Ref: designRefForTest(settled, requestID+"_plan"), Digests: designDigests(settled, "discovery", "spec", "brainstorm", "plan")})
+	if err != nil {
+		t.Fatalf("Plan approval = %v (plan %+v)", err, settled.Documents["plan"])
+	}
+	return approved, settled
+}
+
 type designCLIStub struct {
 	cliCatalogStub
 	requests []externalagent.DocumentRequest
@@ -316,7 +333,10 @@ func (*designCLIStub) DocumentContractSupported(externalagent.Detection) bool { 
 func (stub *designCLIStub) GenerateDocument(_ context.Context, request externalagent.DocumentRequest, emit func(externalagent.Event)) (externalagent.DocumentResult, error) {
 	stub.requests = append(stub.requests, request)
 	content := `{"document":"# SPEC\n\nAs tarefas devem persistir em localStorage.","reply":"Preparei a SPEC."}`
-	if len(stub.requests) == 2 {
+	switch {
+	case request.SystemPrompt == brainstormSystemPrompt:
+		content = todoBrainstormAnswer
+	case strings.Contains(request.Prompt, `"target":"plan"`):
 		content = `{"document":"# Plan\n\nImplementar HTML, tarefas e persistência.","reply":"Preparei o plano."}`
 	}
 	if emit != nil {
@@ -354,8 +374,15 @@ func pipelineDesignUsesDefaultCLI(t *testing.T, backendID string) {
 	if err != nil || prepared.State != "ready" || len(stub.requests) != 2 || prepared.Documents["spec"].Selection == nil || prepared.Documents["spec"].Selection.Executor != "codex_cli" || prepared.Documents["spec"].Selection.BackendID != backendID {
 		t.Fatalf("default Codex document preparation failed: state=%s calls=%d attempts=%+v err=%v", prepared.State, len(stub.requests), prepared.Attempts, err)
 	}
+	if prepared.Documents["brainstorm"].Content == "" || stub.requests[1].SystemPrompt != brainstormSystemPrompt {
+		t.Fatalf("the second call must write the Brainstorm: %+v", prepared.Documents["brainstorm"])
+	}
 	for _, request := range stub.requests {
-		if request.CWD == workspace.Path || request.Model != "provider/model-exact" || request.ExpectedExecutableVersion != "0.157.0" || request.MaxAssistantOutputBytes != catalog.MaxPipelineDesignDocumentBytes || len(request.OutputSchema) == 0 || !strings.Contains(request.SystemPrompt, "sem ferramentas") {
+		limit := catalog.MaxPipelineDesignDocumentBytes
+		if request.SystemPrompt == brainstormSystemPrompt {
+			limit = catalog.MaxBrainstormAnswerBytes
+		}
+		if request.CWD == workspace.Path || request.Model != "provider/model-exact" || request.ExpectedExecutableVersion != "0.157.0" || request.MaxAssistantOutputBytes != limit || len(request.OutputSchema) == 0 || !strings.Contains(request.SystemPrompt, "sem ferramentas") {
 			t.Fatalf("Codex document boundary changed: %+v", request)
 		}
 	}
@@ -374,14 +401,7 @@ func TestPipelineDesignDerivationRetainsDocumentsAndTheirUpstreamSource(t *testi
 			if err != nil {
 				t.Fatal(err)
 			}
-			digests := map[string]string{}
-			for stage, document := range design.Documents {
-				digests[stage] = document.ContentDigest
-			}
-			approved, err := s.ApprovePipelineDesign(ApprovePipelineDesignInput{Ref: designRefForTest(design, "approve_derived_documents_01"), Digests: digests})
-			if err != nil {
-				t.Fatal(err)
-			}
+			approved, design := approveDesignThroughPlan(t, s, design, "approve_derived_documents_01")
 			parentBefore, err := s.OpenPipelineDesign(pipeline.ID)
 			if err != nil {
 				t.Fatal(err)
@@ -398,7 +418,7 @@ func TestPipelineDesignDerivationRetainsDocumentsAndTheirUpstreamSource(t *testi
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, stage := range []string{"spec", "plan"} {
+			for _, stage := range []string{"spec", "brainstorm", "plan"} {
 				before, after := design.Documents[stage], derived.Documents[stage]
 				if after.Content != before.Content || after.SourceSessionID != before.SourceSessionID || after.SourceDigest != before.SourceDigest || after.Stale != changed {
 					t.Fatalf("derived %s lost content or provenance: before=%+v after=%+v", stage, before, after)
@@ -455,7 +475,7 @@ func TestPipelineDesignPlanCannotUseStaleSpecAfterDiscoveryChanges(t *testing.T)
 		t.Fatalf("stale SPEC admitted Plan: %v", err)
 	}
 	readback, err := s.OpenPipelineDesign(pipeline.ID)
-	if err != nil || !readback.Documents["plan"].Stale || len(*providers) != 2 {
+	if err != nil || !readback.Documents["brainstorm"].Stale || readback.Documents["plan"].Content != "" || len(*providers) != 2 {
 		t.Fatalf("stale plan was refreshed or invoked provider: %+v %v", readback, err)
 	}
 }

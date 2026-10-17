@@ -203,14 +203,14 @@ func TestPipelineDesignAttemptsReplayWithoutDuplicateInferenceOrSources(t *testi
 		t.Fatalf("changed attempt retry was accepted: %v", err)
 	}
 	workspace = linkDesignSession(t, store, workspace, attempt, sdd.Spec, "design_spec_session")
-	workspace = linkDesignSession(t, store, workspace, attempt, sdd.Plan, "design_plan_session")
-	phase, err := store.SetPipelineDesignPhase(t.Context(), workspace.PipelineID, attempt.ID, sdd.Plan)
-	if err != nil || phase.Revision != attempt.SourceRevision || phase.PipelineRevision != attempt.SourcePipelineRevision || phase.Phase != sdd.Plan {
+	workspace = linkDesignSession(t, store, workspace, attempt, sdd.Brainstorm, "design_brainstorm_session")
+	phase, err := store.SetPipelineDesignPhase(t.Context(), workspace.PipelineID, attempt.ID, sdd.Brainstorm)
+	if err != nil || phase.Revision != attempt.SourceRevision || phase.PipelineRevision != attempt.SourcePipelineRevision || phase.Phase != sdd.Brainstorm {
 		t.Fatalf("progress metadata invalidated source revision: %+v %v", phase, err)
 	}
-	result := catalog.PipelineDesignCompleteRequest{PipelineID: workspace.PipelineID, AttemptID: attempt.ID, SourceRevision: attempt.SourceRevision, Summary: "SPEC e Plan preparados", Documents: map[sdd.Stage]catalog.PipelineDesignDocumentInput{
-		sdd.Spec: {Content: "SPEC gerada", Author: "ai", SourceSessionID: "design_spec_session"},
-		sdd.Plan: {Content: "Plan gerado", Author: "ai", SourceSessionID: "design_plan_session"},
+	result := catalog.PipelineDesignCompleteRequest{PipelineID: workspace.PipelineID, AttemptID: attempt.ID, SourceRevision: attempt.SourceRevision, Summary: "SPEC e Brainstorm preparados", Documents: map[sdd.Stage]catalog.PipelineDesignDocumentInput{
+		sdd.Spec:       {Content: "SPEC gerada", Author: "ai", SourceSessionID: "design_spec_session"},
+		sdd.Brainstorm: {Content: brainstormDocumentForTest, Author: "ai", SourceSessionID: "design_brainstorm_session"},
 	}}
 	completed, err := store.CompletePipelineDesignAttempt(t.Context(), result)
 	if err != nil || completed.State != "ready" || completed.ActiveAttemptID != "" || completed.Documents[sdd.Spec].SourceSessionID != "design_spec_session" || completed.Documents[sdd.Spec].Selection.ModelID != "test-model" || len(completed.Messages) != 3 {
@@ -540,21 +540,23 @@ func TestPipelineDesignOpenSerializesWithLegacyRevision(t *testing.T) {
 func TestPipelineDesignApprovalPublishesExactCurrentHashesWithoutExecutingCode(t *testing.T) {
 	store, _, workspace := designFixture(t)
 	workspace = editDesign(t, store, workspace, sdd.Spec, "SPEC manual")
+	workspace = editDesign(t, store, workspace, sdd.Brainstorm, brainstormDocumentForTest)
 	workspace = editDesign(t, store, workspace, sdd.Plan, "Plan manual")
-	request := catalog.PipelineDesignApproveRequest{Ref: designRef(workspace, "approve_design_01"), Digests: map[sdd.Stage]string{}}
-	for _, stage := range []sdd.Stage{sdd.Discovery, sdd.Spec, sdd.Plan} {
-		request.Digests[stage] = workspace.Documents[stage].ContentDigest
+	if _, err := store.ApprovePipelineDesign(t.Context(), designApproval(workspace, "approve_plan_first_01", sdd.Discovery, sdd.Spec, sdd.Brainstorm, sdd.Plan)); err == nil {
+		t.Fatal("the Plan was approved before the flow and design")
 	}
-	wrong := request
-	wrong.Digests = map[sdd.Stage]string{sdd.Discovery: request.Digests[sdd.Discovery], sdd.Spec: strings.Repeat("a", 64), sdd.Plan: request.Digests[sdd.Plan]}
+	_, workspace = approveBrainstormGate(t, store, workspace)
+	request := designApproval(workspace, "approve_design_01", sdd.Discovery, sdd.Spec, sdd.Brainstorm, sdd.Plan)
+	wrong := designApproval(workspace, "approve_design_01", sdd.Discovery, sdd.Spec, sdd.Brainstorm, sdd.Plan)
+	wrong.Digests[sdd.Spec] = strings.Repeat("a", 64)
 	if _, err := store.ApprovePipelineDesign(t.Context(), wrong); err == nil {
 		t.Fatal("approval accepted mismatched SPEC hash")
 	}
 	run, err := store.ApprovePipelineDesign(t.Context(), request)
-	if err != nil || run.Current != sdd.Code || run.Status[sdd.Code] != sdd.Active || run.Status[sdd.Eval] != sdd.Pending || len(run.Artifacts) != 3 || run.DiscoveryFrozenVersion != run.Artifacts[sdd.Discovery].Version {
+	if err != nil || run.Current != sdd.Code || run.Status[sdd.Code] != sdd.Active || run.Status[sdd.Eval] != sdd.Pending || len(run.Artifacts) != 4 || run.DiscoveryFrozenVersion != run.Artifacts[sdd.Discovery].Version {
 		t.Fatalf("approval did not advance only to Code: %+v %v", run, err)
 	}
-	for _, stage := range []sdd.Stage{sdd.Discovery, sdd.Spec, sdd.Plan} {
+	for _, stage := range []sdd.Stage{sdd.Discovery, sdd.Spec, sdd.Brainstorm, sdd.Plan} {
 		artifact := run.Artifacts[stage]
 		if artifact.Content != workspace.Documents[stage].Content || artifact.Author != "user" || artifact.SourceSessionID != "" || run.Status[stage] != sdd.Completed {
 			t.Fatalf("manual approval provenance lost for %s: %+v", stage, artifact)
@@ -587,29 +589,27 @@ func TestPipelineDesignRejectsPipelineChangesOutsideWorkspace(t *testing.T) {
 func TestPipelineDesignApprovalPreservesGeneratedSessionsAndHumanDiscovery(t *testing.T) {
 	store, _, workspace := designFixture(t)
 	workspace, attempt, _ := beginDesign(t, store, workspace, "generate_all_for_approval", "discovery")
-	for _, stage := range pipelineDesignStages {
+	written := []sdd.Stage{sdd.Discovery, sdd.Spec, sdd.Brainstorm}
+	for _, stage := range written {
 		workspace = linkDesignSession(t, store, workspace, attempt, stage, "session_"+string(stage))
 	}
 	documents := map[sdd.Stage]catalog.PipelineDesignDocumentInput{}
-	for _, stage := range pipelineDesignStages {
+	for _, stage := range written {
 		documents[stage] = catalog.PipelineDesignDocumentInput{Content: "Updated " + string(stage), Author: "ai", SourceSessionID: "session_" + string(stage)}
 	}
 	workspace, err := store.CompletePipelineDesignAttempt(t.Context(), catalog.PipelineDesignCompleteRequest{PipelineID: workspace.PipelineID, AttemptID: attempt.ID, SourceRevision: attempt.SourceRevision, Documents: documents})
 	if err != nil {
 		t.Fatal(err)
 	}
-	request := catalog.PipelineDesignApproveRequest{Ref: designRef(workspace, "approve_generated_documents"), Digests: map[sdd.Stage]string{}}
-	for _, stage := range pipelineDesignStages {
-		request.Digests[stage] = workspace.Documents[stage].ContentDigest
-	}
-	run, err := store.ApprovePipelineDesign(t.Context(), request)
+	request := designApproval(workspace, "approve_generated_documents", written...)
+	run, err := store.ApprovePipelineBrainstorm(t.Context(), request)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if run.DiscoveryFrozenVersion != run.Artifacts[sdd.Discovery].Version || run.Artifacts[sdd.Discovery].Author != "user" || run.Artifacts[sdd.Discovery].SourceSessionID != "" {
 		t.Fatalf("Discovery does not record the actual human-approved artifact: %+v", run)
 	}
-	for _, stage := range []sdd.Stage{sdd.Spec, sdd.Plan} {
+	for _, stage := range []sdd.Stage{sdd.Spec, sdd.Brainstorm} {
 		artifact := run.Artifacts[stage]
 		if artifact.Author != "ai" || artifact.SourceSessionID != "session_"+string(stage) || catalog.PipelineDesignContentDigest(artifact.Content) != request.Digests[stage] {
 			t.Fatalf("approved generated %s lost source evidence: %+v", stage, artifact)
@@ -698,16 +698,16 @@ func TestPipelineDesignRejectsWrongSessionSelectionAndAtomicOutput(t *testing.T)
 		t.Fatal("session with a different model was accepted as source")
 	}
 	workspace = linkDesignSession(t, store, workspace, attempt, sdd.Spec, "correct_spec_session")
-	workspace = linkDesignSession(t, store, workspace, attempt, sdd.Plan, "correct_plan_session")
+	workspace = linkDesignSession(t, store, workspace, attempt, sdd.Brainstorm, "correct_brainstorm_session")
 	result := catalog.PipelineDesignCompleteRequest{PipelineID: workspace.PipelineID, AttemptID: attempt.ID, SourceRevision: attempt.SourceRevision, Documents: map[sdd.Stage]catalog.PipelineDesignDocumentInput{
-		sdd.Spec: {Content: "Valid SPEC", Author: "ai", SourceSessionID: "correct_spec_session"},
-		sdd.Plan: {Content: "Invalid Plan source", Author: "ai", SourceSessionID: "correct_spec_session"},
+		sdd.Spec:       {Content: "Valid SPEC", Author: "ai", SourceSessionID: "correct_spec_session"},
+		sdd.Brainstorm: {Content: "Invalid Brainstorm source", Author: "ai", SourceSessionID: "correct_spec_session"},
 	}}
 	if _, err := store.CompletePipelineDesignAttempt(t.Context(), result); err == nil {
-		t.Fatal("mismatched Plan session published an atomic result")
+		t.Fatal("mismatched Brainstorm session published an atomic result")
 	}
 	readback, err := store.GetPipelineDesign(t.Context(), workspace.PipelineID)
-	if err != nil || readback.Documents[sdd.Spec].Version != 0 || readback.Documents[sdd.Plan].Version != 0 || readback.Revision != workspace.Revision {
+	if err != nil || readback.Documents[sdd.Spec].Version != 0 || readback.Documents[sdd.Brainstorm].Version != 0 || readback.Revision != workspace.Revision {
 		t.Fatalf("invalid output partially wrote the valid SPEC: %+v %v", readback, err)
 	}
 }

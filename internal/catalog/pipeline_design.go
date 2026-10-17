@@ -173,6 +173,15 @@ func (in PipelineDesignEditRequest) Hash() (string, error)    { return pipelineD
 func (in PipelineDesignRestoreRequest) Hash() (string, error) { return pipelineDesignHash(in) }
 func (in PipelineDesignApproveRequest) Hash() (string, error) { return pipelineDesignHash(in) }
 
+// PipelineDesignGateHash is the intent of an approval other than the Plan's, so one request id cannot be replayed as
+// the other approval.
+func PipelineDesignGateHash(gate string, in PipelineDesignApproveRequest) (string, error) {
+	return pipelineDesignHash(struct {
+		Gate    string                       `json:"gate"`
+		Request PipelineDesignApproveRequest `json:"request"`
+	}{gate, in})
+}
+
 func pipelineDesignHash(value any) (string, error) {
 	encoded, err := json.Marshal(value)
 	if err != nil {

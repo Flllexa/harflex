@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -112,4 +113,26 @@ func TestOnlyBrainstormGetsARetryLink(t *testing.T) {
 	if _, err := store.RelinkPipelineDesignSession(t.Context(), workspace.PipelineID, attempt.ID, sdd.Spec, "spec-first", "spec-retry"); err == nil {
 		t.Fatal("only Brainstorm answers are retried")
 	}
+}
+
+func designApproval(workspace catalog.PipelineDesignWorkspace, requestID string, stages ...sdd.Stage) catalog.PipelineDesignApproveRequest {
+	request := catalog.PipelineDesignApproveRequest{Ref: designRef(workspace, requestID), Digests: map[sdd.Stage]string{}}
+	for _, stage := range stages {
+		request.Digests[stage] = workspace.Documents[stage].ContentDigest
+	}
+	return request
+}
+
+// approveBrainstormGate approves the flow and design and returns the work and its design as they stand after it.
+func approveBrainstormGate(t *testing.T, store *Store, workspace catalog.PipelineDesignWorkspace) (catalog.PipelineRun, catalog.PipelineDesignWorkspace) {
+	t.Helper()
+	run, err := store.ApprovePipelineBrainstorm(t.Context(), designApproval(workspace, fmt.Sprintf("approve_brainstorm_%d", workspace.Revision), sdd.Discovery, sdd.Spec, sdd.Brainstorm))
+	if err != nil || run.Current != sdd.Plan || run.Status[sdd.Brainstorm] != sdd.Completed || run.Status[sdd.Plan] != sdd.Active {
+		t.Fatalf("flow and design approval = %+v, %v", run, err)
+	}
+	updated, err := store.GetPipelineDesign(t.Context(), workspace.PipelineID)
+	if err != nil || updated.State != "ready" || updated.NeedsDerivation {
+		t.Fatalf("the design must stay editable for the Plan: %+v %v", updated, err)
+	}
+	return run, updated
 }

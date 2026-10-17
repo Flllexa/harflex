@@ -45,35 +45,77 @@ func (s *Service) PreparePipelineDesign(in PreparePipelineDesignInput) (Pipeline
 		return PipelineDesignDTO{}, err
 	}
 	defer s.endCall()
+	admitted, settled, err := s.admitPipelineDesign(in)
+	if admitted == nil {
+		return settled, err
+	}
+	return s.runPipelineDesignAttempt(admitted)
+}
+
+// startPipelineDesign admits a preparation now and writes its documents in the background, so the caller can answer the
+// person while the AI works. The screen follows the attempt as it follows any other.
+func (s *Service) startPipelineDesign(in PreparePipelineDesignInput) (PipelineDesignDTO, error) {
+	admitted, settled, err := s.admitPipelineDesign(in)
+	if admitted == nil {
+		return settled, err
+	}
+	if err := s.beginCall(); err != nil {
+		admitted.cancel()
+		_, _ = s.runPipelineDesignAttempt(admitted)
+		return settled, err
+	}
+	go func() {
+		defer s.endCall()
+		_, _ = s.runPipelineDesignAttempt(admitted)
+	}()
+	return pipelineDesignDTO(admitted.admitted), nil
+}
+
+// pipelineDesignAdmission is a preparation the store admitted: its attempt, the documents it writes and who writes them.
+type pipelineDesignAdmission struct {
+	ctx        context.Context
+	cancel     context.CancelFunc
+	owner      *pipelineDesignOwner
+	workspace  catalog.PipelineDesignWorkspace // as the request saw it: the conversation before this request
+	admitted   catalog.PipelineDesignWorkspace // after admission, with the running attempt
+	attempt    catalog.PipelineDesignAttempt
+	stages     []sdd.Stage
+	selections map[sdd.Stage]catalog.ModelSelection
+	message    string
+}
+
+// admitPipelineDesign checks a preparation request and admits its attempt. Without an admission it returns the design
+// as it stands (a replay, or an attempt another call already admitted) or the error that refused it.
+func (s *Service) admitPipelineDesign(in PreparePipelineDesignInput) (*pipelineDesignAdmission, PipelineDesignDTO, error) {
 	hash, err := pipelineDesignIntent(in)
 	if err != nil {
-		return PipelineDesignDTO{}, err
+		return nil, PipelineDesignDTO{}, err
 	}
 	workspace, err := s.openPipelineDesign(s.ctx, in.Ref.PipelineID)
 	if err != nil {
-		return PipelineDesignDTO{}, err
+		return nil, PipelineDesignDTO{}, err
 	}
 	for _, attempt := range workspace.Attempts {
 		if attempt.RequestID != in.Ref.RequestID {
 			continue
 		}
 		if attempt.IntentHash != hash {
-			return PipelineDesignDTO{}, ErrPipelineRequestConflict
+			return nil, PipelineDesignDTO{}, ErrPipelineRequestConflict
 		}
-		return pipelineDesignDTO(workspace), nil
+		return nil, pipelineDesignDTO(workspace), nil
 	}
 	if workspace.NeedsDerivation || workspace.Revision != in.Ref.DesignRevision || workspace.PipelineRevision != in.Ref.PipelineRevision || workspace.CurrentPipelineRevision != in.Ref.PipelineRevision {
-		return PipelineDesignDTO{}, sqlite.ErrPipelineConflict
+		return nil, PipelineDesignDTO{}, sqlite.ErrPipelineConflict
 	}
 	if workspace.State == "running" || workspace.State == "cancellation_pending" {
-		return PipelineDesignDTO{}, sdd.ErrInvalidTransition
+		return nil, PipelineDesignDTO{}, sdd.ErrInvalidTransition
 	}
 	stages := pipelineDesignStagesFor(in.Target, workspace)
 	if in.Target == "plan" && workspace.Documents[sdd.Spec].Stale {
-		return PipelineDesignDTO{}, ErrPipelineDesignSpecStale
+		return nil, PipelineDesignDTO{}, ErrPipelineDesignSpecStale
 	}
 	if len(stages) == 0 || workspace.Documents[sdd.Discovery].Content == "" || in.Target == "plan" && workspace.Documents[sdd.Spec].Content == "" {
-		return PipelineDesignDTO{}, sdd.ErrEvidenceRequired
+		return nil, PipelineDesignDTO{}, sdd.ErrEvidenceRequired
 	}
 	selections := map[sdd.Stage]catalog.ModelSelection{}
 	for _, stage := range stages {
@@ -83,11 +125,11 @@ func (s *Service) PreparePipelineDesign(in PreparePipelineDesignInput) (Pipeline
 		}
 		choice, choiceErr := s.preparePipelineDesignSelection(s.ctx, workspace.WorkspaceID, stage, override)
 		if choiceErr != nil {
-			return PipelineDesignDTO{}, safe("choose document model", choiceErr)
+			return nil, PipelineDesignDTO{}, safe("choose document model", choiceErr)
 		}
 		if stage == sdd.Brainstorm {
 			if err := brainstormSelectionFits(choice); err != nil {
-				return PipelineDesignDTO{}, err
+				return nil, PipelineDesignDTO{}, err
 			}
 		}
 		selections[stage] = choice
@@ -98,15 +140,15 @@ func (s *Service) PreparePipelineDesign(in PreparePipelineDesignInput) (Pipeline
 	s.mu.RUnlock()
 	if closing {
 		s.authoringAdmissionGate.Unlock()
-		return PipelineDesignDTO{}, context.Canceled
+		return nil, PipelineDesignDTO{}, context.Canceled
 	}
 	admittedWorkspace, attempt, admitted, err := s.store.BeginPipelineDesignAttempt(s.ctx, catalog.PipelineDesignAttemptRequest{Ref: in.Ref.request(), Message: in.Message, Target: in.Target, IntentHash: hash, OwnerPID: os.Getpid(), Selections: selections})
 	if err != nil || !admitted {
 		s.authoringAdmissionGate.Unlock()
 		if err != nil {
-			return PipelineDesignDTO{}, safe("admit document preparation", err)
+			return nil, PipelineDesignDTO{}, safe("admit document preparation", err)
 		}
-		return pipelineDesignDTO(admittedWorkspace), nil
+		return nil, pipelineDesignDTO(admittedWorkspace), nil
 	}
 	// Preparing a document has no time limit: a complex SPEC takes as long as it takes, and the person can cancel it.
 	ctx, cancel := context.WithCancel(s.ctx)
@@ -118,7 +160,20 @@ func (s *Service) PreparePipelineDesign(in PreparePipelineDesignInput) (Pipeline
 	s.designOwners[attempt.ID] = owner
 	s.mu.Unlock()
 	s.authoringAdmissionGate.Unlock()
-	defer func() { cancel(); s.mu.Lock(); delete(s.designOwners, attempt.ID); s.mu.Unlock(); close(owner.done) }()
+	return &pipelineDesignAdmission{ctx: ctx, cancel: cancel, owner: owner, workspace: workspace, admitted: admittedWorkspace, attempt: attempt, stages: stages, selections: selections, message: in.Message}, PipelineDesignDTO{}, nil
+}
+
+// runPipelineDesignAttempt writes an admitted preparation's documents, phase by phase, and settles its attempt.
+func (s *Service) runPipelineDesignAttempt(admitted *pipelineDesignAdmission) (PipelineDesignDTO, error) {
+	ctx, attempt, stages, selections := admitted.ctx, admitted.attempt, admitted.stages, admitted.selections
+	workspace := admitted.workspace
+	defer func() {
+		admitted.cancel()
+		s.mu.Lock()
+		delete(s.designOwners, attempt.ID)
+		s.mu.Unlock()
+		close(admitted.owner.done)
+	}()
 	documents := map[sdd.Stage]catalog.PipelineDesignDocument{}
 	for stage, document := range attempt.InputDocuments {
 		documents[stage] = document
@@ -126,6 +181,7 @@ func (s *Service) PreparePipelineDesign(in PreparePipelineDesignInput) (Pipeline
 	outputs := map[sdd.Stage]catalog.PipelineDesignDocumentInput{}
 	replies := []string{}
 	memory := s.projectMemoryContext(ctx, workspace.WorkspaceID)
+	var err error
 	for _, stage := range stages {
 		if err := ctx.Err(); err != nil {
 			return s.failPipelineDesign(attempt, err)
@@ -136,12 +192,12 @@ func (s *Service) PreparePipelineDesign(in PreparePipelineDesignInput) (Pipeline
 		var document, reply, sessionID string
 		var choice catalog.ModelSelection
 		if stage == sdd.Brainstorm {
-			document, reply, sessionID, choice, err = s.runBrainstormPhase(ctx, workspace, attempt, selections[stage], in.Message, documents, memory)
+			document, reply, sessionID, choice, err = s.runBrainstormPhase(ctx, workspace, attempt, selections[stage], admitted.message, documents, memory)
 			if err != nil {
 				return s.failPipelineDesign(attempt, err)
 			}
 		} else {
-			prompt, err := pipelineDesignPrompt(stage, in.Message, documents, workspace.Messages, memory)
+			prompt, err := pipelineDesignPrompt(stage, admitted.message, documents, workspace.Messages, memory)
 			if err != nil {
 				return s.failPipelineDesign(attempt, err)
 			}
@@ -165,7 +221,7 @@ func (s *Service) PreparePipelineDesign(in PreparePipelineDesignInput) (Pipeline
 	}
 	s.authoringAdmissionGate.Lock()
 	s.mu.RLock()
-	closing = s.closing
+	closing := s.closing
 	s.mu.RUnlock()
 	if closing {
 		s.authoringAdmissionGate.Unlock()

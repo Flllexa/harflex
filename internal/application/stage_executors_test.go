@@ -241,23 +241,23 @@ func TestPreparingDocumentsWritesEachPhaseOnItsOwnModelAndNamesAPhaseThatCannotS
 	}
 	for _, in := range []SaveStageExecutorInput{
 		{WorkspaceID: design.WorkspaceID, Stage: "spec", BackendID: "design-other", ModelID: "large-model"},
-		{WorkspaceID: design.WorkspaceID, Stage: "plan", BackendID: "design-other"},
+		{WorkspaceID: design.WorkspaceID, Stage: "brainstorm", BackendID: "design-other"},
 	} {
 		if _, err := s.SaveStageExecutor(in); err != nil {
 			t.Fatal(err)
 		}
 	}
-	// Plan's choice is not there any more: the request stops before SPEC is written, and says it was Plan.
+	// Brainstorm's choice is not there any more: the request stops before SPEC is written, and says it was Brainstorm.
 	list("selected-model", "large-model")
 	_, err = s.PreparePipelineDesign(PreparePipelineDesignInput{Ref: designRefForTest(design, "prepare_phase_executors_01"), Target: "all", Message: "Preparar documentos"})
 	var phase phaseExecutorError
-	if !errors.Is(err, ErrPipelineDesignPhaseExecutor) || !errors.As(err, &phase) || phase.stage != sdd.Plan || len(*providers) != 0 {
-		t.Fatalf("a Plan that cannot start did not stop the request, naming Plan: stage=%q providers=%d %v", phase.stage, len(*providers), err)
+	if !errors.Is(err, ErrPipelineDesignPhaseExecutor) || !errors.As(err, &phase) || phase.stage != sdd.Brainstorm || len(*providers) != 0 {
+		t.Fatalf("a Brainstorm that cannot start did not stop the request, naming Brainstorm: stage=%q providers=%d %v", phase.stage, len(*providers), err)
 	}
 	list("selected-model", "other-profile-model", "large-model")
 	prepared, err := s.PreparePipelineDesign(PreparePipelineDesignInput{Ref: designRefForTest(design, "prepare_phase_executors_02"), Target: "all", Message: "Preparar documentos"})
 	if err != nil || prepared.State != "ready" || len(*providers) != 2 {
-		t.Fatalf("preparing SPEC and Plan: %+v %v", prepared, err)
+		t.Fatalf("preparing SPEC and Brainstorm: %+v %v", prepared, err)
 	}
 	models := []string{(*providers)[0].requests[0].Model, (*providers)[1].requests[0].Model}
 	if models[0] != "large-model" || models[1] != "other-profile-model" {

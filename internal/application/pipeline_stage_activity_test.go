@@ -20,7 +20,7 @@ func TestPipelineStageInspectionUsesRealSessionsWithoutStartingInference(t *test
 	if _, err = s.PreparePipelineDesign(PreparePipelineDesignInput{Ref: designRefForTest(design, "prepare_stage_inspection_01"), Target: "all", Message: "Preparar documentos"}); err != nil {
 		t.Fatal(err)
 	}
-	for _, stage := range []string{"spec", "plan"} {
+	for _, stage := range []string{"spec", "brainstorm"} {
 		activity, err := s.GetPipelineStageActivity(pipeline.ID, stage)
 		if err != nil || activity.SessionID == "" || activity.ModelID != "selected-model" || activity.Status != "completed" {
 			t.Fatalf("%s inspection=%+v %v", stage, activity, err)
