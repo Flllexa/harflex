@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -45,6 +46,12 @@ func collect(t *testing.T, ctx context.Context, c *Client, req agentcore.ChatReq
 		}
 	}
 	return out, terminal
+}
+
+func TestMain(m *testing.M) {
+	// A transient failure is retried at once here; the waits between attempts are a production pacing, not a contract.
+	retryDelays = []time.Duration{0, 0, 0}
+	os.Exit(m.Run())
 }
 
 func serverClient(t *testing.T, handler http.HandlerFunc) *Client {
@@ -549,5 +556,33 @@ func TestMessageContentPresence(t *testing.T) {
 	})
 	if _, err := collect(t, context.Background(), c, agentcore.ChatRequest{Messages: messages}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// A busy or briefly unavailable service is asked again; a refusal of its own fails at once.
+func TestTransientStatusesAreRetried(t *testing.T) {
+	var requests atomic.Int32
+	c := serverClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch requests.Add(1) {
+		case 1:
+			w.WriteHeader(http.StatusServiceUnavailable)
+		case 2:
+			w.WriteHeader(http.StatusTooManyRequests)
+		default:
+			w.Header().Set("Content-Type", "text/event-stream")
+			fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}\n\ndata: [DONE]\n\n")
+		}
+	})
+	events, err := collect(t, context.Background(), c, agentcore.ChatRequest{Model: "m", Messages: []agentcore.Message{{Role: agentcore.RoleUser, Content: "hi"}}})
+	if err != nil || requests.Load() != 3 || len(events) == 0 || events[0].Delta != "ok" {
+		t.Fatalf("a busy service ended the turn: events=%+v err=%v requests=%d", events, err, requests.Load())
+	}
+	requests.Store(0)
+	refused := serverClient(t, func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		w.WriteHeader(http.StatusUnauthorized)
+	})
+	if _, err := collect(t, context.Background(), refused, agentcore.ChatRequest{Model: "m", Messages: []agentcore.Message{{Role: agentcore.RoleUser, Content: "hi"}}}); err == nil || requests.Load() != 1 {
+		t.Fatalf("a refusal was retried: err=%v requests=%d", err, requests.Load())
 	}
 }

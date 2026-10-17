@@ -137,6 +137,8 @@ func TestMain(m *testing.M) {
 		// descendant timing. The parent test process still runs full race checks.
 		syscall.Exit(0)
 	}
+	// A failed CLI turn is retried at once here; the waits between attempts are a production pacing, not a contract.
+	documentTurnRetryDelays = []time.Duration{0, 0, 0}
 	os.Exit(m.Run())
 }
 

@@ -65,7 +65,10 @@ func TestSessionToolFailurePreservesSafePartialResultAndCause(t *testing.T) {
 	rounds, executions := 0, 0
 	p := &sessionProvider{stream: func(context.Context, ChatRequest) (<-chan StreamEvent, <-chan error) {
 		rounds++
-		return streamEvents(toolEvent("call-1"), toolEvent("call-2"))
+		if rounds == 1 {
+			return streamEvents(toolEvent("call-1"), toolEvent("call-2"))
+		}
+		return streamEvents()
 	}}
 	tools := &sessionTools{risk: "read_only", execute: func(context.Context, string, json.RawMessage, ToolUpdateSink) (ToolExecutionResult, error) {
 		executions++
@@ -77,15 +80,11 @@ func TestSessionToolFailurePreservesSafePartialResultAndCause(t *testing.T) {
 		}
 	}}
 	s := NewSession("session-1", p, tools, j, security.Ask)
-	err := s.Prompt(context.Background(), "execute")
-	var ended *RunError
-	if !errors.Is(err, failure) || !errors.As(err, &ended) || ended.Reason != "tool_failed" || rounds != 1 || executions != 1 {
+	// The failure is the call's result: the model reads it, partial output included, and the run goes on.
+	if err := s.Prompt(context.Background(), "execute"); err != nil || rounds != 2 || executions != 2 {
 		t.Fatalf("error=%v rounds=%d executions=%d", err, rounds, executions)
 	}
-	if strings.Contains(err.Error(), failure.Error()) {
-		t.Fatal("returned error leaked executor diagnostics")
-	}
-	assertTypes(t, j, "run.started", "message.user", "message.assistant", "tool.called", "tool.failed", "tool.skipped", "run.failed")
+	assertTypes(t, j, "run.started", "message.user", "message.assistant", "tool.called", "tool.failed", "tool.called", "tool.failed", "message.assistant", "run.completed")
 	for _, event := range j.snapshot() {
 		if strings.Contains(string(event.Data), failure.Error()) {
 			t.Fatal("journal leaked executor diagnostics")
@@ -98,13 +97,13 @@ func TestSessionToolFailurePreservesSafePartialResultAndCause(t *testing.T) {
 			if err := json.Unmarshal(event.Data, &payload); err != nil {
 				t.Fatal(err)
 			}
-			if string(payload.Content) != wantContent || string(payload.Details) != wantDetails || payload.ErrorCode != "tool_failed" || payload.ToolCallID != "call-1" || payload.Name != "test" {
+			if payload.ToolCallID == "call-1" && (string(payload.Content) != wantContent || string(payload.Details) != wantDetails || payload.ErrorCode != "tool_failed" || payload.Name != "test") {
 				t.Fatalf("partial result lost: %s", event.Data)
 			}
 		}
 	}
 	assertClosedToolHistory(t, s.messages)
-	if s.messages[2].Content != `{"error":"tool_failed"}` || s.messages[3].Content != `{"error":"skipped_after_failure"}` {
+	if want := ToolFailureResponse("tool_failed", unexpectedToolMessage, json.RawMessage(wantContent)); s.messages[2].Content != want {
 		t.Fatalf("responses=%#v", s.messages[2:])
 	}
 }
@@ -241,16 +240,20 @@ func TestSessionToolFailureJournalFaultSealsAndPreservesCause(t *testing.T) {
 }
 
 func TestSessionInvalidUTF8ToolEvidenceIsDiscarded(t *testing.T) {
+	rounds := 0
 	p := &sessionProvider{stream: func(context.Context, ChatRequest) (<-chan StreamEvent, <-chan error) {
-		return streamEvents(toolEvent("call-1"))
+		if rounds++; rounds == 1 {
+			return streamEvents(toolEvent("call-1"))
+		}
+		return streamEvents()
 	}}
 	tools := &sessionTools{risk: "read_only", execute: func(context.Context, string, json.RawMessage, ToolUpdateSink) (ToolExecutionResult, error) {
 		return ToolExecutionResult{Content: json.RawMessage{'"', 0xff, '"'}, Details: json.RawMessage(`{"exitCode":1}`)}, errors.New("failure")
 	}}
 	j := &sessionJournal{}
 	s := NewSession("session-1", p, tools, j, security.Ask)
-	if err := s.Prompt(context.Background(), "invalid"); err == nil {
-		t.Fatal("invalid result completed")
+	if err := s.Prompt(context.Background(), "invalid"); err != nil || rounds != 2 {
+		t.Fatalf("the failed call ended the run: %v", err)
 	}
 	var payload ToolExecutionResult
 	if err := json.Unmarshal(j.snapshot()[4].Data, &payload); err != nil {
@@ -262,11 +265,15 @@ func TestSessionInvalidUTF8ToolEvidenceIsDiscarded(t *testing.T) {
 }
 
 func TestSessionJournalFailureDoesNotClaimDurableFailedOutcome(t *testing.T) {
-	for _, failType := range []string{"tool.skipped", "run.failed"} {
+	for _, failType := range []string{"tool.failed", "run.completed"} {
 		t.Run(failType, func(t *testing.T) {
 			toolFailure, journalFailure := errors.New("api-key-supersecret"), errors.New("journal unavailable")
+			rounds := 0
 			p := &sessionProvider{stream: func(context.Context, ChatRequest) (<-chan StreamEvent, <-chan error) {
-				return streamEvents(toolEvent("call-1"), toolEvent("call-2"))
+				if rounds++; rounds == 1 {
+					return streamEvents(toolEvent("call-1"), toolEvent("call-2"))
+				}
+				return streamEvents()
 			}}
 			tools := &sessionTools{risk: "read_only", execute: func(context.Context, string, json.RawMessage, ToolUpdateSink) (ToolExecutionResult, error) {
 				return ToolExecutionResult{}, toolFailure
@@ -275,7 +282,7 @@ func TestSessionJournalFailureDoesNotClaimDurableFailedOutcome(t *testing.T) {
 			s := NewSession("session-1", p, tools, j, security.Ask)
 			err := s.Prompt(context.Background(), "fail")
 			var ended *RunError
-			if errors.As(err, &ended) || !errors.Is(err, journalFailure) || !errors.Is(err, toolFailure) || strings.Contains(err.Error(), toolFailure.Error()) {
+			if errors.As(err, &ended) || !errors.Is(err, journalFailure) || (failType == "tool.failed") != errors.Is(err, toolFailure) || strings.Contains(err.Error(), toolFailure.Error()) {
 				t.Fatalf("unconfirmed terminal outcome: %v", err)
 			}
 		})

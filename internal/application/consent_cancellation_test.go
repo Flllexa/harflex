@@ -300,7 +300,15 @@ func TestCancelBetweenWorkflowCASAndPromptPreventsToolEffect(t *testing.T) {
 func pausedWorkflow(t *testing.T) (*Service, catalog.WorkflowRun) {
 	t.Helper()
 	s, db, workspaceID := scheduleService(t)
-	provider := &fakeProvider{toolCall: &agentcore.ToolCall{ID: "unknown-call", Name: "unknown", Arguments: json.RawMessage(`{}`)}}
+	// The first step fails at the provider; a retried step reaches it again and completes.
+	failed := false
+	provider := &fakeProvider{key: func(context.Context) (string, error) {
+		if failed {
+			return "", nil
+		}
+		failed = true
+		return "", errors.New("provider unavailable")
+	}}
 	s.providerFactory = func(openai.Config) (agentcore.Provider, error) { return provider, nil }
 	definition, err := s.SaveWorkflow(SaveWorkflowInput{WorkspaceID: workspaceID, Name: "Recover", Steps: []WorkflowStepInput{{Name: "Risky step", Prompt: "Use a tool"}}})
 	if err != nil {

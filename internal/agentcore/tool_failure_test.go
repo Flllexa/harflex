@@ -121,7 +121,7 @@ func TestSessionRecoverableFailureKeepsTheRestOfTheTurnAndTheCommandOutput(t *te
 	}
 }
 
-func TestSessionFailureMixedWithAnotherErrorStillEndsTheRun(t *testing.T) {
+func TestSessionUnexplainedFailureGoesBackWithAGenericMessage(t *testing.T) {
 	cases := map[string]error{
 		"joined with an unexpected error": errors.Join(&ToolFailure{Code: "not_found", Message: "index.html does not exist"}, errors.New("api-key-supersecret")),
 		"code is not an identifier":       &ToolFailure{Code: "Not Found!", Message: "index.html does not exist"},
@@ -134,25 +134,27 @@ func TestSessionFailureMixedWithAnotherErrorStillEndsTheRun(t *testing.T) {
 			rounds := 0
 			p := &sessionProvider{stream: func(context.Context, ChatRequest) (<-chan StreamEvent, <-chan error) {
 				rounds++
-				return streamEvents(toolEvent("call-1"), toolEvent("call-2"))
+				if rounds == 1 {
+					return streamEvents(toolEvent("call-1"), toolEvent("call-2"))
+				}
+				return streamEvents()
 			}}
 			tools := &sessionTools{risk: "read_only", execute: func(context.Context, string, json.RawMessage, ToolUpdateSink) (ToolExecutionResult, error) {
 				return ToolExecutionResult{}, failure
 			}}
 			j := &sessionJournal{}
 			s := NewSession("session-1", p, tools, j, security.Ask)
-			err := s.Prompt(context.Background(), "execute")
-			var ended *RunError
-			if !errors.As(err, &ended) || ended.Reason != "tool_failed" || rounds != 1 {
-				t.Fatalf("error=%v rounds=%d: anything but a clean ToolFailure must still end the run", err, rounds)
+			// Something unexpected went wrong, so the model hears the generic message, never the tool's own claim.
+			if err := s.Prompt(context.Background(), "execute"); err != nil || rounds != 2 {
+				t.Fatalf("error=%v rounds=%d: an unexplained failure must not end the run", err, rounds)
 			}
-			assertTypes(t, j, "run.started", "message.user", "message.assistant", "tool.called", "tool.failed", "tool.skipped", "run.failed")
+			assertTypes(t, j, "run.started", "message.user", "message.assistant", "tool.called", "tool.failed", "tool.called", "tool.failed", "message.assistant", "run.completed")
 			for _, event := range j.snapshot() {
-				if strings.Contains(string(event.Data), "api-key-supersecret") || strings.Contains(string(event.Data), `"recoverable"`) {
-					t.Fatalf("the generic path leaked or claimed recovery: %s", event.Data)
+				if strings.Contains(string(event.Data), "api-key-supersecret") || strings.Contains(string(event.Data), "index.html does not exist") {
+					t.Fatalf("the generic path leaked the tool's claim: %s", event.Data)
 				}
 			}
-			if s.messages[2].Content != `{"error":"tool_failed"}` {
+			if want := ToolFailureResponse("tool_failed", unexpectedToolMessage, nil); s.messages[2].Content != want {
 				t.Fatalf("response = %s", s.messages[2].Content)
 			}
 		})

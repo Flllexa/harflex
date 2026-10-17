@@ -3,13 +3,12 @@ package agentcore
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"github.com/persioflexa/harflex/internal/security"
 	"strings"
 	"testing"
 )
 
-func TestSerializedToolResultBudgetFailsBeforeCompletedAppend(t *testing.T) {
+func TestSerializedToolResultBudgetFailsTheCallBeforeCompletedAppend(t *testing.T) {
 	rounds := 0
 	p := &sessionProvider{stream: func(context.Context, ChatRequest) (<-chan StreamEvent, <-chan error) {
 		rounds++
@@ -26,14 +25,13 @@ func TestSerializedToolResultBudgetFailsBeforeCompletedAppend(t *testing.T) {
 	journal := &sessionJournal{}
 	session := NewSession("session-1", p, executor, journal, security.Ask)
 	err := session.Prompt(t.Context(), "large result")
-	var ended *RunError
-	if !errors.As(err, &ended) || ended.Reason != "invalid_tool_result" {
-		t.Fatal(err)
+	if err != nil || rounds != 2 {
+		t.Fatalf("an oversized result ended the run: %v rounds=%d", err, rounds)
 	}
 	for _, event := range journal.snapshot() {
 		if event.Type == "tool.completed" || len(event.Data) > 34<<20 {
 			t.Fatal("oversized result reached journal", event.Type, len(event.Data))
 		}
 	}
-	assertTypes(t, journal, "run.started", "message.user", "message.assistant", "tool.called", "tool.failed", "run.failed")
+	assertTypes(t, journal, "run.started", "message.user", "message.assistant", "tool.called", "tool.failed", "message.assistant", "run.completed")
 }

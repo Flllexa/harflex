@@ -16,8 +16,8 @@ const (
 // command that exited with a status. A tool returns it instead of a plain error when the model can
 // reasonably correct course. The tool writes Code and Message itself, from facts it already holds and
 // never from an underlying error, so no secret or private path rides along into the journal or the model.
-// The run goes on and the model reads the failure as the tool's result. Any other error from a tool still
-// ends the run, and only a generic, safe code is recorded for it.
+// The run goes on and the model reads the failure as the tool's result. Any other error from a tool goes
+// back to the model too, with a generic, safe code and message that say its effect is unknown.
 type ToolFailure struct {
 	// Code is a lower-case identifier such as not_found or exit_status.
 	Code string
@@ -66,8 +66,8 @@ func containsControl(text string) bool {
 }
 
 // soleToolFailure finds a ToolFailure that is the only cause behind err. A failure joined with another
-// error, or hidden behind several causes, does not qualify: something unexpected also went wrong and the
-// run must not go on as if only the expected part had happened.
+// error, or hidden behind several causes, does not qualify: something unexpected also went wrong, so the
+// model gets the generic message instead of one that claims only the expected part happened.
 func soleToolFailure(err error) (*ToolFailure, bool) {
 	for err != nil {
 		if failure, ok := err.(*ToolFailure); ok {

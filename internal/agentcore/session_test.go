@@ -472,19 +472,18 @@ func TestSessionToolFailurePreservesPriorUpdates(t *testing.T) {
 		if rounds == 1 {
 			return streamEvents(toolEvent("call-1"))
 		}
-		t.Fatal("provider continued after tool failure")
-		return nil, nil
+		return streamEvents()
 	}}
 	tools := &sessionTools{risk: "read_only", execute: func(ctx context.Context, _ string, _ json.RawMessage, sink ToolUpdateSink) (ToolExecutionResult, error) {
 		sink(ctx, ToolUpdate{Stream: "stdout", Text: "partial"})
 		return ToolExecutionResult{}, failure
 	}}
 	s := NewSession("session-1", p, tools, j, security.Ask)
-	if err := s.Prompt(context.Background(), "read"); !errors.Is(err, failure) {
-		t.Fatalf("error=%v", err)
+	if err := s.Prompt(context.Background(), "read"); err != nil || rounds != 2 {
+		t.Fatalf("error=%v rounds=%d", err, rounds)
 	}
-	assertTypes(t, j, "run.started", "message.user", "message.assistant", "tool.called", "tool.updated", "tool.failed", "run.failed")
-	if got := eventField(t, j.snapshot()[5], "error"); got != "tool execution failed" {
+	assertTypes(t, j, "run.started", "message.user", "message.assistant", "tool.called", "tool.updated", "tool.failed", "message.assistant", "run.completed")
+	if got := eventField(t, j.snapshot()[5], "error"); got != unexpectedToolMessage {
 		t.Fatalf("persisted error=%q", got)
 	}
 }
@@ -1006,12 +1005,9 @@ func TestSessionValidatesToolResultJSONAndSupportsLargeReads(t *testing.T) {
 				if rounds == 1 {
 					return streamEvents(toolEvent("call-1"))
 				}
-				if !tc.valid {
-					t.Fatal("provider continued after invalid result")
-				}
-				want := string(tc.content)
-				if req.Messages[len(req.Messages)-1].Content != want {
-					t.Error("tool result not returned to the model")
+				got := req.Messages[len(req.Messages)-1].Content
+				if tc.valid && got != string(tc.content) || !tc.valid && (!strings.HasPrefix(got, `{"error":"invalid_tool_result"`) || strings.Contains(got, "secret-invalid")) {
+					t.Errorf("tool result not returned to the model: %.120s", got)
 				}
 				return streamEvents()
 			}}
@@ -1026,8 +1022,8 @@ func TestSessionValidatesToolResultJSONAndSupportsLargeReads(t *testing.T) {
 				}
 				return
 			}
-			var ended *RunError
-			if !errors.As(err, &ended) || ended.Reason != "invalid_tool_result" || rounds != 1 {
+			// An unreadable result is the call's failure, not the run's: the model hears it and goes on.
+			if err != nil || rounds != 2 {
 				t.Fatalf("invalid result: error=%v rounds=%d", err, rounds)
 			}
 			for _, item := range j.snapshot() {
@@ -1035,7 +1031,7 @@ func TestSessionValidatesToolResultJSONAndSupportsLargeReads(t *testing.T) {
 					t.Fatal("unsafe result persisted")
 				}
 			}
-			assertTypes(t, j, "run.started", "message.user", "message.assistant", "tool.called", "tool.failed", "run.failed")
+			assertTypes(t, j, "run.started", "message.user", "message.assistant", "tool.called", "tool.failed", "message.assistant", "run.completed")
 		})
 	}
 }
@@ -1340,21 +1336,23 @@ func TestSessionAnswersUnknownToolWithoutApproval(t *testing.T) {
 		if rounds == 1 {
 			return streamEvents(StreamEvent{Type: "tool_call", ToolCall: &ToolCall{ID: "call-1", Name: "rm_rf", Arguments: json.RawMessage(`{}`)}})
 		}
-		t.Fatal("provider continued after unknown tool")
-		return nil, nil
+		if got := req.Messages[len(req.Messages)-1].Content; got != ToolFailureResponse("unknown_tool", unknownToolMessage, nil) {
+			t.Errorf("the model was not told the tool does not exist: %s", got)
+		}
+		return streamEvents()
 	}}
 	tools := &sessionTools{risk: "destructive", execute: func(context.Context, string, json.RawMessage, ToolUpdateSink) (ToolExecutionResult, error) {
 		t.Fatal("unknown tool executed")
 		return ToolExecutionResult{}, nil
 	}}
 	j := &sessionJournal{}
-	var ended *RunError
-	if err := NewSession("session-1", p, tools, j, security.Ask).Prompt(context.Background(), "hello"); !errors.As(err, &ended) || ended.Reason != "unknown_tool" {
-		t.Fatalf("unknown tool=%v", err)
+	// A made-up name is answered without asking anyone, and the run goes on with the listed tools.
+	if err := NewSession("session-1", p, tools, j, security.Ask).Prompt(context.Background(), "hello"); err != nil || rounds != 2 {
+		t.Fatalf("unknown tool=%v rounds=%d", err, rounds)
 	}
-	assertTypes(t, j, "run.started", "message.user", "message.assistant", "tool.denied", "run.failed")
-	if got := eventField(t, j.snapshot()[3], "reason"); got != "unknown_tool" {
-		t.Fatalf("reason=%s", got)
+	assertTypes(t, j, "run.started", "message.user", "message.assistant", "tool.failed", "message.assistant", "run.completed")
+	if got := eventField(t, j.snapshot()[3], "errorCode"); got != "unknown_tool" {
+		t.Fatalf("errorCode=%s", got)
 	}
 }
 

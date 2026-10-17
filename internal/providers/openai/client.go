@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/persioflexa/harflex/internal/agentcore"
@@ -71,7 +72,7 @@ func (c *Client) Stream(ctx context.Context, request agentcore.ChatRequest) (<-c
 	go func() {
 		defer close(events)
 		defer close(errs)
-		if err := c.stream(ctx, request, events); err != nil {
+		if err := c.streamWithRetries(ctx, request, events); err != nil {
 			// A single terminal error always fits, even when the consumer has stopped.
 			select {
 			case errs <- err:
@@ -192,7 +193,7 @@ func (c *Client) stream(ctx context.Context, request agentcore.ChatRequest, even
 	req.Header.Set("Accept", "text/event-stream")
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("openai HTTP request: %w", safeCause{err})
+		return transientError{fmt.Errorf("openai HTTP request: %w", safeCause{err})}
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -220,10 +221,14 @@ func (c *Client) stream(ctx context.Context, request agentcore.ChatRequest, even
 		if truncated {
 			detail += " [truncated]"
 		}
+		failure := fmt.Errorf("openai HTTP status %d: %s", resp.StatusCode, detail)
 		if readErr != nil {
-			return fmt.Errorf("openai HTTP status %d: %s: %w", resp.StatusCode, detail, safeCause{readErr})
+			failure = fmt.Errorf("openai HTTP status %d: %s: %w", resp.StatusCode, detail, safeCause{readErr})
 		}
-		return fmt.Errorf("openai HTTP status %d: %s", resp.StatusCode, detail)
+		if transientStatus(resp.StatusCode) {
+			return transientError{failure}
+		}
+		return failure
 	}
 	mediaType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
 	if err != nil || mediaType != "text/event-stream" {
@@ -244,6 +249,43 @@ func (c *Client) stream(ctx context.Context, request agentcore.ChatRequest, even
 		return fmt.Errorf("openai stream: %w", err)
 	}
 	return nil
+}
+
+// retryDelays is how long a request the service turned away for a moment waits before each new attempt.
+var retryDelays = []time.Duration{2 * time.Second, 10 * time.Second, 30 * time.Second}
+
+// streamWithRetries asks again when the service was busy, unavailable or unreachable before it answered anything: a
+// rate limit or a dropped connection does not end a long run. A request the service refused for a reason of its own
+// (a bad key, a malformed request, a context that does not fit) fails at once.
+func (c *Client) streamWithRetries(ctx context.Context, request agentcore.ChatRequest, events chan<- agentcore.StreamEvent) error {
+	for attempt := 0; ; attempt++ {
+		err := c.stream(ctx, request, events)
+		var transient transientError
+		if err == nil || !errors.As(err, &transient) || ctx.Err() != nil || attempt >= len(retryDelays) {
+			return err
+		}
+		timer := time.NewTimer(retryDelays[attempt])
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return fmt.Errorf("openai request: %w", ctx.Err())
+		case <-timer.C:
+		}
+	}
+}
+
+// transientError marks a failure that happened before any part of the answer arrived and may pass on its own.
+type transientError struct{ error }
+
+func (e transientError) Unwrap() error { return e.error }
+
+func transientStatus(status int) bool {
+	switch status {
+	case http.StatusRequestTimeout, http.StatusConflict, http.StatusTooEarly, http.StatusTooManyRequests,
+		http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout, 529:
+		return true
+	}
+	return false
 }
 
 // Preserve errors.Is/errors.As without exposing credential-bearing diagnostics.

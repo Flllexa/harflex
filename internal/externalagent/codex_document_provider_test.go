@@ -259,3 +259,70 @@ func TestDocumentProviderSendsReadImagesAsNotesAndFitsLongRuns(t *testing.T) {
 		t.Fatal("the host conversation was changed")
 	}
 }
+
+// A Code run that read and edited for a while carries more than a hundred messages: every turn still goes.
+func TestDocumentProviderCarriesRunsOfAnyLength(t *testing.T) {
+	base, request := documentProviderRequestFixture(t)
+	edit := `{"path":"web/app/hooks/use-form-state.ts","content":"` + strings.Repeat("x", 11*1024) + `"}`
+	for turn := range 400 {
+		id := fmt.Sprintf("call-%d", turn)
+		request.Messages = append(request.Messages,
+			agentcore.Message{Role: agentcore.RoleAssistant, Content: "Editing the hook.", ToolCalls: []agentcore.ToolCall{{ID: id, Name: "read", Arguments: json.RawMessage(edit)}}},
+			agentcore.Message{Role: agentcore.RoleTool, ToolCallID: id, Content: `{"text":"` + strings.Repeat("y", 3000) + `"}`})
+	}
+	var payload struct {
+		Messages []agentcore.Message `json:"messages"`
+	}
+	var prompt int
+	encoded, _ := json.Marshal(map[string]any{"reply": "{}", "toolCalls": []any{}})
+	provider := NewDocumentProvider(documentGeneratorFunc(func(_ context.Context, document DocumentRequest, _ func(Event)) (DocumentResult, error) {
+		prompt = len(document.Prompt)
+		_ = json.Unmarshal([]byte(document.Prompt), &payload)
+		return DocumentResult{Text: string(encoded)}, nil
+	}), base)
+	if _, err := collectDocumentProvider(t, t.Context(), provider, request); err != nil {
+		t.Fatalf("a long run stopped going: %v", err)
+	}
+	sent := payload.Messages
+	if prompt > hostPromptBudget || len(sent) < 4 {
+		t.Fatalf("the turn did not fit: %d bytes, %d messages", prompt, len(sent))
+	}
+	if !reflect.DeepEqual(sent[:2], request.Messages[:2]) || !strings.Contains(sent[2].Content, "earlier messages of this run were left out") {
+		t.Fatalf("the opening request or the note is missing: %+v", sent[:3])
+	}
+	if !reflect.DeepEqual(sent[len(sent)-2:], request.Messages[len(request.Messages)-2:]) {
+		t.Fatal("the latest exchange was not sent whole")
+	}
+	if sent[3].Role == agentcore.RoleTool {
+		t.Fatal("what is kept opens with a tool result whose call was left out")
+	}
+}
+
+// A CLI that failed or answered outside the envelope is asked again; the run does not end on one bad turn.
+func TestDocumentProviderRetriesAFailedTurn(t *testing.T) {
+	base, request := documentProviderRequestFixture(t)
+	valid, _ := json.Marshal(map[string]any{"reply": "done", "toolCalls": []any{}})
+	answers := []func() (DocumentResult, error){
+		func() (DocumentResult, error) { return DocumentResult{}, errors.New("claude: overloaded") },
+		func() (DocumentResult, error) { return DocumentResult{Text: `{"reply":"oops"}`}, nil },
+		func() (DocumentResult, error) { return DocumentResult{Text: string(valid)}, nil },
+	}
+	var instructions []string
+	provider := NewDocumentProvider(documentGeneratorFunc(func(_ context.Context, document DocumentRequest, _ func(Event)) (DocumentResult, error) {
+		instructions = append(instructions, document.SystemPrompt)
+		return answers[len(instructions)-1]()
+	}), base)
+	events, err := collectDocumentProvider(t, t.Context(), provider, request)
+	if err != nil || len(events) != 1 || events[0].Delta != "done" || len(instructions) != 3 {
+		t.Fatalf("the turn was not retried: events=%+v err=%v attempts=%d", events, err, len(instructions))
+	}
+	if strings.Contains(instructions[1], "previous answer was rejected") || !strings.Contains(instructions[2], "previous answer was rejected") {
+		t.Fatal("only a rejected answer asks for the envelope again")
+	}
+	failing := NewDocumentProvider(documentGeneratorFunc(func(context.Context, DocumentRequest, func(Event)) (DocumentResult, error) {
+		return DocumentResult{}, errors.New("claude: not logged in")
+	}), base)
+	if _, err := collectDocumentProvider(t, t.Context(), failing, request); err == nil || !strings.Contains(err.Error(), "not logged in") {
+		t.Fatalf("a CLI that keeps failing must still say so: %v", err)
+	}
+}

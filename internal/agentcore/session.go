@@ -560,11 +560,12 @@ func (s *Session) drive(ctx context.Context) error {
 			s.runToolCalls++
 			s.mu.Unlock()
 			// Unknown names never reach the policy, so they cannot prompt the user.
+			// A name the model made up is answered like any failed call, so the model picks a listed tool and goes on.
 			if !s.knownTool(call.Name) {
-				if err := s.answerTool(ctx, *call, "tool.denied", "unknown_tool", "unknown tool"); err != nil {
+				if err := s.answerRecoverable(ctx, *call, "unknown_tool", unknownToolMessage, ToolExecutionResult{}); err != nil {
 					return err
 				}
-				return &executionError{"unknown_tool", errors.New("unknown tool")}
+				continue
 			}
 			// The executor/PathGuard owns path confinement. Sandbox execution is
 			// unavailable until a composition root can supply verified readiness.
@@ -848,37 +849,33 @@ func (s *Session) execute(ctx context.Context, call ToolCall) error {
 			result = ToolExecutionResult{}
 		}
 	}
-	// A failure the model can act on (a missing file, a bad argument, a command's exit status) is the
-	// tool's result, not the end of the run: it is journaled as a failed call and handed back so the
-	// model can adjust. Anything else the tool, the sink or the result check reported still ends the run.
+	// A failure is the tool's result, not the end of the run: it is journaled as a failed call and handed back so the
+	// model can adjust. A failure the tool explained (a missing file, a bad argument, a command's exit status) goes with
+	// its own message; anything else goes with a generic one that never carries the underlying error, and says the
+	// effect is unknown. Only a cancelled run and a journal that cannot record the call still end it here.
 	// A failing tool usually returns no result at all, which is not an invalid one.
 	if failure, ok := soleToolFailure(toolErr); ok && failure.valid() && sinkErr == nil && (resultErr == nil || noResult) && ctx.Err() == nil {
-		recoverable := struct {
-			ToolCallID  string `json:"toolCallId"`
-			Name        string `json:"name"`
-			ErrorCode   string `json:"errorCode"`
-			Error       string `json:"error"`
-			Recoverable bool   `json:"recoverable"`
-			ToolExecutionResult
-		}{call.ID, call.Name, failure.Code, failure.Message, true, result}
-		if events.ValidateDataSize(recoverable) == nil {
-			if answerErr := s.persist(ctx, "tool.failed", recoverable); answerErr != nil {
-				return &journalError{answerErr}
-			}
-			s.recordToolResponse(call, ToolFailureResponse(failure.Code, failure.Message, result.Content))
-			return nil
+		if events.ValidateDataSize(recoverableFailure(call, failure.Code, failure.Message, result)) == nil {
+			return s.answerRecoverable(ctx, call, failure.Code, failure.Message, result)
 		}
 	}
 	executionFailed := err != nil || sinkErr != nil
 	err = joinSessionErrors(sinkErr, err, resultErr)
 	if err != nil {
-		code, message := "tool_failed", "tool execution failed"
+		code, message := "tool_failed", unexpectedToolMessage
 		if resultErr != nil && !executionFailed {
-			code, message = "invalid_tool_result", "tool result failed validation"
+			code, message = "invalid_tool_result", invalidToolResultMessage
 		}
-		if ctx.Err() != nil {
-			code, message = "cancelled", "tool execution cancelled"
+		if ctx.Err() == nil {
+			if events.ValidateDataSize(recoverableFailure(call, code, message, result)) != nil {
+				result = ToolExecutionResult{}
+			}
+			if answerErr := s.answerRecoverable(ctx, call, code, message, result); answerErr != nil {
+				return &journalError{joinSessionErrors(answerErr, err)}
+			}
+			return nil
 		}
+		code, message = "cancelled", "tool execution cancelled"
 		failed := struct {
 			ToolCallID string `json:"toolCallId"`
 			Name       string `json:"name"`
@@ -902,6 +899,32 @@ func (s *Session) execute(ctx context.Context, call ToolCall) error {
 		return err
 	}
 	s.recordToolResponse(call, string(result.Content))
+	return nil
+}
+
+const (
+	unknownToolMessage       = "There is no tool with this name: use only the tools listed in this conversation."
+	unexpectedToolMessage    = "The tool failed unexpectedly and its effect is unknown: check the current state before trying again or another way."
+	invalidToolResultMessage = "The tool ran but its result could not be read back (too large or malformed): narrow the request or check the state another way."
+)
+
+func recoverableFailure(call ToolCall, code, message string, result ToolExecutionResult) any {
+	return struct {
+		ToolCallID  string `json:"toolCallId"`
+		Name        string `json:"name"`
+		ErrorCode   string `json:"errorCode"`
+		Error       string `json:"error"`
+		Recoverable bool   `json:"recoverable"`
+		ToolExecutionResult
+	}{call.ID, call.Name, code, message, true, result}
+}
+
+// answerRecoverable journals a failed call the run goes on from and hands the model its code, message and partial result.
+func (s *Session) answerRecoverable(ctx context.Context, call ToolCall, code, message string, result ToolExecutionResult) error {
+	if err := s.persist(ctx, "tool.failed", recoverableFailure(call, code, message, result)); err != nil {
+		return err
+	}
+	s.recordToolResponse(call, ToolFailureResponse(code, message, result.Content))
 	return nil
 }
 
