@@ -177,13 +177,8 @@ func (s *Service) resolvePipelineDesignSelection(ctx context.Context, workspaceI
 }
 
 // pipelineDesignOutputTokens is the output budget of one document phase: Brainstorm writes full screens and has its own.
-func pipelineDesignOutputTokens(stage sdd.Stage) int {
-	if stage == sdd.Brainstorm {
-		return brainstormOutputTokens
-	}
-	// Discovery, SPEC and Plan: room for the plan of a large work.
-	return 16384
-}
+// It is zero for every phase: no answer limit is asked, and the provider uses the model's own maximum.
+func pipelineDesignOutputTokens(sdd.Stage) int { return 0 }
 
 // pipelineDesignOutputBytes bounds one document phase's answer: the document plus the JSON around it and the reply.
 func pipelineDesignOutputBytes(stage sdd.Stage) int {

@@ -82,9 +82,9 @@ type APIModelSelectionInput struct {
 
 const apiCatalogMaxAge = 5 * time.Minute
 
-// pipelineRoleOutputTokens is the answer size Code and QA ask for: room for a large file in one write, the same the
-// PRs conversation uses.
-const pipelineRoleOutputTokens = 16384
+// pipelineRoleOutputTokens is zero: Code and QA set no answer limit, so the provider gives the model's own maximum and a
+// large file fits in one write.
+const pipelineRoleOutputTokens = 0
 
 var ErrSDDCLIReadIsolationUnavailable = errors.New("Codex CLI does not restrict reads to the SDD workspace")
 
@@ -98,7 +98,8 @@ func (s *Service) prepareAPIModelSelectionWithPolicy(ctx context.Context, in API
 	if !validSelectionText(in.ProfileID, 128) || !validSelectionText(in.ModelID, 512) || !validSelectionText(in.CatalogRevision, 128) || !validSelectionText(in.Destination, 512) || len(in.Source) > 64 || !utf8.ValidString(in.Source) || strings.IndexFunc(in.Source, unicode.IsControl) >= 0 || len(in.CredentialToken) != 64 || !validAPIReasoningEffort(in.ReasoningEffort) || in.MaxOutputTokens < 0 || in.CheckedAt.IsZero() || (!in.Revalidating && time.Since(in.CheckedAt) > apiCatalogMaxAge) || in.CheckedAt.After(time.Now().Add(time.Minute)) {
 		return nil, ErrInvalidInput
 	}
-	if in.MaxOutputTokens > 32768 || (in.ForSDD && in.MaxOutputTokens == 0) {
+	// Zero asks for no answer limit: the provider uses the model's own maximum.
+	if in.MaxOutputTokens < 0 || in.MaxOutputTokens > 32768 {
 		return nil, ErrInvalidInput
 	}
 	profile, err := s.store.GetProviderProfile(ctx, in.ProfileID)

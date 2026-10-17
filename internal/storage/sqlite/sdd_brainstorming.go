@@ -62,7 +62,8 @@ func safeBrainstormText(value string, limit int) bool {
 }
 
 func validBrainstormSelection(choice catalog.ModelSelection) bool {
-	if choice.ConfirmUnverifiedManual || choice.MaxOutputTokens <= 0 || choice.MaxOutputTokens > 32768 || choice.ContextLength < 0 || choice.CheckedAt.IsZero() || choice.SessionID != "" {
+	// A zero MaxOutputTokens asks for no answer limit: the provider uses the model's own maximum.
+	if choice.ConfirmUnverifiedManual || choice.MaxOutputTokens < 0 || choice.MaxOutputTokens > 32768 || choice.ContextLength < 0 || choice.CheckedAt.IsZero() || choice.SessionID != "" {
 		return false
 	}
 	if choice.Source == "codex_app_server" {
@@ -73,7 +74,7 @@ func validBrainstormSelection(choice catalog.ModelSelection) bool {
 			safeBrainstormText(choice.WorkspacePath, 4096) && filepath.IsAbs(choice.WorkspacePath) && choice.ReasoningEffort == strings.TrimSpace(choice.ReasoningEffort) &&
 			len(choice.ReasoningEffort) <= 64 && utf8.ValidString(choice.ReasoningEffort) && strings.IndexFunc(choice.ReasoningEffort, unicode.IsControl) < 0 &&
 			!strings.ContainsAny(choice.ReasoningEffort, " =") && !strings.HasPrefix(choice.ReasoningEffort, "-") &&
-			(choice.MaxAssistantOutputBytes == 2*1024 || choice.MaxAssistantOutputBytes == 64*1024 || choice.MaxAssistantOutputBytes == catalog.MaxPipelineDesignDocumentBytes)
+			(choice.MaxAssistantOutputBytes == 2*1024 || choice.MaxAssistantOutputBytes == 64*1024 || choice.MaxAssistantOutputBytes == catalog.MaxPipelineDesignDocumentBytes || choice.MaxAssistantOutputBytes == catalog.MaxBrainstormAnswerBytes)
 	}
 	switch choice.Source {
 	case "openai_models", "openrouter_account", "ollama_tags", "lm_studio_native":

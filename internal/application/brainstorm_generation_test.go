@@ -73,8 +73,9 @@ func TestBrainstormPhaseWritesCanonicalContent(t *testing.T) {
 	if !strings.Contains(request.Messages[0].Content, "Guia de design do Harflex") || !strings.Contains(prompt, "Listar contratos que vencem no mês.") || !strings.Contains(prompt, "verde-floresta #1F6F4A") {
 		t.Fatalf("Brainstorm prompt misses the guide, the SPEC or DESIGN.md:\nsystem: %.200s\nprompt: %.400s", request.Messages[0].Content, prompt)
 	}
-	if request.MaxOutputTokens != brainstormOutputTokens {
-		t.Fatalf("Brainstorm output budget = %d, want %d", request.MaxOutputTokens, brainstormOutputTokens)
+	// No answer limit is asked: the provider gives the model's own maximum.
+	if request.MaxOutputTokens != 0 {
+		t.Fatalf("Brainstorm output budget = %d, want no limit (0)", request.MaxOutputTokens)
 	}
 	if strings.Contains((*providers)[0].requests[0].Messages[0].Content, "Guia de design do Harflex") {
 		t.Fatal("SPEC must keep its own system prompt")

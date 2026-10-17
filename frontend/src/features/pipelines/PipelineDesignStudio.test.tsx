@@ -477,16 +477,16 @@ it('offers to change the phase model when the one chosen for Brainstorm is too s
   expect(container.querySelector('details.design-models')).toHaveAttribute('open')
 })
 
-it('lets the Brainstorm editor hold a document as large as the Brainstorm allows', async () => {
+it('puts no length limit on the document editors', async () => {
   const { backend, pipeline } = setup(true), user = userEvent.setup()
   render(<PipelineDesignStudio backend={backend} pipeline={pipeline} onPipelineChange={() => undefined} />)
   await user.click(await screen.findByRole('tab', { name: /Brainstorm/ }))
   await user.click(screen.getByRole('button', { name: 'Editar Brainstorm' }))
-  expect(screen.getByLabelText('Texto de Brainstorm')).toHaveAttribute('maxlength', String(512 * 1024))
+  expect(screen.getByLabelText('Texto de Brainstorm')).not.toHaveAttribute('maxlength')
   await user.click(screen.getByRole('button', { name: 'Cancelar edição' }))
   await user.click(screen.getByRole('tab', { name: 'SPEC' }))
   await user.click(screen.getByRole('button', { name: 'Editar SPEC' }))
-  expect(screen.getByLabelText('Texto de SPEC')).toHaveAttribute('maxlength', '131072')
+  expect(screen.getByLabelText('Texto de SPEC')).not.toHaveAttribute('maxlength')
 })
 
 it('asks to approve the flow and design again when the Brainstorm changed after its approval', async () => {

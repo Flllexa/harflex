@@ -83,7 +83,8 @@ func projectDesignContext(projectPath string) string {
 // brainstormSelectionFits refuses, before anything starts, a model whose output budget or context cannot hold a
 // Brainstorm document.
 func brainstormSelectionFits(choice catalog.ModelSelection) error {
-	if choice.MaxOutputTokens < brainstormOutputTokens || choice.ContextLength > 0 && choice.ContextLength < brainstormOutputTokens+brainstormPromptReserve {
+	// Zero means no answer limit, which always fits; a smaller explicit limit or context does not.
+	if choice.MaxOutputTokens > 0 && choice.MaxOutputTokens < brainstormOutputTokens || choice.ContextLength > 0 && choice.ContextLength < brainstormOutputTokens+brainstormPromptReserve {
 		return ErrBrainstormModelTooSmall
 	}
 	return nil

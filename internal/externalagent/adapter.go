@@ -273,7 +273,7 @@ func validateRequest(r Request, adapterID string, resumable bool) error {
 	if r.FullAccess && (r.Sandbox != "" || r.Policy != "" || r.IgnoreUserConfig || r.Ephemeral || r.ApproveForMe || r.MaxAssistantOutputBytes > 0) {
 		return errors.New("full access is only for ordinary chats")
 	}
-	if r.MaxAssistantOutputBytes < 0 || r.MaxAssistantOutputBytes > 1024*1024 {
+	if r.MaxAssistantOutputBytes < 0 || r.MaxAssistantOutputBytes > maxLine {
 		return errors.New("invalid external assistant output limit")
 	}
 	if adapterID != "codex" && (r.Sandbox != "" || r.IgnoreUserConfig || r.Ephemeral || r.MaxAssistantOutputBytes > 0) {

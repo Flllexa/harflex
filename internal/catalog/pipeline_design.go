@@ -9,15 +9,16 @@ import (
 	"github.com/persioflexa/harflex/internal/sdd"
 )
 
-const MaxPipelineDesignDocumentBytes = 256 * 1024
+// MaxPipelineDesignDocumentBytes bounds one preparation document; it only guards memory, no real document reaches it.
+const MaxPipelineDesignDocumentBytes = 16 << 20
 
 // MaxPipelineRoleOutputBytes bounds one answer of a CLI working as Code's or QA's model: the CLI protocol's line limit,
 // so a large file written in one call fits.
-const MaxPipelineRoleOutputBytes = 1024 * 1024
+const MaxPipelineRoleOutputBytes = 64 << 20
 
 // MaxBrainstormDocumentBytes bounds the Brainstorm document: the flow plus every screen's HTML. It is its own limit,
 // larger than the other preparation documents', because screens are full pages.
-const MaxBrainstormDocumentBytes = 512 * 1024
+const MaxBrainstormDocumentBytes = 32 << 20
 
 // MaxBrainstormAnswerBytes bounds the Brainstorm phase's answer: the document plus the JSON around it and the reply.
 const MaxBrainstormAnswerBytes = MaxBrainstormDocumentBytes + 8*1024

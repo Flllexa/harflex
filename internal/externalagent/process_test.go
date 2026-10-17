@@ -83,7 +83,7 @@ func TestMain(m *testing.M) {
 			fmt.Fprintln(os.Stderr, "harmless diagnostic; private prompt; "+os.Getenv("TEST_API_KEY"))
 			syscall.Exit(7)
 		case "large":
-			fmt.Print(strings.Repeat("x", 1024*1024+1))
+			fmt.Print(strings.Repeat("x", maxLine+1))
 		case "stderr":
 			fmt.Fprint(os.Stderr, strings.Repeat("x", 100000))
 			syscall.Exit(9)

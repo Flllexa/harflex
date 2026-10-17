@@ -119,13 +119,13 @@ func (p *documentProvider) prepare(ctx context.Context, request agentcore.ChatRe
 	}
 	payload, err := marshal()
 	// A long run outgrows what one CLI turn takes: the oldest tool results are shortened first, never the request.
-	for index := 0; err == nil && len(payload) > maxLine/2 && index < len(messages); index++ {
+	for index := 0; err == nil && len(payload) > hostPromptBudget && index < len(messages); index++ {
 		if messages[index].Role == agentcore.RoleTool && len(messages[index].Content) > documentToolResultKeep {
 			messages[index].Content = shortenedToolResult(messages[index].Content)
 			payload, err = marshal()
 		}
 	}
-	if err != nil || len(payload) > maxLine/2 {
+	if err != nil || len(payload) > hostPromptBudget {
 		return DocumentRequest{}, nil, ErrDocumentProviderInput
 	}
 	schema, err := documentProviderSchema(allowed)
@@ -355,3 +355,7 @@ func convertDocumentProviderResult(result DocumentResult, tools map[string]agent
 	}
 	return out, nil
 }
+
+// hostPromptBudget is how much of a long run's conversation one CLI turn carries. It keeps the turn inside the model's
+// context window, so it does not follow the answer limit: past it, the oldest tool results are shortened first.
+const hostPromptBudget = 512 * 1024

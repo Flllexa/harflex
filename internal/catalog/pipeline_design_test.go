@@ -30,7 +30,7 @@ func TestPlanSourceDigestIncludesBrainstorm(t *testing.T) {
 }
 
 func TestBrainstormDocumentHasItsOwnSizeLimit(t *testing.T) {
-	if MaxPipelineDesignDocumentBytesFor(sdd.Brainstorm) != 512*1024 || MaxPipelineDesignDocumentBytesFor(sdd.Spec) != MaxPipelineDesignDocumentBytes {
+	if MaxPipelineDesignDocumentBytesFor(sdd.Brainstorm) != MaxBrainstormDocumentBytes || MaxBrainstormDocumentBytes <= MaxPipelineDesignDocumentBytes || MaxPipelineDesignDocumentBytesFor(sdd.Spec) != MaxPipelineDesignDocumentBytes {
 		t.Fatalf("limits = %d / %d", MaxPipelineDesignDocumentBytesFor(sdd.Brainstorm), MaxPipelineDesignDocumentBytesFor(sdd.Spec))
 	}
 }

@@ -32,8 +32,9 @@ var (
 )
 
 const (
-	maxBatchBytes   = 16 * 1024
-	maxMessageBytes = 1024 * 1024
+	maxBatchBytes = 16 * 1024
+	// maxMessageBytes bounds one message (a prompt, an answer, a tool call's arguments): it guards memory only.
+	maxMessageBytes = 64 << 20
 	maxToolCalls    = 64
 	// A 10 MiB read becomes approximately 14 MiB after JSON/base64 encoding.
 	maxToolContentBytes = 16 * 1024 * 1024

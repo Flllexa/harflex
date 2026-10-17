@@ -18,7 +18,8 @@ import (
 	"unicode/utf8"
 )
 
-const maxLine = 1024 * 1024
+// maxLine bounds one line of a CLI's JSON output: room for an answer that writes a very large file at once.
+const maxLine = 64 << 20
 
 func normalize(line []byte) Event {
 	if !utf8.Valid(line) || !json.Valid(line) {

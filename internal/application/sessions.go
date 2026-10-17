@@ -379,7 +379,8 @@ func (s *Service) makeRunnerAt(record *catalog.SessionRecord, workspace catalog.
 			return nil, nil, safe("get session model", err)
 		}
 	}
-	if record.Mode == "sdd_readonly" && (selection == nil || selection.MaxOutputTokens <= 0 || selection.Status == "unverified_manual") {
+	// A document session needs a confirmed model; a zero MaxOutputTokens means no answer limit, not a missing one.
+	if record.Mode == "sdd_readonly" && (selection == nil || selection.MaxOutputTokens < 0 || selection.Status == "unverified_manual") {
 		return nil, nil, ErrBackendChanged
 	}
 	if record.Mode == "sdd_code" && executionRoot == "" {

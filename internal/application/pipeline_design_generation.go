@@ -252,7 +252,7 @@ func pipelineDesignPrompt(stage sdd.Stage, message string, documents map[sdd.Sta
 		Conversation   []catalog.PipelineDesignMessage `json:"conversation"`
 		ProjectMemory  string                          `json:"projectMemory,omitempty"`
 	}{string(stage), "Escreva somente " + string(stage) + " no campo document. Use os demais documentos apenas como contexto.", message, content, conversation, projectMemory})
-	if err != nil || len(encoded) > 256*1024 {
+	if err != nil || len(encoded) > maxDesignPromptBytes {
 		return "", ErrInvalidInput
 	}
 	return string(encoded), nil
@@ -495,3 +495,6 @@ func (s *Service) failPipelineDesign(attempt catalog.PipelineDesignAttempt, caus
 	}
 	return pipelineDesignDTO(workspace), nil
 }
+
+// maxDesignPromptBytes bounds a preparation request with all its documents; it guards memory only.
+const maxDesignPromptBytes = 64 << 20

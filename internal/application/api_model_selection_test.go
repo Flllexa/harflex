@@ -275,7 +275,8 @@ func TestPipelineCoderPersistsSelectedAPIModelFromFreshCatalog(t *testing.T) {
 	}
 }
 
-func TestSDDRunnerFailsClosedWithoutPositiveSelectedCap(t *testing.T) {
+// An SDD runner needs a confirmed selection; a zero cap in it asks for no answer limit and is admitted.
+func TestSDDRunnerNeedsASelectionAndTakesNoAnswerLimit(t *testing.T) {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, `{"data":[{"id":"chosen"}]}`)
@@ -319,18 +320,17 @@ func TestSDDRunnerFailsClosedWithoutPositiveSelectedCap(t *testing.T) {
 		t.Fatal(err)
 	}
 	selection.SessionID, selection.WorkspacePath = record.ID, storedWorkspace.Path
-	if _, journal, err := s.makeRunner(&record, storedWorkspace, restoredHistory{}, false, nil, "", selection); err == nil {
-		if journal != nil {
-			journal.Close()
-		}
-		t.Fatal("SDD runner admitted with zero cap")
+	_, journal, err := s.makeRunner(&record, storedWorkspace, restoredHistory{}, false, nil, "", selection)
+	if err != nil {
+		t.Fatalf("SDD runner refused a selection without an answer limit: %v", err)
 	}
-	if created.Load() != 0 {
-		t.Fatal("provider constructed before cap gate")
+	if journal != nil {
+		journal.Close()
 	}
 	if err := db.UpsertSession(t.Context(), record); err != nil {
 		t.Fatal(err)
 	}
+	constructed := created.Load()
 	if resumable, _, err := s.sessionContinuation(record); err == nil || resumable {
 		t.Fatal("missing SDD snapshot reported resumable", err)
 	}
@@ -340,7 +340,7 @@ func TestSDDRunnerFailsClosedWithoutPositiveSelectedCap(t *testing.T) {
 		}
 		t.Fatal("SDD reopen admitted without snapshot")
 	}
-	if created.Load() != 0 {
+	if created.Load() != constructed {
 		t.Fatal("provider constructed on missing snapshot")
 	}
 }
