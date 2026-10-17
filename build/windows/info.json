@@ -1,10 +1,10 @@
 {
 	"fixed": {
-		"file_version": "0.2.18"
+		"file_version": "0.2.19"
 	},
 	"info": {
 		"0000": {
-			"ProductVersion": "0.2.18",
+			"ProductVersion": "0.2.19",
 			"CompanyName": "persio.flexa",
 			"FileDescription": "Local-first agentic development harness",
 			"LegalCopyright": "© 2026 persio.flexa",
