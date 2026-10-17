@@ -107,14 +107,15 @@ type scanLimits struct {
 	maxEntries int
 }
 
+// The bounds only guard memory and disk against a runaway tree; a real project, however large, fits.
 var defaultScanLimits = scanLimits{
-	maxFiles:   20_000,
-	maxBytes:   2 << 30,
-	maxEntries: 40_000,
+	maxFiles:   1_000_000,
+	maxBytes:   64 << 30,
+	maxEntries: 2_000_000,
 }
 
 // Scan describes a local project tree without hashing through symlinks and
-// applies the product limits of 20,000 files and 2 GiB. It rejects nested
+// applies the product limits of 1,000,000 files and 64 GiB. It rejects nested
 // filesystem boundaries and platforms where that boundary cannot be proven.
 func Scan(ctx context.Context, rootPath string) (Manifest, error) {
 	return scanWithLimits(ctx, rootPath, defaultScanLimits)

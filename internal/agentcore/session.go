@@ -125,6 +125,8 @@ type Session struct {
 	maxRunToolCalls    int
 	runOutputTokens    int64
 	runToolCalls       int
+	// unknownStreak counts calls in a row to tools that do not exist; a listed tool in between resets it.
+	unknownStreak int
 }
 
 // AddInstructions puts a note at the head of the system instructions, for the next turns of a conversation that is
@@ -274,7 +276,7 @@ func (s *Session) Prompt(ctx context.Context, prompt string) error {
 		return err
 	}
 	opCtx := s.beginLocked(ctx)
-	s.turns, s.runOutputTokens, s.runToolCalls = 0, 0, 0
+	s.turns, s.runOutputTokens, s.runToolCalls, s.unknownStreak = 0, 0, 0, 0
 	s.mu.Unlock()
 	defer s.end()
 	if err := s.append(opCtx, "run.started", struct{}{}); err != nil {
@@ -561,12 +563,17 @@ func (s *Session) drive(ctx context.Context) error {
 			s.mu.Unlock()
 			// Unknown names never reach the policy, so they cannot prompt the user.
 			// A name the model made up is answered like any failed call, so the model picks a listed tool and goes on.
+			// A model that keeps asking for tools that do not exist is not going anywhere: the run ends after a few.
 			if !s.knownTool(call.Name) {
 				if err := s.answerRecoverable(ctx, *call, "unknown_tool", unknownToolMessage, ToolExecutionResult{}); err != nil {
 					return err
 				}
+				if s.unknownStreak++; s.unknownStreak >= maxUnknownToolStreak {
+					return &executionError{"unknown_tool", errors.New("the model kept calling tools that do not exist")}
+				}
 				continue
 			}
+			s.unknownStreak = 0
 			// The executor/PathGuard owns path confinement. Sandbox execution is
 			// unavailable until a composition root can supply verified readiness.
 			risk := s.tools.Risk(call.Name)
@@ -901,6 +908,9 @@ func (s *Session) execute(ctx context.Context, call ToolCall) error {
 	s.recordToolResponse(call, string(result.Content))
 	return nil
 }
+
+// maxUnknownToolStreak is how many calls in a row to tools that do not exist end a run.
+const maxUnknownToolStreak = 5
 
 const (
 	unknownToolMessage       = "There is no tool with this name: use only the tools listed in this conversation."

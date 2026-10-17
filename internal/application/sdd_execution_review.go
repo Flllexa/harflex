@@ -83,7 +83,7 @@ func (s *Service) DecidePipelineExecutionArtifact(in DecidePipelineExecutionArti
 		if err != nil {
 			return PipelineDTO{}, err
 		}
-		evidence, _, err := pipelineCodeEvidence(s.ctx, snapshot, 1024*1024)
+		evidence, _, err := pipelineCodeEvidence(s.ctx, snapshot, catalog.MaxExecutionEvidenceBytes)
 		if err != nil || evidence != artifact.Content {
 			return PipelineDTO{}, repositories.ErrExecutionSourceDrift
 		}

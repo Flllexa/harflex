@@ -9,6 +9,10 @@ import (
 	"github.com/persioflexa/harflex/internal/sdd"
 )
 
+// MaxExecutionEvidenceBytes bounds the reviewed diff of a Code run and a QA or PR report: large enough for any real
+// change, under what one journal event carries.
+const MaxExecutionEvidenceBytes = 32 << 20
+
 type PipelineExecutionReviewRequest struct {
 	PipelineID       string
 	RequestID        string

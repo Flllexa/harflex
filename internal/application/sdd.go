@@ -136,7 +136,7 @@ func (s *Service) pipelineCodeReviewRecoveryStatus(run catalog.PipelineRun, link
 	if applied {
 		return "already_applied", "Esta versão de Code já está aplicada ao workspace. Crie uma nova execução a partir do Discovery salvo para revisar outro patch."
 	}
-	evidence, _, err := pipelineCodeEvidence(s.ctx, snapshot, 1024*1024)
+	evidence, _, err := pipelineCodeEvidence(s.ctx, snapshot, catalog.MaxExecutionEvidenceBytes)
 	if err != nil || evidence != run.Artifacts[sdd.Code].Content {
 		return "source_drift", "O snapshot ou a fonte desta versão mudou. Crie uma nova execução a partir do Discovery salvo para obter uma revisão íntegra."
 	}

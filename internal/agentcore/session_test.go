@@ -1424,3 +1424,23 @@ func TestSessionApprovalRequiredCarriesStoredCall(t *testing.T) {
 		t.Fatalf("persisted=%#v err=%v", persisted, err)
 	}
 }
+
+// A model that only ever asks for tools that do not exist ends its run instead of looping forever.
+func TestSessionEndsAfterTheModelKeepsCallingUnknownTools(t *testing.T) {
+	rounds := 0
+	p := &sessionProvider{stream: func(context.Context, ChatRequest) (<-chan StreamEvent, <-chan error) {
+		rounds++
+		if rounds > 2*maxUnknownToolStreak {
+			t.Fatal("the run kept going")
+		}
+		return streamEvents(StreamEvent{Type: "tool_call", ToolCall: &ToolCall{ID: fmt.Sprintf("call-%d", rounds), Name: "made_up", Arguments: json.RawMessage(`{}`)}})
+	}}
+	tools := &sessionTools{risk: "read_only", execute: func(context.Context, string, json.RawMessage, ToolUpdateSink) (ToolExecutionResult, error) {
+		return ToolExecutionResult{}, nil
+	}}
+	var ended *RunError
+	err := NewSession("session-1", p, tools, &sessionJournal{}, security.Ask).Prompt(context.Background(), "hello")
+	if !errors.As(err, &ended) || ended.Reason != "unknown_tool" || rounds != maxUnknownToolStreak {
+		t.Fatalf("err=%v rounds=%d", err, rounds)
+	}
+}

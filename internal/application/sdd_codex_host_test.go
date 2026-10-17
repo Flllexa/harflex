@@ -164,20 +164,21 @@ func TestCodexHostDeniesPathEscapeAndKeepsSourceUnchanged(t *testing.T) {
 		t.Fatal(err)
 	}
 	answer, _ := json.Marshal(map[string]any{"reply": "", "toolCalls": []any{map[string]any{"name": "write", "arguments": map[string]string{"path": outside, "content": "changed"}}}})
-	s, _, run, stub, _ := codexHostCodeFixture(t, "trusted_workspace", string(answer))
+	s, _, run, stub, _ := codexHostCodeFixture(t, "trusted_workspace", string(answer), `{"reply":"Fico na cópia.","toolCalls":[]}`)
 	coder, err := s.CreatePipelineSession(CreatePipelineSessionInput{PipelineID: run.ID, BackendID: "codex", Role: "coder", ConfirmWorkspaceCopy: true})
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The write is refused and the model hears it; the run goes on inside the copy.
 	result, err := s.Prompt(PromptInput{SessionID: coder.Session.ID, Text: coder.Prompt})
-	if err != nil || result.Status != "failed" {
+	if err != nil || result.Status != "completed" {
 		t.Fatalf("path escape=%+v %v", result, err)
 	}
 	if content, err := os.ReadFile(outside); err != nil || string(content) != "unchanged" {
 		t.Fatalf("outside file=%q %v", content, err)
 	}
-	if len(stub.requests) != 1 || len(stub.runs) != 0 {
-		t.Fatal("path escape continued inference or direct CLI")
+	if len(stub.requests) != 2 || len(stub.runs) != 0 || !strings.Contains(stub.requests[1].Prompt, "tool_failed") {
+		t.Fatal("the refused write did not reach the model, or a direct CLI ran")
 	}
 }
 

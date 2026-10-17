@@ -316,7 +316,12 @@ func TestBrainstormGenerationFailuresAreTerminalAndSanitized(t *testing.T) {
 			}
 			s.modelHTTPClient = &http.Client{Transport: offlineBrainstormCatalog{t}}
 			replay, err := s.GenerateBrainstormQuestion(command)
-			if err != nil || !reflect.DeepEqual(replay, got) || provider.calls.Load() != 1 {
+			// A model that asks for tools here is told there are none; one that keeps asking ends after five calls.
+			calls := int32(1)
+			if test.tool {
+				calls = 5
+			}
+			if err != nil || !reflect.DeepEqual(replay, got) || provider.calls.Load() != calls {
 				t.Fatalf("failure replay: %+v err=%v calls=%d", replay, err, provider.calls.Load())
 			}
 		})

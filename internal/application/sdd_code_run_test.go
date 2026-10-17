@@ -112,8 +112,9 @@ func TestAuthoringCodeRunnerExposesOnlyPrivateFileTools(t *testing.T) {
 		t.Fatalf("Code runner type = %T; want selected API runner", runner)
 	}
 	selected.validateAttempt = func(context.Context) error { return nil }
-	if err := runner.Prompt(t.Context(), "Implement the approved Plan in the private Code copy."); err == nil {
-		t.Fatal("the Code run should not report successful execution when its only write target is outside the private root")
+	// The outside write is refused and handed back to the model, which then finishes inside the copy.
+	if err := runner.Prompt(t.Context(), "Implement the approved Plan in the private Code copy."); err != nil {
+		t.Fatalf("a refused write ended the Code run: %v", err)
 	}
 
 	provider.mu.Lock()

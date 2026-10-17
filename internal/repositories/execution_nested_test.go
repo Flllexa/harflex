@@ -45,7 +45,7 @@ func multiRepoWorkspace(t *testing.T) (root, linked string) {
 	base := t.TempDir()
 	root = filepath.Join(base, "workspace")
 	initSnapshotRepo(t, root, map[string]string{".gitignore": "domains/*\n!domains/.gitkeep\n.claude/\n.local/\nnode_modules/\n", "domains/.gitkeep": "", "README.md": "workspace\n"})
-	initSnapshotRepo(t, filepath.Join(root, "domains", "contracts"), map[string]string{"baixa.go": "package contracts\n\nfunc Baixa() bool { return false }\n", "nested/rules.go": "package nested\n"})
+	initSnapshotRepo(t, filepath.Join(root, "domains", "contracts"), map[string]string{"baixa.go": "package contracts\n\nfunc Baixa() bool { return false }\n", "nested/rules.go": "package nested\n", ".gitignore": "node_modules/\n"})
 	linked = filepath.Join(base, "settlement-elsewhere")
 	initSnapshotRepo(t, linked, map[string]string{"settle.go": "package settlement\n"})
 	if err := os.Symlink(linked, filepath.Join(root, "domains", "settlement")); err != nil {
@@ -122,11 +122,13 @@ func TestExecutionSnapshotCopiesAndAppliesNestedRepositories(t *testing.T) {
 	writeSnapshotFile(t, prepared.Root, "domains/contracts/baixa.go", "package contracts\n\nfunc Baixa() bool { return true }\n")
 	writeSnapshotFile(t, prepared.Root, "domains/contracts/nested/new.go", "package nested\n\nconst New = 1\n")
 	writeSnapshotFile(t, prepared.Root, "domains/settlement/settle.go", "package settlement\n\n// settled\n")
+	// To try it, the Coder installed the repository's dependencies, which its own rules ignore.
+	writeSnapshotFile(t, prepared.Root, "domains/contracts/node_modules/dep/index.js", "module.exports = 1\n")
 	diff, changed, err := ExecutionDiff(ctx, prepared, 1<<20)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(changed) != 3 || !strings.Contains(diff, "diff --git a/domains/contracts/baixa.go b/domains/contracts/baixa.go") || !strings.Contains(diff, "-func Baixa() bool { return false }") || !strings.Contains(diff, "a/domains/settlement/settle.go") {
+	if len(changed) != 3 || strings.Contains(diff, "node_modules") || !strings.Contains(diff, "diff --git a/domains/contracts/baixa.go b/domains/contracts/baixa.go") || !strings.Contains(diff, "-func Baixa() bool { return false }") || !strings.Contains(diff, "a/domains/settlement/settle.go") {
 		t.Fatalf("diff = %s", diff)
 	}
 

@@ -718,7 +718,7 @@ const errorMessages: Record<string, string> = {
   pipeline_git_baseline_unavailable: 'Não foi possível capturar um snapshot completo desta pasta. Reduza o escopo e tente novamente.',
   execution_copy_confirmation_required: 'Revise a prévia da pasta e confirme a cópia privada antes de iniciar Code.',
   pipeline_execution_unsafe_path: 'A cópia contém um link simbólico ou arquivo especial fora do perímetro seguro. Remova o caminho indicado e atualize a prévia.',
-  pipeline_execution_snapshot_too_large: 'A cópia excede 20 mil arquivos ou 2 GiB. Reduza o escopo desta pasta e tente novamente.',
+  pipeline_execution_snapshot_too_large: 'A cópia excede 1 milhão de arquivos ou 64 GiB. Confira se a pasta escolhida é mesmo a do projeto.',
   pipeline_execution_evidence_too_large: 'O diff isolado excede o limite de evidência. Divida o trabalho em uma alteração menor.',
   pipeline_code_snapshot_unavailable: 'O snapshot isolado desta sessão não está disponível. Inspecione o histórico e inicie uma nova execução de Code.',
   pipeline_code_session_closed: 'Esta execução de Code já foi verificada e não aceita mais mensagens. Escreva abaixo para continuar em um novo chat, ou inicie uma nova rodada após a decisão do QA.',

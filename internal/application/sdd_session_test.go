@@ -265,12 +265,13 @@ func TestSDDProviderToolCallCannotExecute(t *testing.T) {
 		if event.Type == "tool.called" || event.Type == "tool.completed" {
 			t.Fatalf("tool executed: %s", event.Type)
 		}
-		if event.Type == "tool.denied" {
+		// No tool exists here: the call is answered as unknown, never executed.
+		if event.Type == "tool.failed" && strings.Contains(string(event.Data), `"errorCode":"unknown_tool"`) {
 			denied = true
 		}
 	}
 	if !denied {
-		t.Fatal("provider tool call was not denied")
+		t.Fatal("provider tool call was not refused")
 	}
 }
 

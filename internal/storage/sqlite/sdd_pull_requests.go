@@ -117,7 +117,7 @@ func (s *Store) FinishPipelinePRs(ctx context.Context, in catalog.PipelinePRsFin
 	if in.Outcome != string(sdd.Completed) && in.Outcome != string(sdd.Skipped) {
 		return sdd.ErrInvalidTransition
 	}
-	if completed && (!safeBrainstormText(in.SessionID, 128) || strings.TrimSpace(in.Report) == "" || len(in.Report) > 1024*1024 || !utf8.ValidString(in.Report)) {
+	if completed && (!safeBrainstormText(in.SessionID, 128) || strings.TrimSpace(in.Report) == "" || len(in.Report) > catalog.MaxExecutionEvidenceBytes || !utf8.ValidString(in.Report)) {
 		return sdd.ErrEvidenceRequired
 	}
 	if len(in.Reason) > 1000 || !utf8.ValidString(in.Reason) {

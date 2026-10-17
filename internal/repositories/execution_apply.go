@@ -30,7 +30,7 @@ type stagedExecutionChange struct {
 // original workspace. It preflights changed paths, stages same-volume
 // replacements, and rolls back changed paths on an apply or readback failure.
 func ApplyExecutionSnapshot(ctx context.Context, prepared ExecutionSnapshot, maxEvidenceBytes int) ([]ExecutionManifestEntry, error) {
-	finalManifest, err := ExecutionManifest(ctx, prepared.Root)
+	finalManifest, err := ExecutionResultManifest(ctx, prepared.Root, prepared)
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +210,7 @@ func ApplyExecutionSnapshot(ctx context.Context, prepared ExecutionSnapshot, max
 			return fail(err)
 		}
 	} else {
-		readback, err := ExecutionManifest(ctx, prepared.SourceRoot)
+		readback, err := ExecutionResultManifest(ctx, prepared.SourceRoot, prepared)
 		if err != nil || !manifestsEqual(finalManifest, readback) {
 			return fail(ErrExecutionApplyConflict)
 		}

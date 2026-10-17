@@ -162,8 +162,9 @@ func TestUnknownProviderToolNameCannotPublishCredential(t *testing.T) {
 		emitted = append(emitted, data.(EventDTO))
 	})
 	result, err := s.Prompt(PromptInput{SessionID: session.ID, Text: "run tool"})
-	if err != nil || result.Status != RunFailed || result.Reason != "unknown_tool" || result.Approval != nil {
-		t.Fatal("unknown tool did not fail safely", err)
+	// The made-up name is answered without approval and the run goes on; it never reaches the journal in clear.
+	if err != nil || result.Status != RunCompleted || result.Approval != nil {
+		t.Fatal("unknown tool was not answered safely", err, result.Status)
 	}
 	stored, err := db.ListAfter(t.Context(), session.ID, 0)
 	if err != nil {

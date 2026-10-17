@@ -82,22 +82,24 @@ func TestReadingAFileThatDoesNotExistYetLetsTheRunGoOnAndSurvivesReopening(t *te
 	}
 }
 
-// An error nobody classified still ends the run and shows nothing but a safe code.
-func TestAnUnclassifiedToolErrorStillEndsTheRun(t *testing.T) {
-	// A call to a tool that does not exist is rejected by the session itself, before any tool runs.
+// A call to a tool that does not exist is answered by the session itself, before any tool runs, and the run goes on.
+func TestAnUnknownToolIsAnsweredAndTheRunGoesOn(t *testing.T) {
 	p := &fakeProvider{toolCall: &agentcore.ToolCall{ID: "ghost-call", Name: "does_not_exist", Arguments: json.RawMessage(`{}`)}}
 	s, _, _, session := sessionSetup(t, p)
 	result, err := s.Prompt(PromptInput{session.ID, "use a tool that is not there"})
-	if err == nil && result.Status == RunCompleted {
-		t.Fatalf("an unknown tool must not complete the run: %+v", result)
+	if err != nil || result.Status != RunCompleted {
+		t.Fatalf("an unknown tool ended the run: %+v %v", result, err)
+	}
+	if got := toolMessages(p.request.Messages); len(got) != 1 || !strings.Contains(got[0], `"error":"unknown_tool"`) {
+		t.Fatalf("the model was not told the tool does not exist: %q", got)
 	}
 	events, listErr := s.ListEvents(ListEventsInput{SessionID: session.ID})
 	if listErr != nil {
 		t.Fatal(listErr)
 	}
 	for _, event := range events {
-		if strings.Contains(string(event.Data), `"recoverable"`) {
-			t.Fatalf("a failure nobody classified was marked recoverable: %s", event.Data)
+		if event.Type == "tool.called" || event.Type == "tool.completed" {
+			t.Fatalf("an unknown tool ran: %s", event.Type)
 		}
 	}
 }

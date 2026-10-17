@@ -453,7 +453,7 @@ func (s *Store) SavePipelineArtifact(ctx context.Context, pipelineID string, sta
 // session provenance. AI-authored Discovery/SPEC/Plan still use their stricter
 // stage-specific approval and artifact contracts.
 func (s *Store) SavePipelineExecutionArtifact(ctx context.Context, pipelineID string, stage sdd.Stage, content, sessionID string, revision int64) error {
-	if (stage != sdd.Code && stage != sdd.Eval) || strings.TrimSpace(content) == "" || len(content) > 1024*1024 || !utf8.ValidString(content) || !safeBrainstormText(sessionID, 128) {
+	if (stage != sdd.Code && stage != sdd.Eval) || strings.TrimSpace(content) == "" || len(content) > catalog.MaxExecutionEvidenceBytes || !utf8.ValidString(content) || !safeBrainstormText(sessionID, 128) {
 		return sdd.ErrInvalidTransition
 	}
 	role := "coder"

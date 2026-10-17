@@ -16,9 +16,10 @@ import (
 	"github.com/pmezard/go-difflib/difflib"
 )
 
+// The copy's bounds only guard memory and disk against a runaway tree; a real project, however large, fits.
 const (
-	maxExecutionSnapshotFiles = 20_000
-	maxExecutionSnapshotBytes = int64(2 << 30)
+	maxExecutionSnapshotFiles = 1_000_000
+	maxExecutionSnapshotBytes = int64(64 << 30)
 )
 
 var (
@@ -300,7 +301,7 @@ func executionSourcePaths(ctx context.Context, snapshot *ExecutionSnapshot) ([]s
 }
 
 func gitExcludedPaths(ctx context.Context, root string) ([]string, error) {
-	ignored, truncated, err := gitOutput(ctx, root, 8*1024*1024, "ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--directory")
+	ignored, truncated, err := gitOutput(ctx, root, 64*1024*1024, "ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--directory")
 	if err != nil || truncated {
 		return nil, ErrExecutionSnapshotTooLarge
 	}
@@ -316,6 +317,11 @@ func gitExcludedPaths(ctx context.Context, root string) ([]string, error) {
 }
 
 func walkExecutionPaths(root string, snapshot *ExecutionSnapshot) ([]string, error) {
+	return walkExecutionPathsSkipping(root, snapshot, nil)
+}
+
+// walkExecutionPathsSkipping walks like walkExecutionPaths and leaves out what skip names; skip sees slash paths.
+func walkExecutionPathsSkipping(root string, snapshot *ExecutionSnapshot, skip func(path string, dir bool) bool) ([]string, error) {
 	paths := make([]string, 0)
 	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
@@ -337,6 +343,12 @@ func walkExecutionPaths(root string, snapshot *ExecutionSnapshot) ([]string, err
 		}
 		if !safeExecutionRelativePath(relative) {
 			return ErrExecutionSnapshotUnsafePath
+		}
+		if skip != nil && skip(filepath.ToSlash(relative), entry.IsDir()) {
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
 		}
 		if entry.IsDir() {
 			return nil
@@ -525,6 +537,106 @@ func ExecutionManifest(ctx context.Context, root string) ([]ExecutionManifestEnt
 	return manifest, nil
 }
 
+// ExecutionResultManifest captures root like ExecutionManifest, leaving out what the project's own ignore rules ignore
+// and the prepared copy did not hold: dependencies, virtual environments, caches and builds the Coder or QA made to
+// run the project. They never belong in the change, so they neither count against the copy's bounds nor reach the
+// patch. Everything the prepared copy held stays in, ignored or not.
+func ExecutionResultManifest(ctx context.Context, root string, prepared ExecutionSnapshot) ([]ExecutionManifestEntry, error) {
+	canonical, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return nil, fmt.Errorf("resolve execution root: %w", err)
+	}
+	ignored := executionIgnoredPaths(ctx, canonical, "")
+	// A nested repository follows its own rules: the project's rule that leaves the repository out does not apply
+	// inside the copy, where it joined.
+	for path := range ignored {
+		for _, repository := range prepared.Repositories {
+			if strings.HasPrefix(repository.Path+"/", path) {
+				delete(ignored, path)
+			}
+		}
+	}
+	for _, repository := range prepared.Repositories {
+		for path := range executionIgnoredPaths(ctx, filepath.Join(canonical, filepath.FromSlash(repository.Path)), repository.Path+"/") {
+			ignored[path] = true
+		}
+	}
+	if len(ignored) == 0 {
+		return ExecutionManifest(ctx, root)
+	}
+	held := make([]string, 0, len(prepared.Manifest))
+	for _, entry := range prepared.Manifest {
+		held = append(held, entry.Path)
+	}
+	sort.Strings(held)
+	holds := func(prefix string) bool {
+		index := sort.SearchStrings(held, prefix)
+		return index < len(held) && strings.HasPrefix(held[index], prefix)
+	}
+	skip := func(path string, dir bool) bool {
+		if dir {
+			return ignored[path+"/"] && !holds(path+"/")
+		}
+		return ignored[path] && !holds(path) || ignoredWithin(ignored, path) && !holds(path)
+	}
+	paths, err := walkExecutionPathsSkipping(canonical, &ExecutionSnapshot{SourceRoot: canonical}, skip)
+	if err != nil {
+		return nil, err
+	}
+	manifest := make([]ExecutionManifestEntry, 0, len(paths))
+	total := int64(0)
+	for _, relative := range paths {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		entry, size, err := executionManifestPath(canonical, relative, maxExecutionSnapshotBytes-total)
+		if err != nil {
+			return nil, err
+		}
+		total += size
+		manifest = append(manifest, entry)
+	}
+	return manifest, nil
+}
+
+// ignoredWithin says whether path sits inside an ignored directory the walk entered because the copy held part of it.
+func ignoredWithin(ignored map[string]bool, path string) bool {
+	for index := strings.LastIndex(path, "/"); index > 0; index = strings.LastIndex(path[:index], "/") {
+		if ignored[path[:index+1]] {
+			return true
+		}
+	}
+	return false
+}
+
+// executionIgnoredPaths lists what the project's ignore rules (its .gitignore files and the person's global excludes)
+// leave out under root, the way Git sees a tree it does not track: ignored directories end with a slash. A copy has no
+// repository of its own, so an empty scratch one lends Git the rules. Paths come back under prefix. Nil when Git
+// cannot tell.
+func executionIgnoredPaths(ctx context.Context, root, prefix string) map[string]bool {
+	scratch, err := os.MkdirTemp("", "harflex-ignore-")
+	if err != nil {
+		return nil
+	}
+	defer os.RemoveAll(scratch)
+	gitDir := filepath.Join(scratch, "rules.git")
+	if _, _, err := gitOutput(ctx, scratch, 4096, "init", "-q", "--bare", gitDir); err != nil {
+		return nil
+	}
+	listed, truncated, err := gitOutput(ctx, root, 64*1024*1024, "--git-dir="+gitDir, "--work-tree="+root, "-c", "core.bare=false",
+		"ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--directory")
+	if err != nil || truncated {
+		return nil
+	}
+	ignored := map[string]bool{}
+	for _, path := range strings.Split(listed, "\x00") {
+		if path != "" && safeExecutionRelativePath(filepath.FromSlash(strings.TrimSuffix(path, "/"))) {
+			ignored[prefix+path] = true
+		}
+	}
+	return ignored
+}
+
 func executionManifestPath(root, slashPath string, maxBytes int64) (ExecutionManifestEntry, int64, error) {
 	if maxBytes < 0 || !safeExecutionRelativePath(filepath.FromSlash(slashPath)) {
 		return ExecutionManifestEntry{}, 0, ErrExecutionSnapshotUnsafePath
@@ -630,12 +742,12 @@ func ExecutionSnapshotApplied(ctx context.Context, prepared ExecutionSnapshot) (
 	if prepared.SourceRoot == "" || prepared.Root == "" {
 		return false, ErrExecutionSnapshotUnsafePath
 	}
-	finalManifest, err := ExecutionManifest(ctx, prepared.Root)
+	finalManifest, err := ExecutionResultManifest(ctx, prepared.Root, prepared)
 	if err != nil {
 		return false, err
 	}
 	if !prepared.IsGit {
-		current, err := ExecutionManifest(ctx, prepared.SourceRoot)
+		current, err := ExecutionResultManifest(ctx, prepared.SourceRoot, prepared)
 		if err != nil {
 			return false, err
 		}
@@ -682,7 +794,7 @@ func ExecutionDiff(ctx context.Context, prepared ExecutionSnapshot, maxBytes int
 	if !sourceMatches {
 		return "", nil, ErrExecutionSourceDrift
 	}
-	current, err := ExecutionManifest(ctx, prepared.Root)
+	current, err := ExecutionResultManifest(ctx, prepared.Root, prepared)
 	if err != nil {
 		return "", nil, err
 	}

@@ -260,9 +260,10 @@ func TestPipelineDesignRejectsUnexpectedModelToolCall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The model hears the tool does not exist; one that keeps asking ends the attempt after five calls.
 	_, _ = s.PreparePipelineDesign(PreparePipelineDesignInput{Ref: designRefForTest(design, "prepare_tool_design_01"), Target: "all", Message: "Preparar documentos"})
 	readback, err := s.OpenPipelineDesign(pipeline.ID)
-	if err != nil || readback.Documents["spec"].Content != "" || readback.State == "running" || len(provider.requests) != 1 || len(provider.requests[0].Tools) != 0 {
+	if err != nil || readback.Documents["spec"].Content != "" || readback.State == "running" || len(provider.requests) != 5 || len(provider.requests[0].Tools) != 0 {
 		t.Fatalf("unexpected tool published document output: %+v %v", readback, err)
 	}
 }

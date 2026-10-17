@@ -416,7 +416,7 @@ func (s *Service) CreatePipelineSession(in CreatePipelineSessionInput) (Pipeline
 		}
 		executionRoot = executionSnapshot.Root
 		encodedExecutionSnapshot = append(json.RawMessage(nil), coderLink.ExecutionSnapshot...)
-		executionEvidence, _, err := pipelineCodeEvidence(s.ctx, executionSnapshot, 1024*1024)
+		executionEvidence, _, err := pipelineCodeEvidence(s.ctx, executionSnapshot, catalog.MaxExecutionEvidenceBytes)
 		if err != nil {
 			return PipelineSessionDTO{}, err
 		}
@@ -627,7 +627,7 @@ func (s *Service) completePipelineCode(pipelineID string, requireDone bool) (Pip
 	if err != nil || executionSnapshot.Root != executionRoot {
 		return PipelineDTO{}, ErrPipelineCodeSnapshotUnavailable
 	}
-	evidence, changed, err := pipelineCodeEvidence(s.ctx, executionSnapshot, 1024*1024)
+	evidence, changed, err := pipelineCodeEvidence(s.ctx, executionSnapshot, catalog.MaxExecutionEvidenceBytes)
 	if err != nil {
 		return PipelineDTO{}, err
 	}
@@ -719,7 +719,7 @@ func (s *Service) CompletePipelineEvaluation(pipelineID string) (PipelineDTO, er
 			}
 		}
 	}
-	if !completed || decodeErr != nil || verdict.Passed == nil || len(response) > 1024*1024 || !validQAReport(*verdict.Passed, verdict.Checks, verdict.Findings, verdict.Improvements) {
+	if !completed || decodeErr != nil || verdict.Passed == nil || len(response) > catalog.MaxExecutionEvidenceBytes || !validQAReport(*verdict.Passed, verdict.Checks, verdict.Findings, verdict.Improvements) {
 		return PipelineDTO{}, sdd.ErrEvidenceRequired
 	}
 	if *verdict.Passed {
@@ -812,14 +812,14 @@ func (s *Service) ApplyPipelineCode(pipelineID string) (PipelineDTO, error) {
 	if applied, err := repositories.ExecutionSnapshotApplied(s.ctx, snapshot); err != nil {
 		return PipelineDTO{}, err
 	} else if !applied {
-		currentEvidence, _, err := pipelineCodeEvidence(s.ctx, snapshot, 1024*1024)
+		currentEvidence, _, err := pipelineCodeEvidence(s.ctx, snapshot, catalog.MaxExecutionEvidenceBytes)
 		if err != nil {
 			return PipelineDTO{}, err
 		}
 		if currentEvidence != codeArtifact.Content {
 			return PipelineDTO{}, repositories.ErrExecutionSourceDrift
 		}
-		if _, err := repositories.ApplyExecutionSnapshot(s.ctx, snapshot, 1024*1024); err != nil {
+		if _, err := repositories.ApplyExecutionSnapshot(s.ctx, snapshot, catalog.MaxExecutionEvidenceBytes); err != nil {
 			return PipelineDTO{}, err
 		}
 	}
@@ -849,7 +849,7 @@ func pipelineCodeEvidence(ctx context.Context, snapshot repositories.ExecutionSn
 	if diff == "" || len(changed) == 0 {
 		return "", nil, nil
 	}
-	finalManifest, err := repositories.ExecutionManifest(ctx, snapshot.Root)
+	finalManifest, err := repositories.ExecutionResultManifest(ctx, snapshot.Root, snapshot)
 	if err != nil {
 		return "", nil, err
 	}

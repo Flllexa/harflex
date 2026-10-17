@@ -318,3 +318,58 @@ func TestApplyExecutionSnapshotRefusesDriftWithoutOverwritingIt(t *testing.T) {
 		t.Fatalf("apply overwrote the concurrent source edit: %q %v", got, err)
 	}
 }
+
+// What a run installs or builds to try the project (dependencies, environments, caches) is ignored by the project's
+// own rules: it neither counts against the copy nor reaches the diff or the original. A file the copy held stays in.
+func TestExecutionResultLeavesOutWhatTheRunInstalled(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git unavailable")
+	}
+	source := committedSnapshotProject(t)
+	write := func(root, path, content string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(root, path)), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, path), []byte(content), 0o640); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(source, ".gitignore", "node_modules/\n.venv/\n*.pyc\nvendor/\n")
+	write(source, "vendor/kept.txt", "tracked despite the rule\n")
+	gitSnapshot(t, source, "add", ".gitignore")
+	gitSnapshot(t, source, "add", "-f", "vendor/kept.txt")
+	gitSnapshot(t, source, "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-m", "ignore rules")
+	prepared, err := PrepareExecutionSnapshotAt(context.Background(), source, false, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(prepared.Root) })
+	write(prepared.Root, "node_modules/left-pad/index.js", "module.exports = 1\n")
+	write(prepared.Root, "web/node_modules/react/index.js", "module.exports = 2\n")
+	write(prepared.Root, ".venv/lib/site.py", "print(1)\n")
+	write(prepared.Root, "app/module.pyc", "bytecode")
+	write(prepared.Root, "vendor/kept.txt", "changed by the Coder\n")
+	write(prepared.Root, "feature.go", "package sample\n")
+	diff, changed, err := ExecutionDiff(context.Background(), prepared, 1<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, unwanted := range []string{"node_modules", ".venv", "module.pyc"} {
+		if strings.Contains(diff, unwanted) {
+			t.Fatalf("what the run installed reached the diff (%s):\n%s", unwanted, diff)
+		}
+	}
+	if !strings.Contains(diff, "a/feature.go") || !strings.Contains(diff, "+changed by the Coder") || len(changed) != 2 {
+		t.Fatalf("the change itself is missing: %d changed\n%s", len(changed), diff)
+	}
+	if _, err := ApplyExecutionSnapshot(context.Background(), prepared, 1<<20); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(source, "feature.go")); err != nil {
+		t.Fatalf("the change was not applied: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(source, "node_modules")); !os.IsNotExist(err) {
+		t.Fatalf("installed dependencies reached the original: %v", err)
+	}
+}
