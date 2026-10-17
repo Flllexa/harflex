@@ -41,6 +41,14 @@ export function ApproveBrainstormSynthesis($in: $models.ApproveBrainstormSynthes
     return $Call.ByID(3022361363, $in);
 }
 
+/**
+ * ApprovePipelineBrainstorm approves the flow and design and starts preparing the Plan from them. The approval stands
+ * even when the Plan cannot start (no model, the app closing): the screen then offers to prepare it.
+ */
+export function ApprovePipelineBrainstorm($in: $models.ApprovePipelineDesignInput): $CancellablePromise<$models.PipelineDTO> {
+    return $Call.ByID(1099003073, $in);
+}
+
 export function ApprovePipelineDesign($in: $models.ApprovePipelineDesignInput): $CancellablePromise<$models.PipelineDTO> {
     return $Call.ByID(1345639922, $in);
 }

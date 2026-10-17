@@ -67,6 +67,7 @@ export const wailsBackend: Backend = {
   restorePipelineDesignDocument: async input => parse.pipelineDesign(await Service.RestorePipelineDesignDocument(input)),
   cancelPipelineDesign: async input => parse.pipelineDesign(await Service.CancelPipelineDesign(input)),
   approvePipelineDesign: async input => parse.pipeline(await Service.ApprovePipelineDesign(input)),
+  approvePipelineBrainstorm: async input => parse.pipeline(await Service.ApprovePipelineBrainstorm(input)),
   deriveAuthoringPipeline: async input => parse.authoringPipeline(await Service.DeriveAuthoringPipeline(input)),
   reviseAuthoringDiscovery: async input => parse.authoringPipeline(await Service.ReviseAuthoringDiscovery(input)),
   startBrainstorming: async input => parse.brainstorm(await Service.StartBrainstorming(input)),

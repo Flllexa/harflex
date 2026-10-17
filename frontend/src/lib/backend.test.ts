@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { NO_CATALOG_TIME, errorMessage, parse } from './backend'
 import * as backendContract from './backend'
 import { createFakeBackend } from '../test/fakeBackend'
+import { designPipeline, designReadback, installPipelineDesignFixture } from '../test/pipelineDesignFixture'
 
 const envelope = { id: 'e1', streamId: 's1', sequence: 1, createdAt: '2026-09-25T10:00:00Z' }
 const authoringDiscovery = { stage: 'discovery', version: 2, content: '# Discovery', author: 'user', sourceSessionId: '', updatedAt: envelope.createdAt }
@@ -314,5 +315,22 @@ describe('event payload validation', () => {
     expect(entries).toHaveLength(1)
     expect(entries[0]).toMatchObject({ type: 'diagnostic.invalid_event', sequence: 0, data: { code: 'invalid_backend_event', message: 'Evento do backend inválido.' } })
     expect(JSON.stringify(entries)).not.toContain('do-not-serialize')
+  })
+})
+
+describe('the flow and design approval', () => {
+  it('moves the work to Plan with Discovery, SPEC and Brainstorm completed', async () => {
+    const { backend } = createFakeBackend()
+    const fixture = installPipelineDesignFixture(backend, undefined, { pipeline: designPipeline(), design: designReadback(designPipeline(), true) })
+    const design = fixture.read()
+    const run = await backend.approvePipelineBrainstorm({ ref: { pipelineId: design.pipelineId, requestId: 'approve_flow_000001', pipelineRevision: design.pipelineRevision, designRevision: design.revision },
+      digests: { discovery: design.documents.discovery.contentDigest, spec: design.documents.spec.contentDigest, brainstorm: design.documents.brainstorm.contentDigest } })
+    expect(run.currentStage).toBe('plan')
+    expect([run.stageStatus.discovery, run.stageStatus.spec, run.stageStatus.brainstorm, run.stageStatus.plan]).toEqual(['completed', 'completed', 'completed', 'active'])
+    expect(run.artifacts.brainstorm?.content).toBe(design.documents.brainstorm.content)
+  })
+
+  it('explains a model too small for the Brainstorm', () => {
+    expect(errorMessage({ cause: { code: 'brainstorm_model_too_small' } })).toBe('O modelo escolhido para o Brainstorm não comporta um documento deste tamanho. Escolha outro modelo para a fase.')
   })
 })

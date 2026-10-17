@@ -105,6 +105,7 @@ export function createFakeBackend() {
     restorePipelineDesignDocument: async () => { throw new Error('Synthetic document history unavailable') },
     cancelPipelineDesign: async () => { throw new Error('Synthetic document cancellation unavailable') },
     approvePipelineDesign: async () => { throw new Error('Synthetic document approval unavailable') },
+    approvePipelineBrainstorm: async () => { throw new Error('Synthetic document approval unavailable') },
     deriveAuthoringPipeline: async () => { throw new Error('Synthetic pipeline unavailable') },
     reviseAuthoringDiscovery: async () => { throw new Error('Synthetic pipeline unavailable') },
     startBrainstorming: async () => { throw new Error('Synthetic brainstorm unavailable') },

@@ -434,6 +434,8 @@ export interface Backend {
   restorePipelineDesignDocument(input: RestorePipelineDesignDocumentInput): Promise<PipelineDesign>
   cancelPipelineDesign(input: { pipelineId: string; attemptId: string }): Promise<PipelineDesign>
   approvePipelineDesign(input: ApprovePipelineDesignInput): Promise<Pipeline>
+  /** Approves Discovery, SPEC and Brainstorm, moves the work to Plan and starts preparing the Plan from them. */
+  approvePipelineBrainstorm(input: ApprovePipelineDesignInput): Promise<Pipeline>
   deriveAuthoringPipeline(input: DeriveAuthoringPipelineInput): Promise<Pipeline>
   reviseAuthoringDiscovery(input: ReviseAuthoringDiscoveryInput): Promise<Pipeline>
   startBrainstorming(input: { pipelineId: string; requestId: string; pipelineRevision: number; discoveryVersion: number; selection: SDDModelSelection }): Promise<Brainstorm>
@@ -731,6 +733,7 @@ const errorMessages: Record<string, string> = {
   sdd_cli_read_isolation_unavailable: 'O Codex CLI pode ler arquivos fora do projeto, mesmo em modo somente leitura. Para proteger outros arquivos locais, use um provedor API no Professional SDD; o Codex CLI permanece no modo Casual.',
   pipeline_design_model_required: 'Escolha o provedor e o modelo padrão em Configurações ou personalize o modelo deste documento em Modelos.',
   pipeline_design_spec_stale: 'Atualize a SPEC com o Discovery atual antes de preparar o Plan.',
+  brainstorm_model_too_small: 'O modelo escolhido para o Brainstorm não comporta um documento deste tamanho. Escolha outro modelo para a fase.',
   pipeline_design_executor_unavailable: 'O executor configurado não está disponível para preparar documentos. No macOS, o modo controlado exige Codex CLI 0.157.0 em /opt/homebrew/bin/codex ou o Claude Code instalado. Confira a instalação ou escolha um provedor API.',
   claude_not_logged_in: 'O Claude Code não está autenticado. Faça o login no terminal com "claude auth login" e tente de novo.',
   pipeline_design_derivation_required: 'Estes documentos já foram aprovados. Crie uma continuação para editar e preservar a execução anterior.',

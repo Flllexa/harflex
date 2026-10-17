@@ -59,7 +59,8 @@ export function installPipelineDesignFixture(backend: Backend, persistence?: Per
     const existing = saved.designs[input.ref.pipelineId]?.attempts.find(item => item.requestId === input.ref.requestId)
     if (existing) return read(input.ref.pipelineId)
     const value = check(input.ref)
-    const stages: readonly PipelineDesignStage[] = input.target === 'plan' ? ['plan'] : input.target === 'brainstorm' ? ['brainstorm'] : input.target === 'spec' || input.target === 'all' && !value.documents.spec.content && !value.documents.plan.content ? ['spec', 'brainstorm', 'plan'] : designStages
+    // Like the Go service: the preparation stops at Brainstorm; only a Plan preparation writes the Plan.
+    const stages: readonly PipelineDesignStage[] = input.target === 'plan' ? ['plan'] : input.target === 'brainstorm' ? ['brainstorm'] : input.target === 'spec' || input.target === 'all' && !value.documents.spec.content && !value.documents.brainstorm.content ? ['spec', 'brainstorm'] : input.target === 'all' && !value.documents.brainstorm.content ? ['brainstorm'] : ['discovery', 'spec', 'brainstorm']
     const attempt = { id: `attempt-${input.ref.requestId}`, requestId: input.ref.requestId, target: input.target, status: 'running', phase: stages[0], selections: {}, sessionIds: {}, errorCode: '', createdAt: now(), updatedAt: now() }
     value.state = 'running'; value.activeAttemptId = attempt.id; value.phase = stages[0]; value.revision++; value.attempts.push(attempt); saved.prepareCount++
     if (input.message.trim()) value.messages.push({ id: `message-${input.ref.requestId}`, role: 'user', content: input.message, target: input.target, attemptId: attempt.id, createdAt: now() })
@@ -92,11 +93,27 @@ export function installPipelineDesignFixture(backend: Backend, persistence?: Per
     if (!value || !attempt) throw new Error('Tentativa ausente')
     attempt.status = 'cancelled'; value.state = 'paused'; value.phase = ''; value.activeAttemptId = ''; value.revision++; persist(); return read(value.pipelineId)
   }
-  backend.approvePipelineDesign = async input => {
-    const value = check(input.ref)
-    if (designStages.some(stage => !value.documents[stage].content.trim() || value.documents[stage].stale || input.digests[stage] !== value.documents[stage].contentDigest)) throw new Error('Documentos incompletos ou desatualizados')
+  const publishApproved = (value: PipelineDesign, parent: Pipeline, stages: readonly PipelineDesignStage[]) => {
+    for (const stage of stages) { const document = value.documents[stage]; parent.artifacts[stage] = { stage, version: document.version, content: document.content, author: document.author === 'ai' ? 'ai' : 'user', contentDigest: document.contentDigest, sourceSessionId: document.sourceSessionId, updatedAt: document.updatedAt }; parent.stageStatus[stage] = 'completed' }
+  }
+  const approvable = (value: PipelineDesign, stages: readonly PipelineDesignStage[], digests: Partial<Record<PipelineDesignStage, string>>) =>
+    Object.keys(digests).length === stages.length && stages.every(stage => value.documents[stage].content.trim() && !value.documents[stage].stale && digests[stage] === value.documents[stage].contentDigest)
+  backend.approvePipelineBrainstorm = async input => {
+    const value = check(input.ref), stages = ['discovery', 'spec', 'brainstorm'] as const
+    if (!approvable(value, stages, input.digests)) throw new Error('Documentos incompletos ou desatualizados')
     const parent = saved.pipelines.find(item => item.id === value.pipelineId)!
-    for (const stage of designStages) { const document = value.documents[stage]; parent.artifacts[stage] = { stage, version: document.version, content: document.content, author: document.author === 'ai' ? 'ai' : 'user', contentDigest: document.contentDigest, sourceSessionId: document.sourceSessionId, updatedAt: document.updatedAt }; parent.stageStatus[stage] = 'completed' }
+    publishApproved(value, parent, stages)
+    parent.currentStage = 'plan'; parent.stageStatus.plan = 'active'; parent.revision++; parent.discoveryFrozenVersion = value.documents.discovery.version
+    value.pipelineRevision = parent.revision; value.currentPipelineRevision = parent.revision; value.revision++; persist()
+    // The Plan is prepared from the approved flow and design right after, as the Go service starts it.
+    if (!value.documents.plan.content || value.documents.plan.stale) void backend.preparePipelineDesign({ ref: { pipelineId: value.pipelineId, requestId: `plan_${input.ref.requestId}`.slice(0, 64), pipelineRevision: value.pipelineRevision, designRevision: value.revision }, target: 'plan', message: 'Prepare o Plan a partir da SPEC e do Brainstorm aprovados.' })
+    return clone(parent)
+  }
+  backend.approvePipelineDesign = async input => {
+    const value = check(input.ref), parent = saved.pipelines.find(item => item.id === value.pipelineId)!
+    const stages: readonly PipelineDesignStage[] = parent.stageStatus.brainstorm === 'skipped' && !value.documents.brainstorm.content ? ['discovery', 'spec', 'plan'] : designStages
+    if (parent.currentStage !== 'plan' || !approvable(value, stages, input.digests)) throw new Error('Documentos incompletos ou desatualizados')
+    publishApproved(value, parent, stages)
     parent.currentStage = 'code'; parent.stageStatus.code = 'active'; parent.revision++; parent.discoveryFrozenVersion = value.documents.discovery.version
     value.needsDerivation = true; value.state = 'approved'; value.currentPipelineRevision = parent.revision; value.revision++; persist(); return clone(parent)
   }
