@@ -12,8 +12,8 @@ describe('worktree wording', () => {
   it('says why a worktree is held in one plain sentence per reason', () => {
     expect(blockerText(blocker('uncommitted_changes', 1), 'main')).toBe('1 alteração não salva (arquivos editados ou novos).')
     expect(blockerText(blocker('uncommitted_changes', 3), 'main')).toBe('3 alterações não salvas (arquivos editados ou novos).')
-    expect(blockerText(blocker('unmerged_commits', 2, 'develop'), 'main')).toBe('2 commits só desta branch, ainda não mesclados em develop.')
-    expect(blockerText(blocker('unmerged_commits', 1), 'main')).toBe('1 commit só desta branch, ainda não mesclado em main.')
+    expect(blockerText(blocker('unmerged_commits', 2, 'develop'), 'main')).toBe('2 commits só desta branch, que não estão no remoto nem em develop.')
+    expect(blockerText(blocker('unmerged_commits', 1), 'main')).toBe('1 commit só desta branch, que não está no remoto nem em main.')
     expect(blockerText(blocker('detached_commits', 1), 'main')).toBe('1 commit solto (HEAD destacado) que nenhuma branch guarda.')
     expect(blockerText(blocker('locked', 0, 'em uso no CI'), 'main')).toContain('Está travado (em uso no CI)')
     expect(blockerText(blocker('locked'), 'main')).toContain('Está travado.')
@@ -68,5 +68,13 @@ describe('worktree wording', () => {
     expect(ignoredSummary(ignoredWorktree())).toBe('5 itens ignorados pelo Git: node_modules/, .env.local, dist/ e mais 2')
     expect(ignoredSummary(worktreeItem({ ignored: ['.env'], ignoredMore: 0 }))).toBe('1 item ignorado pelo Git: .env')
     expect(ignoredSummary(worktreeItem({ ignored: ['a', 'b', 'c', 'd', 'e'], ignoredMore: 0 }))).toBe('5 itens ignorados pelo Git: a, b, c, d e mais 1')
+  })
+})
+
+describe('worktree saved on the remote', () => {
+  it('says the commits are on the remote branch instead of counting them ahead of the base', () => {
+    const pushed = worktreeItem({ ahead: 3, merged: false, onRemote: true, upstream: 'origin/feature/exportacao' })
+    expect(worktreeFacts(pushed, 'main')).toEqual(['Sem alterações pendentes', 'No remoto (origin/feature/exportacao)'])
+    expect(worktreeFacts(worktreeItem({ ahead: 3, merged: false }), 'main')).toContain('3 commits à frente de main')
   })
 })

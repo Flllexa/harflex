@@ -11,7 +11,7 @@ export function worktreeItem(overrides: Partial<Worktree> = {}): Worktree {
     path: '/synthetic/worktrees/exportacao', name: 'exportacao', branch: 'feature/exportacao', head: '1a2b3c4d5e6f7a8b',
     isMain: false, isCurrent: false, detached: false, locked: false, lockReason: '', missing: false, statusKnown: true,
     staged: 0, unstaged: 0, untracked: 0, conflicts: 0, changed: 0, changedFiles: [], changesTruncated: false, operation: '',
-    ahead: 0, behind: 0, merged: true, ignored: [], ignoredMore: 0,
+    ahead: 0, behind: 0, merged: true, onRemote: false, upstream: '', ignored: [], ignoredMore: 0,
     canDelete: true, blockers: [], canSaveWithAi: false, saveBlockers: [blocker('nothing_to_save')],
     ...overrides,
   }
@@ -118,7 +118,7 @@ export function installWorktrees(backend: Backend, initial: Worktree[] = [mainWo
     return {
       workspace: { id: 'workspace-1', path: worktreeRoot, profile: 'ask' }, path: item.path, branch: item.branch, base: 'main',
       snapshotRef: `refs/harflex/worktree-saves/${name}-20261001T120000Z`, snapshotCommit: 'c0ffee0123456789', hadPending: item.changed > 0,
-      reason: `Salvar e mesclar o worktree ${name}`, prompt: `Commite o que está pendente em ${name} e mescle em main.`,
+      reason: `Salvar o worktree ${name} na branch remota`, prompt: `Commite o que está pendente em ${name} e envie a branch ao remoto.`,
     }
   }
   return {

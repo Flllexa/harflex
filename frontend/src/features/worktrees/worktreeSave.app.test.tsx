@@ -38,9 +38,9 @@ async function openWorktreesPage(user: ReturnType<typeof userEvent.setup>) {
 }
 
 async function startSaving(user: ReturnType<typeof userEvent.setup>, options: { keep?: boolean } = {}) {
-  await user.click(await screen.findByRole('button', { name: 'Salvar e mesclar com a IA…' }))
-  const dialog = await screen.findByRole('dialog', { name: 'Salvar e mesclar com a IA' })
-  if (options.keep) await user.click(within(dialog).getByRole('checkbox', { name: /Excluir o worktree quando tudo estiver salvo/ }))
+  await user.click(await screen.findByRole('button', { name: 'Salvar na branch remota com a IA…' }))
+  const dialog = await screen.findByRole('dialog', { name: 'Salvar na branch remota com a IA' })
+  if (options.keep) await user.click(within(dialog).getByRole('checkbox', { name: /Excluir o worktree quando tudo estiver no remoto/ }))
   await user.click(within(dialog).getByRole('button', { name: 'Começar' }))
 }
 
@@ -78,8 +78,8 @@ describe('worktree save with the assistant', () => {
     await startSaving(user)
 
     expect(await screen.findByText('Worktree feature/relatorios excluído. Tudo estava salvo e mesclado em main; a branch feature/relatorios também foi apagada.')).toBeInTheDocument()
-    expect(direct).toHaveBeenCalledWith({ workspaceId: 'workspace-1', backendId: 'local', reason: 'Salvar e mesclar o worktree feature/relatorios' })
-    expect(prompts).toEqual(['Commite o que está pendente em feature/relatorios e mescle em main.'])
+    expect(direct).toHaveBeenCalledWith({ workspaceId: 'workspace-1', backendId: 'local', reason: 'Salvar o worktree feature/relatorios na branch remota' })
+    expect(prompts).toEqual(['Commite o que está pendente em feature/relatorios e envie a branch ao remoto.'])
     expect(wt.calls.prepared).toEqual([relatorios])
     // The assistant never deletes: the app judged again and removed it, acknowledging what the user agreed to.
     expect(wt.calls.deleted).toEqual([{ workspaceId: 'workspace-1', path: relatorios, deleteBranch: true, acknowledgeIgnored: true }])
@@ -199,7 +199,7 @@ describe('worktree save with the assistant', () => {
     expect(region).toHaveTextContent('Não pode ser excluído: 3 alterações não salvas')
     await user.click(within(region).getByRole('button', { name: 'Salvar com a IA…' }))
     const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByText(/no projeto principal/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/a partir do projeto principal/)).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: 'Começar' }))
     expect(await screen.findByText(/Worktree feature\/relatorios excluído\./)).toBeInTheDocument()
     expect(opened.mock.calls.map(call => call[0])).toEqual([relatorios, worktreeRoot])
@@ -325,7 +325,7 @@ describe('worktree save with the assistant', () => {
       await startSaving(user)
       expect(await screen.findByText(/Worktree feature\/relatorios excluído\./)).toBeInTheDocument()
       expect(query).toHaveBeenCalledWith({ workspaceId: 'workspace-1', backendId: 'codex' })
-      expect(direct).toHaveBeenCalledWith({ workspaceId: 'workspace-1', backendId: 'codex', reason: 'Salvar e mesclar o worktree feature/relatorios', modelId: 'runtime-model', reasoningEffort: '', catalogRevision: 'rev-1' })
+      expect(direct).toHaveBeenCalledWith({ workspaceId: 'workspace-1', backendId: 'codex', reason: 'Salvar o worktree feature/relatorios na branch remota', modelId: 'runtime-model', reasoningEffort: '', catalogRevision: 'rev-1' })
     })
 
     it('does not start when the catalog cannot confirm the saved model', async () => {
@@ -358,7 +358,7 @@ describe('worktree save with the assistant', () => {
     // Still running: the page, once opened, must not let a second save in.
     await waitFor(() => expect(screen.getByRole('status', { name: 'Salvamento do worktree' })).toHaveTextContent('A IA está salvando feature/relatorios na conversa.'))
     await openWorktreesPage(user)
-    await user.click(await screen.findByRole('button', { name: 'Salvar e mesclar com a IA…' }))
+    await user.click(await screen.findByRole('button', { name: 'Salvar na branch remota com a IA…' }))
     const dialog = await screen.findByRole('dialog')
     await user.click(within(dialog).getByRole('button', { name: 'Começar' }))
     expect(await within(dialog).findByRole('alert')).toBeInTheDocument()

@@ -24,10 +24,10 @@ type Target = { item: Worktree; workspaceId: string; list: WorktreeList }
 function Verdict({ item, base }: { item: Worktree; base: string }) {
   const t = useT()
   if (item.isMain) return <div className="worktree-verdict is-main"><FolderGit2 aria-hidden="true" /><div><strong>{t('Worktree principal')}</strong><span className="muted">{t('Não se exclui: é onde {base} está.', { base: base || t('a branch base') })}</span>
-    {item.canSaveWithAi && <span className="muted">{t('Commite as {changes} para os outros worktrees poderem ser mesclados aqui.', { changes: item.changed === 1 ? t('alteração pendente') : t('{count} alterações pendentes', { count: item.changed }) })}</span>}</div></div>
+    {item.canSaveWithAi && <span className="muted">{t('Envie as {changes} para uma branch remota e deixe {base} limpa.', { changes: item.changed === 1 ? t('alteração pendente') : t('{count} alterações pendentes', { count: item.changed }), base: base || t('a branch base') })}</span>}</div></div>
   if (item.canDelete) {
     const ignored = ignoredSummary(item)
-    return <div className="worktree-verdict is-clear"><CheckCircle2 aria-hidden="true" /><div><strong>{t('Pode excluir')}</strong><span className="muted">{t('Tudo está salvo e mesclado em {base}.', { base })}</span>{ignored && <span className="muted">{t('Ao excluir, apaga {items}.', { items: ignored })}</span>}</div></div>
+    return <div className="worktree-verdict is-clear"><CheckCircle2 aria-hidden="true" /><div><strong>{t('Pode excluir')}</strong><span className="muted">{item.onRemote && !item.merged ? t('Tudo está salvo na branch remota {remote}.', { remote: item.upstream || t('da tarefa') }) : t('Tudo está salvo e mesclado em {base}.', { base })}</span>{ignored && <span className="muted">{t('Ao excluir, apaga {items}.', { items: ignored })}</span>}</div></div>
   }
   const reasons = item.blockers.filter(blocker => blocker.code !== 'nothing_to_save')
   return <div className="worktree-verdict is-held"><ShieldAlert aria-hidden="true" /><div><strong>{t('Não pode excluir')}</strong>
@@ -75,8 +75,8 @@ function WorktreeRows({ list, label, openPath, busy, pruning, onDelete, onSave, 
         <Verdict item={item} base={list.base} />
         <div className="worktree-actions">
           {item.canDelete && !open && <button type="button" className="touch-target danger-button" onClick={() => onDelete(item)}><Trash2 aria-hidden="true" />{t('Excluir…')}</button>}
-          {item.canSaveWithAi && item.isMain && <button type="button" className="touch-target primary-button" onClick={() => onSave(item)}><GitCommitHorizontal aria-hidden="true" />{t('Commitar com a IA…')}</button>}
-          {item.canSaveWithAi && !item.isMain && <button type="button" className="touch-target primary-button" onClick={() => onSave(item)}><Sparkles aria-hidden="true" />{t('Salvar e mesclar com a IA…')}</button>}
+          {item.canSaveWithAi && item.isMain && <button type="button" className="touch-target primary-button" onClick={() => onSave(item)}><GitCommitHorizontal aria-hidden="true" />{t('Enviar para uma branch remota com a IA…')}</button>}
+          {item.canSaveWithAi && !item.isMain && <button type="button" className="touch-target primary-button" onClick={() => onSave(item)}><Sparkles aria-hidden="true" />{t('Salvar na branch remota com a IA…')}</button>}
           {waitsForMain(item) && <button type="button" className="touch-target primary-button" onClick={() => onSave(mainItem!)}><GitCommitHorizontal aria-hidden="true" />{t('Commitar o principal com a IA…')}</button>}
           {item.missing && <button type="button" className="touch-target secondary-button" disabled={pruning} onClick={onPrune}>{pruning ? t('Limpando…') : t('Limpar registro')}</button>}
         </div>

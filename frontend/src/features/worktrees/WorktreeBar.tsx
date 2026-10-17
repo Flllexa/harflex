@@ -42,7 +42,7 @@ export function WorktreeBar({ backend, workspaceId, worktrees, backends, default
       {current.isMain
         ? <span className="worktree-bar-verdict muted">{others.length === 0 ? t('Sem outros worktrees.') : t('{others} · {deletable}', { others: plural(others.length, t('outro worktree'), t('outros worktrees')), deletable: deletableText(clear) })}</span>
         : held.length === 0
-          ? <span className="worktree-bar-verdict is-clear"><CheckCircle2 aria-hidden="true" /><Rich text={t('Tudo salvo e mesclado em {base}: pode ser excluído ao sair deste projeto.')} values={{ base: list.base }} /></span>
+          ? <span className="worktree-bar-verdict is-clear"><CheckCircle2 aria-hidden="true" />{current.onRemote && !current.merged ? <Rich text={t('Tudo salvo na branch remota {remote}: pode ser excluído ao sair deste projeto.')} values={{ remote: current.upstream || t('da tarefa') }} /> : <Rich text={t('Tudo salvo e mesclado em {base}: pode ser excluído ao sair deste projeto.')} values={{ base: list.base }} />}</span>
           : <span className="worktree-bar-verdict is-held"><ShieldAlert aria-hidden="true" />{held.length > 1
             ? t('Não pode ser excluído: {reason} +{more}', { reason: blockerText(held[0], list.base), more: plural(held.length - 1, t('motivo'), t('motivos')) })
             : t('Não pode ser excluído: {reason}', { reason: blockerText(held[0], list.base) })}</span>}

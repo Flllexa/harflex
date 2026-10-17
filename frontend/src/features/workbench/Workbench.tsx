@@ -606,14 +606,14 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     // The list on screen belongs to the open project; only adopt an answer about that same project.
     const adopt = (list: WorktreeList) => { if (store.getState().workspace?.id === workspaceId) worktrees.replace(list) }
     const update = (phase: WorktreeCleanup['phase'], message: string) => setWorktreeCleanup(current => current && current.sessionId === cleanup.sessionId ? { ...current, phase, message } : current)
-    update('checking', cleanup.isMain ? t('Conferindo se tudo foi commitado…') : t('Conferindo se tudo foi salvo e mesclado…'))
+    update('checking', cleanup.isMain ? t('Conferindo se {base} ficou limpa…', { base: cleanup.base }) : t('Conferindo se tudo está no remoto…'))
     try {
       const list = await backend.listWorktrees(workspaceId)
       const item = list.items.find(entry => entry.path === cleanup.path)
       if (!item) { adopt(list); update('deleted', t('O worktree {name} não existe mais.', { name: cleanup.name })); return }
       if (cleanup.isMain) {
         adopt(list)
-        if (item.changed === 0) update('saved', t('As alterações de {name} foram commitadas. Os outros worktrees já podem ser salvos e mesclados na página Worktrees.', { name: cleanup.name }))
+        if (item.changed === 0) update('saved', t('As alterações pendentes foram para uma branch remota, e {name} ficou limpa.', { name: cleanup.name }))
         else update('attention', t('{name} ainda tem {count} {changes}. Se a conversa continuar, o Harflex confere de novo quando a IA terminar.', { name: cleanup.name, count: item.changed, changes: item.changed === 1 ? t('alteração não salva') : t('alterações não salvas') }))
         return
       }
@@ -624,10 +624,17 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
         update('attention', t('Ainda não dá para excluir {name}: {reasons} Nada foi excluído. {next}', { name: cleanup.name, reasons, next: onlyInUse ? t('Depois de fechar, use Conferir agora.') : t('Se a conversa continuar, o Harflex confere de novo quando a IA terminar.') }))
         return
       }
-      if (!cleanup.deleteWhenSaved) { adopt(list); update('saved', t('Tudo salvo e mesclado em {base}. {name} já pode ser excluído na página Worktrees.', { base: cleanup.base, name: cleanup.name })); return }
+      // Where the work is safe: on the task's remote branch (the save pushes there), or already merged into the base.
+      const remote = item.onRemote && !item.merged
+      if (!cleanup.deleteWhenSaved) { adopt(list); update('saved', remote
+        ? t('Tudo salvo na branch remota {remote}. {name} já pode ser excluído na página Worktrees.', { remote: item.upstream || t('da tarefa'), name: cleanup.name })
+        : t('Tudo salvo e mesclado em {base}. {name} já pode ser excluído na página Worktrees.', { base: cleanup.base, name: cleanup.name })); return }
       const result = await backend.deleteWorktree({ workspaceId, path: cleanup.path, deleteBranch: cleanup.deleteBranch, acknowledgeIgnored: cleanup.acknowledgeIgnored })
       adopt(result.list)
-      update('deleted', t('Worktree {name} excluído. Tudo estava salvo e mesclado em {base}{extra}.', { name: cleanup.name, base: cleanup.base, extra: result.branchDeleted ? t('; a branch {branch} também foi apagada', { branch: result.branch }) : '' }))
+      const extra = result.branchDeleted ? t('; a branch {branch} também foi apagada', { branch: result.branch }) : ''
+      update('deleted', remote
+        ? t('Worktree {name} excluído. Tudo estava salvo na branch remota {remote}{extra}.', { name: cleanup.name, remote: item.upstream || t('da tarefa'), extra })
+        : t('Worktree {name} excluído. Tudo estava salvo e mesclado em {base}{extra}.', { name: cleanup.name, base: cleanup.base, extra }))
     } catch (failure) {
       update('attention', t('Não foi possível conferir {name}: {error} Nada foi excluído.', { name: cleanup.name, error: errorMessage(failure) }))
     }

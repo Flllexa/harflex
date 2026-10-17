@@ -513,8 +513,8 @@ export function PreparePipelineDesign($in: $models.PreparePipelineDesignInput): 
 
 /**
  * PrepareWorktreeSave keeps a copy of everything the worktree holds, then returns what the
- * assistant needs to commit it and merge it into the base branch. Deleting stays a separate,
- * re-checked step, so the assistant's work is verified rather than trusted.
+ * assistant needs to commit it on the task's branch and push it to the remote. Deleting stays a
+ * separate, re-checked step, so the assistant's work is verified rather than trusted.
  */
 export function PrepareWorktreeSave($in: $models.PrepareWorktreeSaveInput): $CancellablePromise<$models.WorktreeSavePlanDTO> {
     return $Call.ByID(1515961084, $in);

@@ -1701,6 +1701,8 @@ export interface WorktreeDTO {
     "ahead": number;
     "behind": number;
     "merged": boolean;
+    "onRemote": boolean;
+    "upstream": string;
     "ignored": string[] | null;
     "ignoredMore": number;
     "canDelete": boolean;

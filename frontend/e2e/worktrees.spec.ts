@@ -38,13 +38,13 @@ for (const width of [320, 768, 900, 1024, 1440]) {
     await expect(row(page, 'feature/cache')).toContainText('Pode excluir')
     for (const held of ['feature/relatorios', 'feature/travado', 'feature/sumiu', 'HEAD destacado em 4d5e6f7a']) await expect(row(page, held)).toContainText('Não pode excluir')
     await expect(row(page, 'feature/relatorios')).toContainText('3 alterações não salvas (arquivos editados ou novos).')
-    await expect(row(page, 'feature/relatorios')).toContainText('2 commits só desta branch, ainda não mesclados em main.')
+    await expect(row(page, 'feature/relatorios')).toContainText('2 commits só desta branch, que não estão no remoto nem em main.')
     await expect(row(page, 'feature/travado')).toContainText('Está travado (em uso no CI)')
     await expect(row(page, 'feature/sumiu')).toContainText('A pasta não existe mais')
 
     // Deleting is offered only where it is safe; the assistant only where it can help.
     await expect(page.getByRole('button', { name: 'Excluir…' })).toHaveCount(2)
-    await expect(page.getByRole('button', { name: 'Salvar e mesclar com a IA…' })).toHaveCount(2)
+    await expect(page.getByRole('button', { name: 'Salvar na branch remota com a IA…' })).toHaveCount(2)
     await expect(page.getByRole('button', { name: 'Limpar registro' })).toHaveCount(1)
     await expect(row(page, 'main').getByRole('button')).toHaveCount(0)
 
@@ -134,11 +134,11 @@ test('cleans the record of a folder that no longer exists', async ({ page }) => 
 for (const width of [320, 1440]) {
   test(`the assistant saves and merges a held worktree, then the app deletes it at ${width}px`, async ({ page }, info) => {
     await openWorktrees(page, width)
-    await row(page, 'feature/relatorios').getByRole('button', { name: 'Salvar e mesclar com a IA…' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Salvar e mesclar com a IA' })
+    await row(page, 'feature/relatorios').getByRole('button', { name: 'Salvar na branch remota com a IA…' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Salvar na branch remota com a IA' })
     await expect(dialog).toBeVisible()
-    await expect(dialog.getByText(/no projeto principal/)).toBeVisible()
-    await expect(dialog.getByRole('checkbox', { name: /Excluir o worktree quando tudo estiver salvo e mesclado/ })).toBeChecked()
+    await expect(dialog.getByText(/a partir do projeto principal/)).toBeVisible()
+    await expect(dialog.getByRole('checkbox', { name: /Excluir o worktree quando tudo estiver no remoto/ })).toBeChecked()
     const box = await dialog.boundingBox()
     expect(box!.x).toBeGreaterThanOrEqual(0)
     expect(box!.x + box!.width).toBeLessThanOrEqual(width)
@@ -162,7 +162,7 @@ for (const width of [320, 1440]) {
 
 test('judges again after the assistant and deletes nothing when work is still pending', async ({ page }, info) => {
   await openWorktrees(page, 1440, root, '&assistant=stalls')
-  await row(page, 'feature/relatorios').getByRole('button', { name: 'Salvar e mesclar com a IA…' }).click()
+  await row(page, 'feature/relatorios').getByRole('button', { name: 'Salvar na branch remota com a IA…' }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Começar' }).click()
   const alert = page.getByRole('alert', { name: 'Salvamento do worktree' })
   await expect(alert).toContainText('Ainda não dá para excluir feature/relatorios: 3 alterações não salvas (arquivos editados ou novos).')
@@ -174,9 +174,9 @@ test('judges again after the assistant and deletes nothing when work is still pe
 
 test('keeps the worktree when the user chose not to delete it after saving', async ({ page }) => {
   await openWorktrees(page, 1440)
-  await row(page, 'feature/relatorios').getByRole('button', { name: 'Salvar e mesclar com a IA…' }).click()
+  await row(page, 'feature/relatorios').getByRole('button', { name: 'Salvar na branch remota com a IA…' }).click()
   const dialog = page.getByRole('dialog')
-  await dialog.getByRole('checkbox', { name: /Excluir o worktree quando tudo estiver salvo/ }).uncheck()
+  await dialog.getByRole('checkbox', { name: /Excluir o worktree quando tudo estiver no remoto/ }).uncheck()
   await dialog.getByRole('button', { name: 'Começar' }).click()
   const notice = page.getByRole('status', { name: 'Salvamento do worktree' })
   await expect(notice).toContainText('Tudo salvo e mesclado em main. feature/relatorios já pode ser excluído na página Worktrees.')
@@ -186,7 +186,7 @@ test('keeps the worktree when the user chose not to delete it after saving', asy
 
 test('says so when no AI provider is available', async ({ page }) => {
   await openWorktrees(page, 1440, root, '&backends=none')
-  await row(page, 'feature/relatorios').getByRole('button', { name: 'Salvar e mesclar com a IA…' }).click()
+  await row(page, 'feature/relatorios').getByRole('button', { name: 'Salvar na branch remota com a IA…' }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog.getByRole('alert')).toContainText('Nenhum provedor de IA disponível')
   await expect(dialog.getByRole('button', { name: 'Começar' })).toBeDisabled()
@@ -241,7 +241,7 @@ for (const width of [320, 1440]) {
     await page.getByText('Ferramentas', { exact: true }).click()
     await page.getByRole('navigation', { name: 'Ferramentas' }).getByRole('button', { name: 'Worktrees' }).click()
     await expect(page.getByRole('heading', { level: 2, name: 'Worktrees' })).toBeVisible()
-    await row(page, 'feature/relatorios').getByRole('button', { name: 'Salvar e mesclar com a IA…' }).click()
+    await row(page, 'feature/relatorios').getByRole('button', { name: 'Salvar na branch remota com a IA…' }).click()
     await page.getByRole('dialog').getByRole('button', { name: 'Começar' }).click()
 
     // The project header is hidden in this conversation; the notice still says what became of the save.

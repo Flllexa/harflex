@@ -44,6 +44,8 @@ type WorktreeDTO struct {
 	Ahead            int                  `json:"ahead"`
 	Behind           int                  `json:"behind"`
 	Merged           bool                 `json:"merged"`
+	OnRemote         bool                 `json:"onRemote"`
+	Upstream         string               `json:"upstream"`
 	Ignored          []string             `json:"ignored"`
 	IgnoredMore      int                  `json:"ignoredMore"`
 	CanDelete        bool                 `json:"canDelete"`
@@ -160,7 +162,7 @@ func worktreeListDTO(set repositories.WorktreeSet, workspacePath string) Worktre
 			Missing: item.Missing, StatusKnown: item.StatusKnown,
 			Staged: item.Changes.Staged, Unstaged: item.Changes.Unstaged, Untracked: item.Changes.Untracked, Conflicts: item.Changes.Conflicts,
 			Changed: item.Changes.Total, ChangedFiles: item.Changes.Files, ChangesTruncated: item.Changes.Truncated,
-			Operation: item.Operation, Ahead: item.Ahead, Behind: item.Behind, Merged: item.Merged,
+			Operation: item.Operation, Ahead: item.Ahead, Behind: item.Behind, Merged: item.Merged, OnRemote: item.OnRemote, Upstream: item.Upstream,
 			Ignored: item.Ignored, IgnoredMore: item.IgnoredMore,
 			CanDelete: len(blockers) == 0, Blockers: worktreeBlockerDTOs(blockers),
 			CanSaveWithAI: len(saveBlockers) == 0, SaveBlockers: worktreeBlockerDTOs(saveBlockers),
@@ -249,8 +251,8 @@ func (s *Service) PruneWorktrees(workspaceID string) (WorktreeListDTO, error) {
 }
 
 // PrepareWorktreeSave keeps a copy of everything the worktree holds, then returns what the
-// assistant needs to commit it and merge it into the base branch. Deleting stays a separate,
-// re-checked step, so the assistant's work is verified rather than trusted.
+// assistant needs to commit it on the task's branch and push it to the remote. Deleting stays a
+// separate, re-checked step, so the assistant's work is verified rather than trusted.
 func (s *Service) PrepareWorktreeSave(in PrepareWorktreeSaveInput) (WorktreeSavePlanDTO, error) {
 	if err := s.beginCall(); err != nil {
 		return WorktreeSavePlanDTO{}, err
@@ -297,14 +299,14 @@ func (s *Service) PrepareWorktreeSave(in PrepareWorktreeSaveInput) (WorktreeSave
 		return WorktreeSavePlanDTO{
 			Workspace: root, Path: item.Path, Branch: item.Branch, Base: set.Base,
 			SnapshotRef: saved.Ref, SnapshotCommit: saved.Commit, HadPending: saved.HadChange,
-			Reason: "Commitar as alterações pendentes de " + label,
+			Reason: "Enviar as alterações pendentes de " + label + " para uma branch remota",
 			Prompt: mainWorktreeSavePrompt(item, set.Base, saved),
 		}, nil
 	}
 	return WorktreeSavePlanDTO{
 		Workspace: root, Path: item.Path, Branch: item.Branch, Base: set.Base,
 		SnapshotRef: saved.Ref, SnapshotCommit: saved.Commit, HadPending: saved.HadChange,
-		Reason: "Salvar e mesclar o worktree " + label,
+		Reason: "Salvar o worktree " + label + " na branch remota",
 		Prompt: worktreeSavePrompt(set.Root, item, set.Base, saved),
 	}, nil
 }
@@ -322,60 +324,64 @@ func worktreeSavePrompt(root string, item repositories.Worktree, base string, sa
 	if branch == "" {
 		where = "HEAD destacado em " + shortCommit(item.Head)
 	}
-	var b strings.Builder
-	b.WriteString("Salve o trabalho pendente de um worktree Git e mescle-o na branch base. Faça só isso.\n\n")
-	b.WriteString("Contexto\n")
-	fmt.Fprintf(&b, "- Worktree principal (branch base %q): %s\n", base, root)
-	fmt.Fprintf(&b, "- Worktree da tarefa (%s): %s\n", where, item.Path)
-	if saved.Ref != "" {
-		fmt.Fprintf(&b, "- O Harflex já guardou uma cópia de segurança do que estava pendente em %s. Não apague essa referência.\n", saved.Ref)
-	} else {
-		b.WriteString("- Não havia alterações pendentes no worktree; falta apenas mesclar os commits da branch.\n")
-	}
-	fmt.Fprintf(&b, "- Alterações pendentes: %d arquivo(s); commits na branch que ainda não estão em %q: %d.\n\n", item.Changes.Total, base, item.Ahead)
-	b.WriteString("Passos\n")
-	fmt.Fprintf(&b, "1. Veja o estado com `git -C %q status` e `git -C %q diff`, e o histórico com `git -C %q log --oneline -10`.\n", item.Path, item.Path, item.Path)
-	if branch == "" {
-		fmt.Fprintf(&b, "2. O HEAD está destacado: crie uma branch antes de commitar (`git -C %q switch -c worktree/%s`).\n", item.Path, shortCommit(item.Head))
-	} else {
-		b.WriteString("2. Se houver alterações pendentes, commite-as nesta branch em commits coerentes, com mensagens no estilo do histórico.\n")
-	}
-	b.WriteString("   Não commite segredos (.env, chaves, tokens) nem arquivos gerados (node_modules, dist, bin, test-results). Se algo assim aparecer fora do .gitignore, pare e me avise.\n")
 	target := branch
 	if target == "" {
-		target = fmt.Sprintf("worktree/%s", shortCommit(item.Head))
+		target = fmt.Sprintf("harflex/worktree-%s", shortCommit(item.Head))
 	}
-	fmt.Fprintf(&b, "3. A partir do worktree principal, mescle a branch: `git -C %q merge --no-ff %q`. Se houver conflitos, resolva-os com cuidado, rode os testes relevantes e conclua o merge; se não tiver certeza, pare e descreva o conflito.\n", root, target)
-	fmt.Fprintf(&b, "4. Confirme que `git -C %q status` e `git -C %q status` estão limpos e que `git -C %q branch --contains %q` lista %q.\n\n", root, item.Path, root, target, base)
+	var b strings.Builder
+	b.WriteString("Salve o trabalho de um worktree Git na branch remota da tarefa dele. Faça só isso: não mescle em nenhuma outra branch.\n\n")
+	b.WriteString("Contexto\n")
+	fmt.Fprintf(&b, "- Worktree da tarefa (%s): %s\n", where, item.Path)
+	fmt.Fprintf(&b, "- Projeto principal (branch base %q): %s. Ele não deve ser alterado.\n", base, root)
+	if saved.Ref != "" {
+		fmt.Fprintf(&b, "- O Harflex já guardou uma cópia de segurança do que estava pendente em %s. Não apague essa referência.\n", saved.Ref)
+	}
+	fmt.Fprintf(&b, "- Alterações pendentes: %d arquivo(s).", item.Changes.Total)
+	if item.Upstream != "" {
+		fmt.Fprintf(&b, " A branch acompanha %s.", item.Upstream)
+	}
+	b.WriteString("\n\nPassos\n")
+	fmt.Fprintf(&b, "1. Veja o estado com `git -C %q status`, `git -C %q diff`, `git -C %q log --oneline -10` e `git -C %q remote -v`. Se não houver remoto, pare e me avise.\n", item.Path, item.Path, item.Path, item.Path)
+	if branch == "" {
+		fmt.Fprintf(&b, "2. O HEAD está destacado: crie a branch da tarefa antes de commitar (`git -C %q switch -c %s`).\n", item.Path, target)
+	} else {
+		b.WriteString("2. Commite as alterações pendentes nesta branch, em commits coerentes, com mensagens no estilo do histórico.\n")
+	}
+	b.WriteString("   Não commite segredos (.env, chaves, tokens) nem arquivos gerados (node_modules, dist, bin, test-results). Se algo assim aparecer fora do .gitignore, pare e me avise.\n")
+	fmt.Fprintf(&b, "3. Envie a branch ao remoto: `git -C %q push -u origin %s` (use o remoto que a branch já acompanha, se for outro). Se o remoto recusar porque a branch remota avançou, traga as mudanças com `git -C %q pull --no-rebase` e resolva com cuidado; se não tiver certeza, pare e descreva o conflito.\n", item.Path, target, item.Path)
+	fmt.Fprintf(&b, "4. Confirme que `git -C %q status` está limpo e que `git -C %q status -sb` não mostra commits à frente do remoto.\n\n", item.Path, item.Path)
 	b.WriteString("Regras\n")
+	fmt.Fprintf(&b, "- Não mescle em %q nem em outra branch, e não faça nada no projeto principal.\n", base)
 	b.WriteString("- Não use --force, reset --hard, clean, checkout -- ., stash drop nem rebase.\n")
-	b.WriteString("- Não apague o worktree nem a branch: o Harflex faz isso depois de conferir que tudo foi salvo e mesclado.\n")
+	b.WriteString("- Não apague o worktree nem a branch: o Harflex faz isso depois de conferir que tudo está no remoto.\n")
 	b.WriteString("- Se um comando falhar, pare e explique o que aconteceu em vez de insistir.\n")
-	b.WriteString("- Ao terminar, responda com o hash do commit de merge e a lista dos commits criados.\n")
+	b.WriteString("- Ao terminar, responda com a branch remota e a lista dos commits enviados.\n")
 	return b.String()
 }
 
-// mainWorktreeSavePrompt asks for the main worktree's pending changes to be committed on the base branch, and
-// nothing else: no merge, no branch, no cleanup. A clean base is what lets the other worktrees be merged.
+// mainWorktreeSavePrompt moves the main worktree's pending changes to a branch of their own and pushes it, leaving
+// the base branch clean and untouched: nothing is committed on the base.
 func mainWorktreeSavePrompt(item repositories.Worktree, base string, saved repositories.SavedWorktree) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Commite as alterações pendentes do worktree principal na branch %q. Faça só isso.\n\n", base)
+	fmt.Fprintf(&b, "Leve as alterações pendentes do worktree principal para uma branch própria e envie-a ao remoto, deixando %q limpa. Não commite nada em %q.\n\n", base, base)
 	b.WriteString("Contexto\n")
 	fmt.Fprintf(&b, "- Worktree principal (branch %q): %s\n", base, item.Path)
 	if saved.Ref != "" {
 		fmt.Fprintf(&b, "- O Harflex já guardou uma cópia de segurança do que estava pendente em %s. Não apague essa referência.\n", saved.Ref)
 	}
-	fmt.Fprintf(&b, "- Alterações pendentes: %d arquivo(s). Os outros worktrees só podem ser mesclados aqui depois que este estiver limpo.\n\n", item.Changes.Total)
+	fmt.Fprintf(&b, "- Alterações pendentes: %d arquivo(s).\n\n", item.Changes.Total)
 	b.WriteString("Passos\n")
-	fmt.Fprintf(&b, "1. Veja o estado com `git -C %q status`, `git -C %q diff` e `git -C %q log --oneline -10`.\n", item.Path, item.Path, item.Path)
-	b.WriteString("2. Agrupe as alterações em commits coerentes, com mensagens no estilo do histórico.\n")
+	fmt.Fprintf(&b, "1. Veja o estado com `git -C %q status`, `git -C %q diff`, `git -C %q log --oneline -10` e `git -C %q remote -v`. Se não houver remoto, pare e me avise.\n", item.Path, item.Path, item.Path, item.Path)
+	fmt.Fprintf(&b, "2. Crie uma branch para essas alterações a partir de %q, levando-as junto: `git -C %q switch -c harflex/<resumo-curto-em-kebab-case>` (se o nome existir, acrescente um sufixo curto).\n", base, item.Path)
+	b.WriteString("3. Commite as alterações nessa branch, em commits coerentes, com mensagens no estilo do histórico.\n")
 	b.WriteString("   Não commite segredos (.env, chaves, tokens) nem arquivos gerados (node_modules, dist, bin, test-results). Se algo assim aparecer fora do .gitignore, pare e me avise; se uma alteração parecer acidental ou incompleta, pergunte antes de commitá-la.\n")
-	fmt.Fprintf(&b, "3. Confirme que `git -C %q status` está limpo.\n\n", item.Path)
+	fmt.Fprintf(&b, "4. Envie a branch ao remoto com `git -C %q push -u origin <branch>`.\n", item.Path)
+	fmt.Fprintf(&b, "5. Volte para %q (`git -C %q switch %s`) e confirme que `git -C %q status` está limpo.\n\n", base, item.Path, base, item.Path)
 	b.WriteString("Regras\n")
-	b.WriteString("- Não mude de branch, não mescle, não crie nem apague branches ou worktrees.\n")
+	fmt.Fprintf(&b, "- Não commite em %q, não mescle e não apague branches ou worktrees.\n", base)
 	b.WriteString("- Não use --force, reset --hard, clean, checkout -- ., stash drop nem rebase.\n")
 	b.WriteString("- Se um comando falhar, pare e explique o que aconteceu em vez de insistir.\n")
-	b.WriteString("- Ao terminar, responda com a lista dos commits criados.\n")
+	b.WriteString("- Ao terminar, responda com o nome da branch remota e a lista dos commits enviados.\n")
 	return b.String()
 }
 

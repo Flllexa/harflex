@@ -84,8 +84,12 @@ type Worktree struct {
 	Ahead       int             `json:"ahead"`
 	Behind      int             `json:"behind"`
 	Merged      bool            `json:"merged"`
-	Ignored     []string        `json:"ignored"`
-	IgnoredMore int             `json:"ignoredMore"`
+	// OnRemote says the head is in a remote branch (it was pushed): its commits are saved even if never merged.
+	OnRemote bool `json:"onRemote"`
+	// Upstream is the remote branch this branch tracks, such as origin/feature; empty when it tracks none.
+	Upstream    string   `json:"upstream"`
+	Ignored     []string `json:"ignored"`
+	IgnoredMore int      `json:"ignoredMore"`
 	// InUse lists running programs inside the folder; deleting it under them would break them.
 	InUse []ProcessUse `json:"inUse"`
 }
@@ -337,6 +341,16 @@ func inspectWorktree(ctx context.Context, record rawWorktree, isMain bool, set W
 			}
 		}
 	}
+	if item.Head != "" {
+		if refs, err := worktreeRead(ctx, item.Path, 4096, "for-each-ref", "--contains", item.Head, "--count=1", "--format=%(refname)", "refs/remotes"); err == nil {
+			item.OnRemote = strings.TrimSpace(refs) != ""
+		}
+		if item.Branch != "" {
+			if upstream, err := worktreeRead(ctx, item.Path, 1024, "rev-parse", "--abbrev-ref", "--symbolic-full-name", item.Branch+"@{upstream}"); err == nil {
+				item.Upstream = strings.TrimSpace(upstream)
+			}
+		}
+	}
 	return item
 }
 
@@ -462,6 +476,8 @@ func (w Worktree) DeleteBlockers(set WorktreeSet, protected []string) []Blocker 
 		out = append(out, Blocker{Code: BlockerUncommitted, Count: w.Changes.Total})
 	}
 	switch {
+	// Commits that a remote branch holds are saved there: the worktree can go whether or not they were merged.
+	case w.OnRemote:
 	case !set.BaseKnown:
 		out = append(out, Blocker{Code: BlockerBaseUnknown})
 	case w.Ahead > 0 && w.Detached:
@@ -472,9 +488,9 @@ func (w Worktree) DeleteBlockers(set WorktreeSet, protected []string) []Blocker 
 	return out
 }
 
-// SaveBlockers lists why the assistant cannot be asked to commit and merge this worktree. The main
-// worktree has nowhere to merge into, but its pending changes can be committed on the base branch:
-// that is what unblocks every other worktree, which only merges into a clean base.
+// SaveBlockers lists why the assistant cannot be asked to save this worktree. A task worktree is saved by committing
+// on its own branch and pushing it to the remote, never by merging into the base, so the base's state does not
+// matter. The main worktree's pending changes go to a new branch of their own, pushed the same way.
 func (w Worktree) SaveBlockers(set WorktreeSet) []Blocker {
 	var out []Blocker
 	if w.IsMain {
@@ -500,13 +516,8 @@ func (w Worktree) SaveBlockers(set WorktreeSet) []Blocker {
 	if w.Operation != "" {
 		out = append(out, Blocker{Code: BlockerOperation, Detail: w.Operation})
 	}
-	if !set.BaseKnown {
-		return append(out, Blocker{Code: BlockerBaseUnknown})
-	}
-	if base, ok := set.BaseWorktree(); ok && (!base.StatusKnown || base.Changes.Total > 0 || base.Operation != "") {
-		out = append(out, Blocker{Code: BlockerBaseDirty, Detail: set.Base, Count: base.Changes.Total})
-	}
-	if w.Changes.Total == 0 && w.Ahead == 0 && len(out) == 0 {
+	// Nothing pending and every commit already on the remote (or merged): there is nothing left to save.
+	if w.Changes.Total == 0 && (w.OnRemote || set.BaseKnown && w.Ahead == 0) && len(out) == 0 {
 		out = append(out, Blocker{Code: BlockerNothingToSave})
 	}
 	return out

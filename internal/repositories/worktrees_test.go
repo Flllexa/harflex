@@ -307,21 +307,17 @@ func TestSaveWorktreePendingRefusesWhatTheAssistantCannotHandle(t *testing.T) {
 			t.Fatalf("%s: error = %v, want a refusal", name, err)
 		}
 	}
-	// With the base checkout dirty nothing can be merged into it.
+	// A task worktree is saved by pushing its own branch, never by merging into the base: a dirty base does not matter.
 	gitSnapshot(t, f.midway, "merge", "--abort")
 	writeFile(t, filepath.Join(f.main, "scratch.txt"), "unsaved on the base\n")
 	set, err := ListWorktrees(ctx, f.main)
 	if err != nil {
 		t.Fatal(err)
 	}
-	blockers := findWorktree(t, set, f.dirty).SaveBlockers(set)
-	if len(blockers) != 1 || blockers[0].Code != BlockerBaseDirty {
-		t.Fatalf("a dirty base must block saving, got %+v", blockers)
+	if blockers := findWorktree(t, set, f.dirty).SaveBlockers(set); len(blockers) != 0 {
+		t.Fatalf("a dirty base must not block saving a task worktree, got %+v", blockers)
 	}
-	if _, err := SaveWorktreePending(ctx, f.main, f.dirty); !errors.Is(err, ErrWorktreeSaveBlocked) {
-		t.Fatalf("error = %v, want ErrWorktreeSaveBlocked", err)
-	}
-	// The dirty base itself can be saved: that is what unblocks the others.
+	// The dirty base itself can be saved too: its changes go to a branch of their own.
 	if blockers := findWorktree(t, set, f.main).SaveBlockers(set); len(blockers) != 0 {
 		t.Fatalf("a dirty main worktree must be savable, got %+v", blockers)
 	}
@@ -376,4 +372,51 @@ func TestPruneWorktreesForgetsOnlyMissingDirectories(t *testing.T) {
 	if _, found := after.Find(f.dirty); !found {
 		t.Fatal("the prune removed a live worktree")
 	}
+}
+
+// A worktree whose commits are on a remote branch is saved: it can be deleted even though nothing was merged.
+func TestPushedWorktreeIsSavedWithoutMerging(t *testing.T) {
+	f := newWorktreeFixture(t)
+	ctx := context.Background()
+	remote := filepath.Join(t.TempDir(), "remote.git")
+	gitSnapshot(t, f.main, "init", "-q", "--bare", remote)
+	gitSnapshot(t, f.main, "remote", "add", "origin", remote)
+	set, err := ListWorktrees(ctx, f.main)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ahead := firstWorktree(t, set, func(item Worktree) bool {
+		return !item.IsMain && item.Ahead > 0 && item.Changes.Total == 0 && item.Branch != "" && !item.Locked && item.Operation == ""
+	})
+	if ahead.OnRemote || len(ahead.DeleteBlockers(set, nil)) == 0 {
+		t.Fatalf("unpushed commits must keep the worktree: %+v", ahead)
+	}
+	gitSnapshot(t, ahead.Path, "push", "-q", "-u", "origin", ahead.Branch)
+	set, err = ListWorktrees(ctx, f.main)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pushed := findWorktree(t, set, ahead.Path)
+	if !pushed.OnRemote || pushed.Upstream != "origin/"+pushed.Branch {
+		t.Fatalf("the pushed worktree = %+v", pushed)
+	}
+	for _, blocker := range pushed.DeleteBlockers(set, nil) {
+		if blocker.Code == BlockerUnmerged || blocker.Code == BlockerDetachedCommits {
+			t.Fatalf("commits on the remote must not block deleting: %+v", pushed.DeleteBlockers(set, nil))
+		}
+	}
+	if blockers := pushed.SaveBlockers(set); len(blockers) != 1 || blockers[0].Code != BlockerNothingToSave {
+		t.Fatalf("a clean pushed worktree has nothing to save, got %+v", blockers)
+	}
+}
+
+func firstWorktree(t *testing.T, set WorktreeSet, match func(Worktree) bool) Worktree {
+	t.Helper()
+	for _, item := range set.Items {
+		if match(item) {
+			return item
+		}
+	}
+	t.Fatalf("no worktree matches in %+v", set.Items)
+	return Worktree{}
 }

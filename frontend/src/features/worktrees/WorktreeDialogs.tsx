@@ -46,14 +46,16 @@ export function DeleteWorktreeDialog({ backend, workspaceId, item, base, onClose
   }
 
   return <Modal title={t('Excluir o worktree {name}?', { name: worktreeTitle(item) })} titleId="worktree-delete-title" initialFocus={cancel} onClose={() => { if (!pending) onClose() }}>
-    <p className="muted dialog-copy"><Rich text={t('Tudo o que este worktree tinha foi salvo e mesclado em {base}. A pasta abaixo será removida do disco.')} values={{ base: <strong>{base}</strong> }} /></p>
+    <p className="muted dialog-copy">{item.onRemote
+      ? <Rich text={t('Tudo o que este worktree tinha está salvo na branch remota {remote}. A pasta abaixo será removida do disco.')} values={{ remote: <strong>{item.upstream || t('da tarefa')}</strong> }} />
+      : <Rich text={t('Tudo o que este worktree tinha foi salvo e mesclado em {base}. A pasta abaixo será removida do disco.')} values={{ base: <strong>{base}</strong> }} />}</p>
     <p className="mono-path worktree-dialog-path" title={item.path}>{shortWorktreePath(item.path)}</p>
     {ignored > 0 && <div className="worktree-ignored" role="alert">
       <strong>{t('Estes itens não estão no Git e serão apagados para sempre')}</strong>
       <p className="muted">{ignoredSummary(item)}</p>
       <label className="worktree-check"><input type="checkbox" checked={acknowledged} onChange={event => setAcknowledged(event.target.checked)} />{t('Entendo que serão apagados.')}</label>
     </div>}
-    {item.branch && <label className="worktree-check"><input type="checkbox" checked={deleteBranch} onChange={event => setDeleteBranch(event.target.checked)} /><Rich text={t('Apagar também a branch {branch} (já mesclada em {base}).')} values={{ branch: <strong>{item.branch}</strong>, base }} /></label>}
+    {item.branch && <label className="worktree-check"><input type="checkbox" checked={deleteBranch} onChange={event => setDeleteBranch(event.target.checked)} />{item.onRemote ? <Rich text={t('Apagar também a branch local {branch} (ela continua no remoto).')} values={{ branch: <strong>{item.branch}</strong> }} /> : <Rich text={t('Apagar também a branch {branch} (já mesclada em {base}).')} values={{ branch: <strong>{item.branch}</strong>, base }} />}</label>}
     {error && <p className="form-error" role="alert">{error}</p>}
     <div className="dialog-actions">
       <button ref={cancel} type="button" className="touch-target secondary-button" disabled={pending} onClick={onClose}>{t('Cancelar')}</button>
@@ -110,34 +112,34 @@ export function SaveWithAIDialog({ backend, workspaceId, item, base, root, backe
       <button type="button" className="touch-target primary-button" disabled={pending || !backendId} onClick={() => void start()}>{pending ? t('Preparando…') : t('Começar')}</button>
     </div></>
 
-  // The main worktree has nowhere to merge into: its pending changes are committed on the base branch, which is
-  // what lets the other worktrees be merged.
-  if (item.isMain) return <Modal title={t('Commitar com a IA')} titleId="worktree-save-title" initialFocus={cancel} onClose={() => { if (!pending) onClose() }}>
-    <p className="muted dialog-copy"><Rich text={t('O worktree principal {label} tem {changes}. Enquanto ele não estiver limpo, nenhum outro worktree pode ser mesclado em {base}.')}
+  // Nothing is committed on the base branch: the main worktree's pending changes go to a branch of their own, pushed
+  // to the remote, and the base is left clean.
+  if (item.isMain) return <Modal title={t('Enviar para uma branch remota com a IA')} titleId="worktree-save-title" initialFocus={cancel} onClose={() => { if (!pending) onClose() }}>
+    <p className="muted dialog-copy"><Rich text={t('O worktree principal {label} tem {changes}. Elas vão para uma branch própria no remoto; nada é commitado em {base}.')}
       values={{ label: <strong>{label}</strong>, changes: plural(item.changed, t('alteração não salva'), t('alterações não salvas')), base: <strong>{base}</strong> }} /></p>
     <ol className="worktree-steps">
       <li>{t('O Harflex guarda uma cópia de segurança do que está pendente, sem mexer nos seus arquivos.')}</li>
-      <li><Rich text={t('A IA commita as alterações em {base}, em commits coerentes, no projeto principal {root}, que passa a ser o projeto aberto. Ela não mescla nem apaga nada, e cada comando passa pela sua aprovação na conversa.')}
+      <li><Rich text={t('A IA cria uma branch para as alterações a partir de {base}, commita nela em commits coerentes e a envia ao remoto, no projeto principal {root}, que passa a ser o projeto aberto. Cada comando passa pela sua aprovação na conversa.')}
         values={{ base: <strong>{base}</strong>, root: <span className="mono" title={root}>{shortWorktreePath(root)}</span> }} /></li>
-      <li>{t('O Harflex confere se não sobrou nada pendente. Depois disso os outros worktrees podem ser salvos e mesclados.')}</li>
+      <li><Rich text={t('A IA volta para {base}, e o Harflex confere se ela ficou limpa.')} values={{ base: <strong>{base}</strong> }} /></li>
     </ol>
     {picker}
     {actions}
   </Modal>
 
-  return <Modal title={t('Salvar e mesclar com a IA')} titleId="worktree-save-title" initialFocus={cancel} onClose={() => { if (!pending) onClose() }}>
-    <p className="muted dialog-copy"><Rich text={t('O worktree {label} ainda tem trabalho que só existe nele. A IA vai guardá-lo na branch e levá-lo para {base}.')} values={{ label: <strong>{label}</strong>, base: <strong>{base}</strong> }} /></p>
+  return <Modal title={t('Salvar na branch remota com a IA')} titleId="worktree-save-title" initialFocus={cancel} onClose={() => { if (!pending) onClose() }}>
+    <p className="muted dialog-copy"><Rich text={t('O worktree {label} ainda tem trabalho que só existe nele. A IA vai guardá-lo na branch da tarefa e enviá-la ao remoto; nada é mesclado em {base}.')} values={{ label: <strong>{label}</strong>, base: <strong>{base}</strong> }} /></p>
     <ol className="worktree-steps">
       <li>{t('O Harflex guarda uma cópia de segurança do que está pendente, sem mexer nos seus arquivos.')}</li>
       <li><Rich text={t('A IA commita o que estiver pendente em {label}, em commits coerentes.')} values={{ label: <strong>{label}</strong> }} /></li>
-      <li><Rich text={t('A IA mescla a branch em {base}, no projeto principal {root}, que passa a ser o projeto aberto. Cada comando passa pela sua aprovação na conversa.')}
-        values={{ base: <strong>{base}</strong>, root: <span className="mono" title={root}>{shortWorktreePath(root)}</span> }} /></li>
-      <li>{deleteWhenSaved ? t('O Harflex confere se tudo ficou salvo e mesclado e então exclui o worktree.') : t('O Harflex confere se tudo ficou salvo e mesclado.')}</li>
+      <li><Rich text={t('A IA envia {label} ao remoto, a partir do projeto principal {root}, que passa a ser o projeto aberto. Cada comando passa pela sua aprovação na conversa.')}
+        values={{ label: <strong>{label}</strong>, root: <span className="mono" title={root}>{shortWorktreePath(root)}</span> }} /></li>
+      <li>{deleteWhenSaved ? t('O Harflex confere se tudo está no remoto e então exclui o worktree.') : t('O Harflex confere se tudo está no remoto.')}</li>
     </ol>
     {picker}
-    <label className="worktree-check"><input type="checkbox" checked={deleteWhenSaved} disabled={pending} onChange={event => setDeleteWhenSaved(event.target.checked)} />{t('Excluir o worktree quando tudo estiver salvo e mesclado.')}</label>
+    <label className="worktree-check"><input type="checkbox" checked={deleteWhenSaved} disabled={pending} onChange={event => setDeleteWhenSaved(event.target.checked)} />{t('Excluir o worktree quando tudo estiver no remoto.')}</label>
     {deleteWhenSaved && ignored > 0 && <p className="project-warning" role="note">{t('Isso também apaga {items}.', { items: ignoredSummary(item) })}</p>}
-    {deleteWhenSaved && item.branch && <label className="worktree-check worktree-check-nested"><input type="checkbox" checked={deleteBranch} disabled={pending} onChange={event => setDeleteBranch(event.target.checked)} />{t('Apagar também a branch {branch} depois de mesclada.', { branch: item.branch })}</label>}
+    {deleteWhenSaved && item.branch && <label className="worktree-check worktree-check-nested"><input type="checkbox" checked={deleteBranch} disabled={pending} onChange={event => setDeleteBranch(event.target.checked)} />{t('Apagar também a branch local {branch} (ela continua no remoto).', { branch: item.branch })}</label>}
     {actions}
   </Modal>
 }

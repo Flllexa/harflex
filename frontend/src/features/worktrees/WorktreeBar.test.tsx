@@ -108,7 +108,7 @@ describe('Worktree bar in the task header', () => {
     render(<Harness backend={backend} onSaveWithAI={onSaveWithAI} />)
     const region = await screen.findByRole('region', { name: 'Worktree da tarefa' })
     await user.click(within(region).getByRole('button', { name: 'Salvar com a IA…' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Salvar e mesclar com a IA' })
+    const dialog = await screen.findByRole('dialog', { name: 'Salvar na branch remota com a IA' })
     expect(within(dialog).getByText(/ainda tem trabalho que só existe nele/)).toBeInTheDocument()
     expect(within(dialog).getAllByText('feature/relatorios', { selector: 'strong' }).length).toBeGreaterThan(0)
     await user.click(within(dialog).getByRole('button', { name: 'Começar' }))

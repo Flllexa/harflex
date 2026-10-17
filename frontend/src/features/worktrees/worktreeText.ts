@@ -34,8 +34,8 @@ export function blockerText(blocker: WorktreeBlocker, base: string): string {
       const commits = plural(blocker.count, t('commit só desta branch'), t('commits só desta branch'))
       const target = blocker.detail || base
       return blocker.count === 1
-        ? t('{commits}, ainda não mesclado em {target}.', { commits, target })
-        : t('{commits}, ainda não mesclados em {target}.', { commits, target })
+        ? t('{commits}, que não está no remoto nem em {target}.', { commits, target })
+        : t('{commits}, que não estão no remoto nem em {target}.', { commits, target })
     }
     case 'detached_commits': return t('{commits} (HEAD destacado) que nenhuma branch guarda.', { commits: plural(blocker.count, t('commit solto'), t('commits soltos')) })
     case 'base_unknown': return t('Não foi possível identificar a branch base do repositório.')
@@ -56,7 +56,8 @@ export function worktreeFacts(item: Worktree, base: string): string[] {
   if (item.changed > 0) facts.push(plural(item.changed, t('alteração não salva'), t('alterações não salvas')))
   else facts.push(t('Sem alterações pendentes'))
   if (item.isMain) return facts
-  if (item.ahead > 0) facts.push(t('{commits} à frente de {base}', { commits: plural(item.ahead, t('commit'), t('commits')), base }))
+  if (item.onRemote && item.ahead > 0) facts.push(item.upstream ? t('No remoto ({remote})', { remote: item.upstream }) : t('No remoto'))
+  else if (item.ahead > 0) facts.push(t('{commits} à frente de {base}', { commits: plural(item.ahead, t('commit'), t('commits')), base }))
   else if (base) facts.push(t('Mesclado em {base}', { base }))
   if (item.behind > 0) facts.push(t('{behind} atrás de {base}', { behind: item.behind, base }))
   if (item.operation) facts.push(t('{operation} em andamento', { operation: t(operations[item.operation] ?? 'Operação') }))

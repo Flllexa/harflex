@@ -11,8 +11,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/persioflexa/harflex/internal/repositories"
 )
 
 func worktreeGit(t *testing.T, dir string, args ...string) string {
@@ -210,16 +208,19 @@ func TestPrepareWorktreeSaveKeepsACopyAndWritesPreciseInstructions(t *testing.T)
 		t.Fatal(err)
 	}
 	if plan.Workspace.Path != w.main || plan.Path != w.dirty || plan.Branch != "task/dirty" || plan.Base != "main" || !plan.HadPending ||
-		!strings.HasPrefix(plan.SnapshotRef, "refs/harflex/worktree-saves/task-dirty-") || plan.SnapshotCommit == "" || plan.Reason != "Salvar e mesclar o worktree task/dirty" {
+		!strings.HasPrefix(plan.SnapshotRef, "refs/harflex/worktree-saves/task-dirty-") || plan.SnapshotCommit == "" || plan.Reason != "Salvar o worktree task/dirty na branch remota" {
 		t.Fatalf("plan: %+v", plan)
 	}
 	if got := worktreeGit(t, w.main, "show", plan.SnapshotRef+":README.md"); got != "edited" {
 		t.Fatalf("the kept copy lost the edit: %q", got)
 	}
-	for _, want := range []string{w.main, w.dirty, `"task/dirty"`, plan.SnapshotRef, "merge --no-ff", "Não use --force", "Não apague o worktree nem a branch"} {
+	for _, want := range []string{w.main, w.dirty, `"task/dirty"`, plan.SnapshotRef, "push -u origin task/dirty", "Não use --force", "Não apague o worktree nem a branch", "não mescle"} {
 		if !strings.Contains(plan.Prompt, want) {
 			t.Fatalf("the instructions must mention %q:\n%s", want, plan.Prompt)
 		}
+	}
+	if strings.Contains(plan.Prompt, "merge --no-ff") {
+		t.Fatalf("saving a worktree must not merge it into the base:\n%s", plan.Prompt)
 	}
 	if got := worktreeGit(t, w.dirty, "status", "--porcelain"); got != "M README.md" {
 		t.Fatalf("preparing the save changed the worktree: %q", got)
@@ -245,18 +246,14 @@ func TestPrepareWorktreeSaveRefusesWhatNoAssistantShouldTouch(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(w.main, "scratch.txt"), []byte("unsaved\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, err = s.PrepareWorktreeSave(PrepareWorktreeSaveInput{WorkspaceID: workspace.ID, Path: w.dirty})
-	var blocked *repositories.SaveBlockedError
-	if !errors.As(err, &blocked) || len(blocked.Blockers) != 1 || blocked.Blockers[0].Code != repositories.BlockerBaseDirty {
-		t.Fatalf("a dirty base checkout must stop the save, got %v", err)
+	// A dirty base no longer stops a task worktree: it is pushed to its own branch, never merged into the base.
+	if _, err := s.PrepareWorktreeSave(PrepareWorktreeSaveInput{WorkspaceID: workspace.ID, Path: w.dirty}); err != nil {
+		t.Fatalf("a dirty base checkout must not stop saving a task worktree, got %v", err)
 	}
-	if out := worktreeGit(t, w.main, "for-each-ref", "refs/harflex"); out != "" {
-		t.Fatalf("a refused save must not leave safety refs behind: %q", out)
-	}
-	// The dirty main worktree is what can be saved now, by committing on the base branch only.
+	// The dirty main worktree goes to a branch of its own, pushed; nothing is committed on the base.
 	plan, err := s.PrepareWorktreeSave(PrepareWorktreeSaveInput{WorkspaceID: workspace.ID, Path: w.main})
-	if err != nil || plan.SnapshotRef == "" || !plan.HadPending || !strings.Contains(plan.Reason, "Commitar") ||
-		!strings.Contains(plan.Prompt, "Commite as alterações pendentes do worktree principal") || strings.Contains(plan.Prompt, "merge --no-ff") {
+	if err != nil || plan.SnapshotRef == "" || !plan.HadPending || !strings.Contains(plan.Reason, "branch remota") ||
+		!strings.Contains(plan.Prompt, "switch -c harflex/") || !strings.Contains(plan.Prompt, "Não commite nada em") || strings.Contains(plan.Prompt, "merge --no-ff") {
 		t.Fatalf("saving the dirty main worktree = %+v, %v", plan, err)
 	}
 }

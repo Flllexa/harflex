@@ -30,7 +30,7 @@ const worktree = z.object({
   isMain: z.boolean(), isCurrent: z.boolean(), detached: z.boolean(), locked: z.boolean(), lockReason: z.string(), missing: z.boolean(), statusKnown: z.boolean(),
   staged: z.number().int().nonnegative(), unstaged: z.number().int().nonnegative(), untracked: z.number().int().nonnegative(), conflicts: z.number().int().nonnegative(),
   changed: z.number().int().nonnegative(), changedFiles: z.array(z.string()), changesTruncated: z.boolean(), operation: z.string(),
-  ahead: z.number().int().nonnegative(), behind: z.number().int().nonnegative(), merged: z.boolean(), ignored: z.array(z.string()), ignoredMore: z.number().int().nonnegative(),
+  ahead: z.number().int().nonnegative(), behind: z.number().int().nonnegative(), merged: z.boolean(), onRemote: z.boolean().optional().default(false), upstream: z.string().optional().default(''), ignored: z.array(z.string()), ignoredMore: z.number().int().nonnegative(),
   canDelete: z.boolean(), blockers: z.array(worktreeBlocker), canSaveWithAi: z.boolean(), saveBlockers: z.array(worktreeBlocker),
 })
 const worktreeList = z.object({ isRepository: z.boolean(), root: z.string(), base: z.string(), baseKnown: z.boolean(), currentPath: z.string(), items: z.array(worktree) })
