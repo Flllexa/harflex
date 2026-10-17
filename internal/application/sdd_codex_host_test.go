@@ -79,7 +79,7 @@ func hostCodeFixture(t *testing.T, backendID, profile string, answers ...string)
 	if run, err = s.AdvancePipeline(run.ID); err != nil {
 		t.Fatal(err)
 	}
-	for range 2 {
+	for range 3 {
 		if run, err = s.SkipPipelineStage(SkipPipelineStageInput{PipelineID: run.ID}); err != nil {
 			t.Fatal(err)
 		}

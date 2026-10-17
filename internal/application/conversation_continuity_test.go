@@ -26,7 +26,7 @@ func codeConversationFixture(t *testing.T) (*Service, PipelineDTO, PipelineSessi
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, stage := range []string{"discovery", "spec", "plan"} {
+	for _, stage := range []string{"discovery", "spec", "brainstorm", "plan"} {
 		if _, err := s.SavePipelineArtifact(SavePipelineArtifactInput{PipelineID: run.ID, Stage: stage, Content: "Requisitos e evidências do TODO"}); err != nil {
 			t.Fatal(err)
 		}

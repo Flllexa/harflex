@@ -152,7 +152,7 @@ func TestEvaluationRejectionReturnsToCodeWithoutARoundLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for range 2 {
+	for range 3 {
 		run, err = s.SkipPipelineStage(SkipPipelineStageInput{PipelineID: run.ID})
 		if err != nil {
 			t.Fatal(err)
@@ -535,7 +535,7 @@ func TestPipelineCoderRejectsCLIWithoutProvenWorkspaceSandbox(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, stage := range []string{"discovery", "spec", "plan"} {
+	for _, stage := range []string{"discovery", "spec", "brainstorm", "plan"} {
 		if _, err := s.SavePipelineArtifact(SavePipelineArtifactInput{PipelineID: run.ID, Stage: stage, Content: "Critérios do TODO"}); err != nil {
 			t.Fatal(err)
 		}
@@ -615,7 +615,7 @@ func TestPipelineNonGitCoderRequiresExplicitPrivateCopyConfirmation(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	for range 3 {
+	for range 4 {
 		run, err = s.SkipPipelineStage(SkipPipelineStageInput{PipelineID: run.ID})
 		if err != nil {
 			t.Fatal(err)
@@ -670,7 +670,7 @@ func TestPipelineCoderRejectsDirtyGitSourceBeforeCreatingSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for range 3 {
+	for range 4 {
 		run, err = s.SkipPipelineStage(SkipPipelineStageInput{PipelineID: run.ID})
 		if err != nil {
 			t.Fatal(err)
@@ -712,7 +712,7 @@ func TestPipelineIsolatedCodeEvidenceTracksNewFilesWithoutMutatingSource(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	for range 3 {
+	for range 4 {
 		run, err = s.SkipPipelineStage(SkipPipelineStageInput{PipelineID: run.ID})
 		if err != nil {
 			t.Fatal(err)
@@ -784,7 +784,7 @@ func pipelineCodeReviewFixture(t *testing.T) (*Service, PipelineDTO) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, stage := range []string{"discovery", "spec", "plan"} {
+	for _, stage := range []string{"discovery", "spec", "brainstorm", "plan"} {
 		if _, err := s.SavePipelineArtifact(SavePipelineArtifactInput{PipelineID: run.ID, Stage: stage, Content: "Requisitos e evidências do TODO"}); err != nil {
 			t.Fatal(err)
 		}
@@ -1083,6 +1083,10 @@ func TestPipelineEvaluationRejectsObjectiveAsCriteriaWhenSpecWasSkipped(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
+	run, err = s.SkipPipelineStage(SkipPipelineStageInput{PipelineID: run.ID, Reason: "Sem fluxo novo para desenhar"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	run, err = s.SavePipelineArtifact(SavePipelineArtifactInput{PipelineID: run.ID, Stage: "plan", Content: "Implementar e validar o arquivo HTML."})
 	if err != nil {
 		t.Fatal(err)
@@ -1163,7 +1167,7 @@ func TestPipelineAPICoderRejectsDirtySourceBeforeCreatingSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for range 3 {
+	for range 4 {
 		run, err = s.SkipPipelineStage(SkipPipelineStageInput{PipelineID: run.ID})
 		if err != nil {
 			t.Fatal(err)
@@ -1217,7 +1221,7 @@ func TestPipelineAPICoderRefusesLargeDirtyGitSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for range 3 {
+	for range 4 {
 		run, err = s.SkipPipelineStage(SkipPipelineStageInput{PipelineID: run.ID})
 		if err != nil {
 			t.Fatal(err)
@@ -1243,7 +1247,7 @@ func TestPipelineUsesCoderEvidenceAndIndependentReadOnlyEvaluator(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, stage := range []string{"discovery", "spec", "plan"} {
+	for _, stage := range []string{"discovery", "spec", "brainstorm", "plan"} {
 		if _, err := s.SavePipelineArtifact(SavePipelineArtifactInput{PipelineID: run.ID, Stage: stage, Content: stage + " critérios e contexto"}); err != nil {
 			t.Fatal(err)
 		}

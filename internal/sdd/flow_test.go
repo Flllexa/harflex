@@ -30,9 +30,10 @@ func TestFlowRequiresArtifactsAndNeverTreatsBypassAsCompletion(t *testing.T) {
 		t.Fatal(flow)
 	}
 	flow, _ = Skip(flow)
-	if flow.Current != Plan || flow.Status[Spec] != Skipped || flow.Status[Spec] == Completed {
+	if flow.Current != Brainstorm || flow.Status[Spec] != Skipped || flow.Status[Spec] == Completed {
 		t.Fatal("bypass became completion", flow)
 	}
+	flow, _ = Advance(flow, true) // Brainstorm → Plan
 	flow, _ = Advance(flow, true)
 	if flow.Current != Code || flow.Status[Plan] != Completed {
 		t.Fatal(flow)
@@ -47,7 +48,7 @@ func TestFlowRequiresArtifactsAndNeverTreatsBypassAsCompletion(t *testing.T) {
 
 func TestEvaluatorFailureReturnsToCoderWithoutClaimingAcceptance(t *testing.T) {
 	flow := NewFlow()
-	for range 4 {
+	for range 5 {
 		var err error
 		flow, err = Advance(flow, true)
 		if err != nil {
@@ -90,5 +91,23 @@ func TestThePullRequestStageComesLastAndMaySkipButNeverFakesCompletion(t *testin
 	}
 	if _, err := Revise(flow); !errors.Is(err, ErrInvalidTransition) {
 		t.Fatalf("pull requests sent the pipeline back to Code: %v", err)
+	}
+}
+
+func TestBrainstormSitsBetweenSpecAndPlan(t *testing.T) {
+	flow := NewFlow()
+	if flow.Status[Brainstorm] != Pending {
+		t.Fatalf("a new flow must have Brainstorm pending: %+v", flow.Status)
+	}
+	flow, _ = Advance(flow, true) // Discovery → SPEC
+	flow, err := Advance(flow, true)
+	if err != nil || flow.Current != Brainstorm || flow.Status[Spec] != Completed || flow.Status[Brainstorm] != Active {
+		t.Fatalf("SPEC must lead to Brainstorm: %+v %v", flow, err)
+	}
+	if next, err := Advance(flow, true); err != nil || next.Current != Plan || next.Status[Brainstorm] != Completed {
+		t.Fatalf("Brainstorm must lead to Plan: %+v %v", next, err)
+	}
+	if skipped, err := Skip(flow); err != nil || skipped.Current != Plan || skipped.Status[Brainstorm] != Skipped {
+		t.Fatalf("Brainstorm can be skipped to Plan: %+v %v", skipped, err)
 	}
 }

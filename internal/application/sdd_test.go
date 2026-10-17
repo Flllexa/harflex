@@ -35,7 +35,7 @@ func TestPipelinePersistsArtifactsAndAuditedBypassAcrossRestart(t *testing.T) {
 		t.Fatalf("advance discovery: %+v %v", run, err)
 	}
 	run, err = s.SkipPipelineStage(SkipPipelineStageInput{PipelineID: run.ID, Reason: "SPEC já aprovada fora do app"})
-	if err != nil || run.CurrentStage != "plan" || run.StageStatus["spec"] != "skipped" {
+	if err != nil || run.CurrentStage != "brainstorm" || run.StageStatus["spec"] != "skipped" {
 		t.Fatalf("skip spec: %+v %v", run, err)
 	}
 	if err := db.Close(); err != nil {
@@ -48,7 +48,7 @@ func TestPipelinePersistsArtifactsAndAuditedBypassAcrossRestart(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	s = NewService(t.Context(), Dependencies{Store: db, External: map[string]ExternalBackend{}})
 	loaded, err := s.GetPipeline(run.ID)
-	if err != nil || loaded.CurrentStage != "plan" || loaded.StageStatus["spec"] != "skipped" || loaded.Artifacts["discovery"].Content != "Objetivo e limites revisados" {
+	if err != nil || loaded.CurrentStage != "brainstorm" || loaded.StageStatus["spec"] != "skipped" || loaded.Artifacts["discovery"].Content != "Objetivo e limites revisados" {
 		t.Fatalf("reopened pipeline: %+v %v", loaded, err)
 	}
 	activity, err := db.ListAfter(t.Context(), run.ID, 0)

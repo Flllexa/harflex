@@ -7,8 +7,11 @@ type Stage string
 const (
 	Discovery Stage = "discovery"
 	Spec      Stage = "spec"
-	Plan      Stage = "plan"
-	Code      Stage = "code"
+	// Brainstorm shows how the solution works before the Plan: the application flow and, when it has screens, their
+	// design. Pipelines prepared before it existed have it skipped.
+	Brainstorm Stage = "brainstorm"
+	Plan       Stage = "plan"
+	Code       Stage = "code"
 	// Eval is the QA stage; the identifier stays "eval" because catalogs already hold it.
 	Eval Stage = "eval"
 	// PRs hands the approved, applied change to the agent so it opens the pull requests. Pipelines saved before it
@@ -16,7 +19,7 @@ const (
 	PRs Stage = "prs"
 )
 
-var Stages = [...]Stage{Discovery, Spec, Plan, Code, Eval, PRs}
+var Stages = [...]Stage{Discovery, Spec, Brainstorm, Plan, Code, Eval, PRs}
 
 type Status string
 

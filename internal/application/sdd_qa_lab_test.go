@@ -133,7 +133,7 @@ func TestQALabRunsChecksInItsOwnCopyAndFixesInTheSameCodeCopyUntilItPasses(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, stage := range []string{"discovery", "spec", "plan"} {
+	for _, stage := range []string{"discovery", "spec", "brainstorm", "plan"} {
 		if _, err := s.SavePipelineArtifact(SavePipelineArtifactInput{PipelineID: run.ID, Stage: stage, Content: stage + " critérios e contexto"}); err != nil {
 			t.Fatal(err)
 		}
@@ -235,7 +235,7 @@ func TestQALoopFixesANewFailureByItselfUntilQAPasses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, stage := range []string{"discovery", "spec", "plan"} {
+	for _, stage := range []string{"discovery", "spec", "brainstorm", "plan"} {
 		if _, err := s.SavePipelineArtifact(SavePipelineArtifactInput{PipelineID: run.ID, Stage: stage, Content: stage + " critérios e contexto"}); err != nil {
 			t.Fatal(err)
 		}
@@ -297,7 +297,7 @@ func TestQALoopResumesFixesThatStoppedBeforeTheCoderRound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, stage := range []string{"discovery", "spec", "plan"} {
+	for _, stage := range []string{"discovery", "spec", "brainstorm", "plan"} {
 		if _, err := s.SavePipelineArtifact(SavePipelineArtifactInput{PipelineID: run.ID, Stage: stage, Content: stage + " critérios e contexto"}); err != nil {
 			t.Fatal(err)
 		}
@@ -389,7 +389,7 @@ func TestQALabAsksForTheReportAgainWhenTheEvaluatorEndsInProse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, stage := range []string{"discovery", "spec", "plan"} {
+	for _, stage := range []string{"discovery", "spec", "brainstorm", "plan"} {
 		if _, err := s.SavePipelineArtifact(SavePipelineArtifactInput{PipelineID: run.ID, Stage: stage, Content: stage + " critérios e contexto"}); err != nil {
 			t.Fatal(err)
 		}
@@ -434,7 +434,7 @@ func TestPullRequestWatchChecksTheRecordedPRInItsConversationAndStopsWhenMerged(
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, stage := range []string{"discovery", "spec", "plan"} {
+	for _, stage := range []string{"discovery", "spec", "brainstorm", "plan"} {
 		if _, err := s.SavePipelineArtifact(SavePipelineArtifactInput{PipelineID: run.ID, Stage: stage, Content: stage + " critérios e contexto"}); err != nil {
 			t.Fatal(err)
 		}
@@ -608,7 +608,7 @@ func TestPullRequestConversationRunsOnACLIThatContinuesConversations(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, stage := range []string{"discovery", "spec", "plan"} {
+	for _, stage := range []string{"discovery", "spec", "brainstorm", "plan"} {
 		if _, err := s.SavePipelineArtifact(SavePipelineArtifactInput{PipelineID: run.ID, Stage: stage, Content: stage + " critérios e contexto"}); err != nil {
 			t.Fatal(err)
 		}

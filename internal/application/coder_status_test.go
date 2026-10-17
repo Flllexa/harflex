@@ -45,7 +45,7 @@ func coderAt(t *testing.T) (*Service, *sqlite.Store, PipelineDTO, PipelineSessio
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, stage := range []string{"discovery", "spec", "plan"} {
+	for _, stage := range []string{"discovery", "spec", "brainstorm", "plan"} {
 		if _, err := s.SavePipelineArtifact(SavePipelineArtifactInput{PipelineID: run.ID, Stage: stage, Content: stage + " do CSV"}); err != nil {
 			t.Fatal(err)
 		}

@@ -7,7 +7,7 @@ import (
 )
 
 var workStageOrder = []struct{ key, label string }{
-	{"discovery", "Discovery"}, {"spec", "SPEC"}, {"plan", "Plan"}, {"code", "Code"}, {"eval", "QA"}, {"prs", "PRs"},
+	{"discovery", "Discovery"}, {"spec", "SPEC"}, {"brainstorm", "Brainstorm"}, {"plan", "Plan"}, {"code", "Code"}, {"eval", "QA"}, {"prs", "PRs"},
 }
 
 func workStageLabel(stage string) string {
@@ -61,7 +61,7 @@ func (s *Service) workStatusReport(pipelineID string) (string, error) {
 	fmt.Fprintf(&out, "Where it stands: %s.\n", stopped)
 
 	switch run.CurrentStage {
-	case "discovery", "spec", "plan":
+	case "discovery", "spec", "brainstorm", "plan":
 		if run.StageStatus[run.CurrentStage] == "waiting_user" {
 			fmt.Fprintf(&out, "Next: the %s document waits for the person to review and approve it on the Pipelines screen.\n", workStageLabel(run.CurrentStage))
 		} else {
