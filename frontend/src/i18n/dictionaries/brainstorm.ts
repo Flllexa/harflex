@@ -1,0 +1,36 @@
+// The Brainstorm stage: the flow and design of the solution, between SPEC and Plan.
+export const en: Record<string, string> = {
+  'Desenha o fluxo e as telas': 'Draws the flow and the screens',
+  'Preparação': 'Preparation',
+  'Execução': 'Execution',
+  'Entrega': 'Delivery',
+  'Ver {name} e sua atividade · pulada: {reason}': 'View {name} and its activity · skipped: {reason}',
+  '{name} · pulada: {reason}': '{name} · skipped: {reason}',
+  'depois: {next}': 'next: {next}',
+  'a etapa não existia quando este trabalho foi preparado': 'the stage did not exist when this work was prepared',
+  'preparar a SPEC': 'prepare the SPEC',
+  'desenhar o fluxo e as telas': 'draw the flow and the screens',
+  'aprovar o fluxo e o design': 'approve the flow and design',
+  'aprovar e ir para o Code': 'approve and go to Code',
+  'verificar o código': 'check the code',
+  'registrar a avaliação': 'record the evaluation',
+  'concluir os PRs': 'finish the PRs',
+}
+
+export const es: Record<string, string> = {
+  'Desenha o fluxo e as telas': 'Dibuja el flujo y las pantallas',
+  'Preparação': 'Preparación',
+  'Execução': 'Ejecución',
+  'Entrega': 'Entrega',
+  'Ver {name} e sua atividade · pulada: {reason}': 'Ver {name} y su actividad · omitida: {reason}',
+  '{name} · pulada: {reason}': '{name} · omitida: {reason}',
+  'depois: {next}': 'después: {next}',
+  'a etapa não existia quando este trabalho foi preparado': 'la etapa no existía cuando se preparó este trabajo',
+  'preparar a SPEC': 'preparar la SPEC',
+  'desenhar o fluxo e as telas': 'dibujar el flujo y las pantallas',
+  'aprovar o fluxo e o design': 'aprobar el flujo y el diseño',
+  'aprovar e ir para o Code': 'aprobar e ir a Code',
+  'verificar o código': 'verificar el código',
+  'registrar a avaliação': 'registrar la evaluación',
+  'concluir os PRs': 'concluir los PR',
+}

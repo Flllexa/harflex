@@ -11,3 +11,24 @@
 .stage-failed .pipeline-stage-button > span > span { color: var(--danger); }
 @keyframes stage-pulse { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .stage-working .pipeline-stage-button svg { animation: none; } }
+
+/* The bar reshapes itself by the width it has, not the window's, so it holds with the side panel open. With room, the
+   seven stages sit on one line with a card for the stage in progress; narrow, they gather into Preparação, Execução and
+   Entrega, and only the current stage keeps its name and status. */
+.pipeline { container: pipeline / inline-size; }
+.pipeline-line li + li::before { content: ''; flex: none; width: var(--space-3); height: 1px; background: var(--border); }
+.pipeline-group-label { display: none; }
+.stage-skipped .pipeline-stage-button { opacity: .5; }
+.stage-skipped .pipeline-stage-button strong { text-decoration: line-through; text-decoration-color: var(--muted); }
+.pipeline-now { flex: 0 1 38ch; min-width: 0; margin: 0; padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface-2); color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pipeline-now strong { color: var(--paper); font-weight: 650; }
+@container pipeline (max-width: 879px) {
+  .pipeline-now { display: none; }
+  .pipeline-line { justify-content: flex-start; gap: var(--space-1); }
+  .pipeline-line li + li::before { display: none; }
+  .pipeline-group-start:not(:first-child) { margin-left: var(--space-4); }
+  .pipeline-group-label { display: block; margin-right: var(--space-1); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .pipeline-line li:not([aria-current]) .pipeline-stage-button { justify-content: center; min-width: 44px; min-height: 44px; width: auto; padding: 8px; }
+  .pipeline-line li:not([aria-current]) .pipeline-stage-button > span { display: none; }
+  .pipeline-line li[aria-current] .pipeline-stage-button { border-color: var(--mint); background: var(--soft-mint); border-radius: 999px; }
+}

@@ -90,3 +90,32 @@ it('says the Coder is waiting for an answer, not for a check, when its run ended
   // Another session's status does not speak for this run.
   expect(stageProgress('code', 'Code', ended, { ...coder('questions'), sessionId: 'older' })?.text).toBe('Executado · verificar')
 })
+
+it('shows every stage name and the now card', () => {
+  const planning: Pipeline = { ...designPipeline(), currentStage: 'plan', stageStatus: { discovery: 'completed', spec: 'completed', brainstorm: 'completed', plan: 'active', code: 'pending', eval: 'pending', prs: 'pending' } }
+  const { container } = render(<PipelineBar pipeline={planning} onViewStage={() => undefined} />)
+  const line = container.querySelector('.pipeline-line')!
+  expect([...line.querySelectorAll('li strong')].map(name => name.textContent)).toEqual(['Discovery', 'SPEC', 'Brainstorm', 'Plan', 'Code', 'QA', 'PRs'])
+  expect(within(line as HTMLElement).getByRole('button', { name: 'Ver Plan e sua atividade' }).closest('li')).toHaveAttribute('aria-current', 'step')
+  expect(container.querySelector('.pipeline-now')).toHaveTextContent('Plan · Em andamento · depois: aprovar e ir para o Code')
+})
+
+it('names markers for screen readers in the grouped form', () => {
+  const { container } = render(<PipelineBar pipeline={designPipeline()} onViewStage={() => undefined} />)
+  const groups = [...container.querySelectorAll('.pipeline-group-label')].map(label => [label.textContent, label.closest('li')?.querySelector('strong')?.textContent])
+  expect(groups).toEqual([['Preparação', 'Discovery'], ['Execução', 'Code'], ['Entrega', 'PRs']])
+  for (const name of ['Discovery', 'SPEC', 'Brainstorm', 'Plan', 'Code', 'QA', 'PRs']) {
+    const button = screen.getByRole('button', { name: new RegExp(`^Ver ${name} e sua atividade`) })
+    expect(button).toHaveAttribute('title')
+    expect(button.getAttribute('title')).toContain(name)
+  }
+})
+
+it('explains a skipped stage', () => {
+  const older: Pipeline = { ...codeRun(), stageStatus: { discovery: 'completed', spec: 'completed', brainstorm: 'skipped', plan: 'completed', code: 'active', eval: 'pending' } }
+  render(<PipelineBar pipeline={older} onViewStage={() => undefined} />)
+  const brainstorm = screen.getByRole('button', { name: /^Ver Brainstorm e sua atividade/ })
+  expect(brainstorm).toHaveAccessibleName('Ver Brainstorm e sua atividade · pulada: a etapa não existia quando este trabalho foi preparado')
+  expect(brainstorm).toHaveAttribute('title', 'Brainstorm · pulada: a etapa não existia quando este trabalho foi preparado')
+  expect(brainstorm.closest('li')).toHaveClass('stage-skipped')
+})

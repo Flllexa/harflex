@@ -2,16 +2,19 @@ import { useEffect, useRef } from 'react'
 import { Check, Circle, CircleAlert, CircleDot } from 'lucide-react'
 import { t, useT } from '../i18n'
 import type { CoderStatus, Pipeline, PipelineStage, PipelineStageActivity } from '../lib/backend'
-import { stageNames, stageOrder } from '../lib/pipelineStages'
+import { stageGroups, stageNames } from '../lib/pipelineStages'
 import './pipelineBar.css'
 
-const stageDefinitions = stageOrder.map(stage => [stage, stageNames[stage]] as const)
 const labels = { pending: 'Pendente', active: 'Em andamento', completed: 'Concluído', skipped: 'Pulada', failed: 'Falhou', paused: 'Pausada', waiting_user: 'Aguardando decisão' } as const
 
 type Progress = { text: string; hint?: string; tone?: 'working' | 'ready' | 'failed' }
 /** The next move once the stage's own session has ended; the stage stays "active" until someone verifies it. */
 const afterRun: Partial<Record<PipelineStage, string>> = { code: 'verifique o código', eval: 'registre a avaliação', prs: 'leia o relatório e conclua os PRs' }
 const short: Partial<Record<PipelineStage, string>> = { code: 'verificar', eval: 'registrar', prs: 'concluir' }
+/** What comes after the current stage, for the card the wide bar has room for. */
+const nextStep: Record<PipelineStage, string> = { discovery: 'preparar a SPEC', spec: 'desenhar o fluxo e as telas', brainstorm: 'aprovar o fluxo e o design', plan: 'aprovar e ir para o Code', code: 'verificar o código', eval: 'registrar a avaliação', prs: 'concluir os PRs' }
+/** Why a stage was skipped, when the Harflex knows: only the update that added Brainstorm skips it. */
+const skippedBecause: Partial<Record<PipelineStage, string>> = { brainstorm: 'a etapa não existia quando este trabalho foi preparado' }
 
 /** What the session behind the current stage is doing, in the words the bar has room for. */
 export function stageProgress(stage: PipelineStage, name: string, activity?: PipelineStageActivity, coder?: CoderStatus): Progress | undefined {
@@ -66,19 +69,32 @@ export function PipelineBar({ pipeline: currentPipeline, onViewStage, viewStage,
       if (frame !== undefined) cancelAnimationFrame(frame)
     }
   }, [currentPipeline?.currentStage,viewStage])
+  const current = currentPipeline?.currentStage as PipelineStage | undefined
+  const currentStatus = current ? currentPipeline?.stageStatus[current] ?? 'pending' : undefined
+  const currentProgress = current && currentStatus === 'active' && activity?.stage === current ? stageProgress(current, stageNames[current], activity, coder) : undefined
+  // One list of stages that the bar's own width reshapes: a line with a "now" card when it has room, stages grouped as
+  // markers when it does not (pipelineBar.css). Only one copy of each stage reaches screen readers.
   return <nav ref={pipeline} className="pipeline" aria-label="SDD Pipeline" tabIndex={0}>
     <div className="pipeline-heading">SDD Pipeline<span title={currentPipeline?.title}>{currentPipeline?.title ?? t('Nenhum pipeline ativo')}</span></div>
-    <ol ref={stages}>
-      {stageDefinitions.map(([stage, name]) => {
+    <ol ref={stages} className="pipeline-line">
+      {stageGroups.flatMap(group => group.stages.map((stage, index) => {
+        const name = stageNames[stage]
         const status = currentPipeline?.stageStatus[stage] ?? 'pending'
-        const current = stage === currentPipeline?.currentStage
-        const progress = current && status === 'active' && activity?.stage === stage ? stageProgress(stage, name, activity, coder) : undefined
-        const Icon = status === 'completed' ? Check : progress?.tone === 'failed' ? CircleAlert : current ? CircleDot : Circle
+        const isCurrent = stage === current
+        const progress = isCurrent ? currentProgress : undefined
+        const Icon = status === 'completed' ? Check : progress?.tone === 'failed' ? CircleAlert : isCurrent ? CircleDot : Circle
         const tone = progress ? ` stage-${progress.tone}` : ''
-        return <li key={name} ref={viewStage ? viewStage === stage ? currentStage : undefined : current ? currentStage : undefined} aria-current={current ? 'step' : undefined} className={`${status === 'completed' ? 'stage-completed' : status === 'failed' || progress?.tone === 'failed' ? 'stage-failed' : current ? 'stage-current' : 'stage-pending'}${tone}${viewStage===stage ? ' stage-viewed' : ''}`}>
-          <button type="button" className="touch-target pipeline-stage-button" aria-label={t('Ver {name} e sua atividade', { name })} aria-pressed={viewStage===stage} disabled={!currentPipeline || !onViewStage} title={progress?.hint} onClick={() => onViewStage?.(stage)}><Icon aria-hidden="true" /><span><strong>{name}</strong><span role={current && progress ? 'status' : undefined}>{progress?.text ?? t(labels[status] ?? 'Pendente')}</span></span></button>
+        const statusText = progress?.text ?? t(labels[status as keyof typeof labels] ?? 'Pendente')
+        const reason = status === 'skipped' && skippedBecause[stage] ? t(skippedBecause[stage]!) : ''
+        const label = reason ? t('Ver {name} e sua atividade · pulada: {reason}', { name, reason }) : t('Ver {name} e sua atividade', { name })
+        const title = reason ? t('{name} · pulada: {reason}', { name, reason }) : progress?.hint ?? `${name} · ${statusText}`
+        const state = status === 'completed' ? 'stage-completed' : status === 'skipped' ? 'stage-skipped' : status === 'failed' || progress?.tone === 'failed' ? 'stage-failed' : isCurrent ? 'stage-current' : 'stage-pending'
+        return <li key={stage} data-group={group.id} ref={viewStage ? viewStage === stage ? currentStage : undefined : isCurrent ? currentStage : undefined} aria-current={isCurrent ? 'step' : undefined} className={`${state}${tone}${viewStage===stage ? ' stage-viewed' : ''}${index === 0 ? ' pipeline-group-start' : ''}`}>
+          {index === 0 && <span className="pipeline-group-label" aria-hidden="true">{t(group.label)}</span>}
+          <button type="button" className="touch-target pipeline-stage-button" aria-label={label} aria-pressed={viewStage===stage} disabled={!currentPipeline || !onViewStage} title={title} onClick={() => onViewStage?.(stage)}><Icon aria-hidden="true" /><span><strong>{name}</strong><span role={isCurrent && progress ? 'status' : undefined}>{statusText}</span></span></button>
         </li>
-      })}
+      }))}
     </ol>
+    {current && currentStatus && <p className="pipeline-now" aria-hidden="true"><strong>{stageNames[current]}</strong> · {currentProgress?.text ?? t(labels[currentStatus as keyof typeof labels] ?? 'Pendente')} · {t('depois: {next}', { next: t(nextStep[current]) })}</p>}
   </nav>
 }
