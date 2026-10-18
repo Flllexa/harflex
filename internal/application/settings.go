@@ -39,8 +39,16 @@ func (s *Service) GetSettings() (SettingsDTO, error) {
 	if err != nil {
 		return SettingsDTO{}, safe("get settings", err)
 	}
-	return SettingsDTO{DefaultBackendID: settings.DefaultBackendID, DefaultModelBackendID: settings.DefaultModelBackendID, DefaultModelID: settings.DefaultModelID}, nil
+	return settingsDTO(settings), nil
 }
+
+func settingsDTO(settings catalog.AppSettings) SettingsDTO {
+	return SettingsDTO{DefaultBackendID: settings.DefaultBackendID, DefaultModelBackendID: settings.DefaultModelBackendID, DefaultModelID: settings.DefaultModelID, MaxContextTokens: settings.MaxContextTokens}
+}
+
+// minMaxContextTokens is the smallest maximum context a person can set: below it a conversation could not hold even
+// its request and the summary of what came before.
+const minMaxContextTokens = 8000
 
 func (s *Service) SaveSettings(in SaveSettingsInput) (SettingsDTO, error) {
 	if err := s.beginCall(); err != nil {
@@ -92,11 +100,22 @@ func (s *Service) SaveSettings(in SaveSettingsInput) (SettingsDTO, error) {
 			return SettingsDTO{}, ErrInvalidInput
 		}
 	}
-	settings := catalog.AppSettings{DefaultBackendID: in.DefaultBackendID, DefaultModelBackendID: in.DefaultModelBackendID, DefaultModelID: in.DefaultModelID}
+	current, err := s.store.GetSettings(s.ctx)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return SettingsDTO{}, safe("read settings", err)
+	}
+	maxContext := current.MaxContextTokens
+	if in.MaxContextTokens != nil {
+		if *in.MaxContextTokens != 0 && (*in.MaxContextTokens < minMaxContextTokens || *in.MaxContextTokens > 10_000_000) {
+			return SettingsDTO{}, ErrInvalidInput
+		}
+		maxContext = *in.MaxContextTokens
+	}
+	settings := catalog.AppSettings{DefaultBackendID: in.DefaultBackendID, DefaultModelBackendID: in.DefaultModelBackendID, DefaultModelID: in.DefaultModelID, MaxContextTokens: maxContext}
 	if err := s.store.SaveSettings(s.ctx, settings); err != nil {
 		return SettingsDTO{}, safe("save settings", err)
 	}
-	return SettingsDTO{DefaultBackendID: settings.DefaultBackendID, DefaultModelBackendID: settings.DefaultModelBackendID, DefaultModelID: settings.DefaultModelID}, nil
+	return settingsDTO(settings), nil
 }
 
 func (s *Service) SetWorkspaceProfile(in SetWorkspaceProfileInput) (WorkspaceDTO, error) {

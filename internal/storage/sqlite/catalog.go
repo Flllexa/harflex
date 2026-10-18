@@ -84,14 +84,14 @@ func (s *Store) SetWorkspaceArchived(ctx context.Context, id string, archived bo
 
 func (s *Store) GetSettings(ctx context.Context) (catalog.AppSettings, error) {
 	var settings catalog.AppSettings
-	if err := s.db.QueryRowContext(ctx, "SELECT default_backend_id, default_model_backend_id, default_model_id FROM app_settings WHERE id = 1").Scan(&settings.DefaultBackendID, &settings.DefaultModelBackendID, &settings.DefaultModelID); err != nil {
+	if err := s.db.QueryRowContext(ctx, "SELECT default_backend_id, default_model_backend_id, default_model_id, max_context_tokens FROM app_settings WHERE id = 1").Scan(&settings.DefaultBackendID, &settings.DefaultModelBackendID, &settings.DefaultModelID, &settings.MaxContextTokens); err != nil {
 		return catalog.AppSettings{}, fmt.Errorf("get settings: %w", err)
 	}
 	return settings, nil
 }
 
 func (s *Store) SaveSettings(ctx context.Context, settings catalog.AppSettings) error {
-	if _, err := s.db.ExecContext(ctx, "UPDATE app_settings SET default_backend_id = ?, default_model_backend_id = ?, default_model_id = ? WHERE id = 1", settings.DefaultBackendID, settings.DefaultModelBackendID, settings.DefaultModelID); err != nil {
+	if _, err := s.db.ExecContext(ctx, "UPDATE app_settings SET default_backend_id = ?, default_model_backend_id = ?, default_model_id = ?, max_context_tokens = ? WHERE id = 1", settings.DefaultBackendID, settings.DefaultModelBackendID, settings.DefaultModelID, settings.MaxContextTokens); err != nil {
 		return fmt.Errorf("save settings: %w", err)
 	}
 	return nil

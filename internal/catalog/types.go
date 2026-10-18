@@ -19,6 +19,8 @@ type AppSettings struct {
 	DefaultBackendID      string `json:"defaultBackendId"`
 	DefaultModelBackendID string `json:"defaultModelBackendId"`
 	DefaultModelID        string `json:"defaultModelId"`
+	// MaxContextTokens caps the context of every conversation; 0 leaves each model's own window.
+	MaxContextTokens int `json:"maxContextTokens"`
 }
 
 type LogEntry struct {

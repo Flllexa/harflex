@@ -84,11 +84,14 @@ type SettingsDTO struct {
 	DefaultBackendID      string `json:"defaultBackendId"`
 	DefaultModelBackendID string `json:"defaultModelBackendId"`
 	DefaultModelID        string `json:"defaultModelId"`
+	MaxContextTokens      int    `json:"maxContextTokens"`
 }
 type SaveSettingsInput struct {
 	DefaultBackendID      string `json:"defaultBackendId"`
 	DefaultModelBackendID string `json:"defaultModelBackendId"`
 	DefaultModelID        string `json:"defaultModelId"`
+	// MaxContextTokens is left as saved when nil: screens that only change the default provider do not send it.
+	MaxContextTokens *int `json:"maxContextTokens,omitempty"`
 }
 type ListLogEventsInput struct {
 	WorkspaceID string `json:"workspaceId"`

@@ -22,7 +22,7 @@ const modelCatalog = z.strictObject({
   complete: z.boolean(), accountFiltered: z.boolean(), errorCode: z.string().max(128).optional(),
 })
 const openRouterManagementKeyStatus = z.strictObject({ profileId: z.string().min(1), origin: z.string(), configured: z.boolean(), usable: z.boolean(), updatedAt: z.iso.datetime({ offset: true }) })
-const settings = z.object({ defaultBackendId: z.string(), defaultModelBackendId: z.string().default(''), defaultModelId: z.string().default('') })
+const settings = z.object({ defaultBackendId: z.string(), defaultModelBackendId: z.string().default(''), defaultModelId: z.string().default(''), maxContextTokens: z.number().int().nonnegative().optional() })
 const logEntry = z.object({ cursor: z.number().int().positive(), id: z.string().min(1), sessionId: z.string().min(1), workspaceId: z.string().min(1), sequence: z.number().int().positive(), type: z.string().min(1), createdAt: z.iso.datetime({ offset: true }) })
 const repository = z.object({ isRepository: z.boolean(), root: z.string(), branch: z.string(), files: z.array(z.string()), stagedDiff: z.string(), unstagedDiff: z.string(), truncated: z.boolean() })
 const worktreeBlocker = z.object({ code: z.string().min(1), detail: z.string(), count: z.number().int().nonnegative() })

@@ -24,6 +24,8 @@ export function SettingsPage({ backend, backends, connectionState, workspace, on
   const [defaultId, setDefaultId] = useState('')
   const [defaultModelBackendId, setDefaultModelBackendId] = useState('')
   const [defaultModelId, setDefaultModelId] = useState('')
+  // Empty is automatic: each model's own window.
+  const [maxContext, setMaxContext] = useState('')
   const [modelCatalog, setModelCatalog] = useState<ModelCatalogResult>()
   const [catalogState, setCatalogState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [catalogError, setCatalogError] = useState('')
@@ -58,6 +60,7 @@ export function SettingsPage({ backend, backends, connectionState, workspace, on
         setSettings({ ...nextSettings, defaultModelBackendId: savedModel ? nextSettings.defaultModelBackendId : '', defaultModelId: savedModel })
         setDefaultModelBackendId(savedModel ? nextSettings.defaultModelBackendId : '')
         setDefaultModelId(savedModel || configuredModel)
+        setMaxContext(nextSettings.maxContextTokens ? String(nextSettings.maxContextTokens) : '')
         setModelCatalog(undefined)
         setCatalogState('idle')
         setCatalogError('')
@@ -77,10 +80,11 @@ export function SettingsPage({ backend, backends, connectionState, workspace, on
     setError(undefined)
     setNotice(undefined)
     try {
-      const next = await backend.saveSettings({ defaultBackendId: defaultId, defaultModelBackendId: defaultModelId ? defaultId : '', defaultModelId })
+      const next = await backend.saveSettings({ defaultBackendId: defaultId, defaultModelBackendId: defaultModelId ? defaultId : '', defaultModelId, maxContextTokens: Number(maxContext) || 0 })
       setSettings(next)
       setDefaultModelBackendId(next.defaultModelBackendId)
       setDefaultModelId(next.defaultModelId)
+      setMaxContext(next.maxContextTokens ? String(next.maxContextTokens) : '')
       onDefaultSaved(next.defaultBackendId)
       setNotice(t('Preferências salvas nesta máquina.'))
     } catch (failure) { setError(errorMessage(failure)) }
@@ -124,7 +128,8 @@ export function SettingsPage({ backend, backends, connectionState, workspace, on
   const modelOptions: IonOption[] = [{ value: '', label: selectedBackend ? t('Escolha um modelo') : t('Escolha o provedor primeiro') }, ...catalogModels]
   if (selectedProfile?.model && !modelOptions.some(item => item.value === selectedProfile.model)) modelOptions.push({ value: selectedProfile.model, label: t('{model} · configurado no provedor', { model: selectedProfile.model }) })
   if (defaultModelId && !modelOptions.some(item => item.value === defaultModelId)) modelOptions.push({ value: defaultModelId, label: t('{model} · atualize o catálogo para confirmar', { model: defaultModelId }), disabled: true })
-  const settingsUnchanged = defaultId === settings.defaultBackendId && defaultModelId === settings.defaultModelId && (defaultModelId ? defaultModelBackendId === defaultId : !settings.defaultModelBackendId)
+  const settingsUnchanged = defaultId === settings.defaultBackendId && defaultModelId === settings.defaultModelId && (defaultModelId ? defaultModelBackendId === defaultId : !settings.defaultModelBackendId) && (Number(maxContext) || 0) === (settings.maxContextTokens ?? 0)
+  const maxContextInvalid = maxContext !== '' && (!/^\d+$/.test(maxContext) || Number(maxContext) < 8000)
 
   async function changePolicy(profile: WorkspaceProfile, confirmFullAccess = false) {
     if (!workspace || saving) return
@@ -178,7 +183,12 @@ export function SettingsPage({ backend, backends, connectionState, workspace, on
           {catalogState === 'ready' && <span className="muted" role="status">{t('Catálogo confirmado')} · {selectedBackend?.kind === 'cli' ? t('{name} local', { name: selectedBackend.name }) : modelCatalog?.source}</span>}
           {catalogError && <p className="form-error" role="alert">{catalogError}</p>}
         </div>
-        <div className="settings-actions"><span className="muted">{t('Atual:')} {settings.defaultBackendId || t('escolher ao iniciar')}{settings.defaultModelId && ` · ${settings.defaultModelId}`}</span><button type="submit" className="touch-target primary-button" disabled={saving || settingsUnchanged}>{t('Salvar preferências')}</button></div>
+        <div className="field settings-max-context">
+          <label htmlFor="settings-max-context">{t('Contexto máximo das conversas (tokens)')}</label>
+          <input id="settings-max-context" type="number" inputMode="numeric" min={8000} step={1000} value={maxContext} placeholder={t('Automático: a janela de cada modelo')} onChange={event => setMaxContext(event.target.value)} aria-invalid={maxContextInvalid || undefined} aria-describedby="settings-max-context-help" />
+          <span id="settings-max-context-help" className="muted">{maxContextInvalid ? t('Use pelo menos 8.000 tokens, ou deixe vazio para usar a janela de cada modelo.') : t('Perto deste limite a conversa se compacta sozinha e segue. Vazio usa a janela de cada modelo.')}</span>
+        </div>
+        <div className="settings-actions"><span className="muted">{t('Atual:')} {settings.defaultBackendId || t('escolher ao iniciar')}{settings.defaultModelId && ` · ${settings.defaultModelId}`}</span><button type="submit" className="touch-target primary-button" disabled={saving || settingsUnchanged || maxContextInvalid}>{t('Salvar preferências')}</button></div>
       </form>
       <section className="settings-section" aria-labelledby="security-heading">
         <div className="destination-heading"><div><h3 id="security-heading">{t('Permissões do projeto')}</h3><p className="muted">{t('Valem para todas as conversas deste projeto, inclusive as já abertas.')}</p></div><ShieldCheck aria-hidden="true" className="settings-section-icon" /></div>

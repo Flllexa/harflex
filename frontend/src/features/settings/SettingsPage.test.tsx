@@ -33,7 +33,7 @@ it('salva um modelo padrão do Codex CLI associado ao provedor configurado', asy
   await user.click(await screen.findByRole('option', { name: 'GPT-5 Codex' }))
   await user.click(screen.getByRole('button', { name: 'Salvar preferências' }))
 
-  expect(save).toHaveBeenCalledWith({ defaultBackendId: 'codex', defaultModelBackendId: 'codex', defaultModelId: 'gpt-5-codex' })
+  expect(save).toHaveBeenCalledWith({ defaultBackendId: 'codex', defaultModelBackendId: 'codex', defaultModelId: 'gpt-5-codex', maxContextTokens: 0 })
 })
 
 it('não oferece modelo padrão do SDD para um CLI que o SDD ainda não suporta', async () => {
@@ -79,4 +79,17 @@ it('preserva o modelo padrão salvo enquanto os provedores ainda estão carregan
   const model = await screen.findByTestId('picker-settings-default-model')
   expect(model.querySelector('input')).toHaveValue('gpt-5-codex · atualize o catálogo para confirmar')
   expect(screen.getByRole('button', { name: 'Salvar preferências' })).toBeDisabled()
+})
+
+it('saves the maximum context of the conversations', async () => {
+  const user = userEvent.setup()
+  const { backend } = createFakeBackend()
+  const save = vi.spyOn(backend, 'saveSettings')
+  render(<SettingsPage backend={backend} backends={[{ id: 'local', name: 'Local', kind: 'api', available: true }]} connectionState="ready" onWorkspaceUpdated={() => undefined} onBackendSaved={() => undefined} onDefaultSaved={() => undefined} />)
+  const field = await screen.findByLabelText('Contexto máximo das conversas (tokens)')
+  expect(field).toHaveValue(null)
+  expect(field).toHaveAttribute('placeholder', 'Automático: a janela de cada modelo')
+  await user.type(field, '100000')
+  await user.click(screen.getByRole('button', { name: 'Salvar preferências' }))
+  expect(save).toHaveBeenCalledWith(expect.objectContaining({ maxContextTokens: 100000 }))
 })

@@ -1389,6 +1389,11 @@ export interface SaveSettingsInput {
     "defaultBackendId": string;
     "defaultModelBackendId": string;
     "defaultModelId": string;
+
+    /**
+     * MaxContextTokens is left as saved when nil: screens that only change the default provider do not send it.
+     */
+    "maxContextTokens"?: number | null;
 }
 
 export interface SaveSkillInput {
@@ -1546,6 +1551,7 @@ export interface SettingsDTO {
     "defaultBackendId": string;
     "defaultModelBackendId": string;
     "defaultModelId": string;
+    "maxContextTokens": number;
 }
 
 export interface SkillDTO {

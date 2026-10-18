@@ -21,8 +21,8 @@ func TestSDDDefaultModelMigrationAppliesAfterVersion34(t *testing.T) {
 		t.Fatal(err)
 	}
 	for version := 1; version <= lastMigrationVersion(t); version++ {
-		if version > 34 && version < 44 {
-			continue // 35-43 are what this test applies; 44 onward (AI-authored Code, MCP, PRs) need tables a synthetic catalog lacks
+		if version > 34 && version < 44 || version == 60 {
+			continue // 35-43 and 60 (settings) are what this test applies; 44 onward otherwise need tables a synthetic catalog lacks
 		}
 		if _, err := raw.Exec(`INSERT INTO schema_migrations VALUES (?, '2026-09-29T12:00:00Z')`, version); err != nil {
 			t.Fatal(err)
