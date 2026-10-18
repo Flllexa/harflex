@@ -96,11 +96,11 @@ export function QALiveRun({ backend, sessionId }: { backend: Backend; sessionId?
   const seen = new Set(commands.flatMap(item => item.kinds))
   const upcoming = expected.filter(kind => !seen.has(kind))
   const current = commands.find(item => item.status === 'running')
-  // Between commands the model is choosing the next one: the next check on the list shows the lab is still at work.
-  const next = current ? undefined : upcoming[0]
+  // Between commands the model is choosing the next one; no check is shown at work until a command for it runs (a
+  // project may never run one kind, and a check shown "preparing" under every new command reads as a loop).
 
   return <section className="qa-live" aria-label={t('QA em andamento')} aria-busy="true">
-    <p className="qa-live-summary" aria-live="polite">{current ? <>{t('Agora:')} <strong>{current.kinds.map(kind => kinds[kind].label).join(' · ')}</strong></> : next ? <>{t('Preparando:')} <strong>{kinds[next].label}</strong></> : commands.length ? t('Pensando no próximo passo…') : t('Preparando o laboratório…')}
+    <p className="qa-live-summary" aria-live="polite">{current ? <>{t('Agora:')} <strong>{current.kinds.map(kind => kinds[kind].label).join(' · ')}</strong></> : commands.length ? t('Pensando no próximo passo…') : t('Preparando o laboratório…')}
       {commands.length > 0 && <span className="muted"> · {t(commands.length === 1 ? '{count} comando' : '{count} comandos', { count: commands.length })}</span>}</p>
     <RunProgress progress={progress} metricsOnly />
     <ol className="qa-run qa-live-run">
@@ -112,12 +112,12 @@ export function QALiveRun({ backend, sessionId }: { backend: Backend; sessionId?
           <span className="qa-run-result">{statusText[item.status]}</span>
         </div>
       </li> })}
-      {upcoming.map(kind => { const { label, Icon } = kinds[kind]; return <li key={kind} className={`qa-run-row is-live ${kind === next ? 'is-next' : 'is-upcoming'}`}>
+      {upcoming.map(kind => { const { label, Icon } = kinds[kind]; return <li key={kind} className="qa-run-row is-live is-upcoming">
         <div className="qa-run-head">
-          <span className="qa-run-status" aria-hidden="true">{kind === next ? <LoaderCircle className="qa-spin" /> : <CircleDashed />}</span>
+          <span className="qa-run-status" aria-hidden="true"><CircleDashed /></span>
           <span className="qa-live-name"><strong>{label}</strong></span>
           <span className="qa-run-kind"><Icon aria-hidden="true" />{label}</span>
-          <span className="qa-run-result">{kind === next ? t('Preparando…') : t('Ainda não começou')}</span>
+          <span className="qa-run-result">{t('Ainda não começou')}</span>
         </div>
       </li> })}
     </ol>

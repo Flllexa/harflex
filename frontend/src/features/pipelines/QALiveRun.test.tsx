@@ -45,7 +45,9 @@ it('shows the QA run one command at a time, with the checks still to come', asyn
   expect(screen.getAllByText('Ainda não começou')).toHaveLength(2)
 })
 
-it('shows the next check at work while the model chooses the next command', async () => {
+// Between commands the model is choosing what to run next: no check is shown at work. A check the project may never
+// run (a Python project has no build) would otherwise sit at "Preparando…" forever, under every new command.
+it('shows the model choosing its next step between commands, with no check pretending to start', async () => {
   const { backend } = createFakeBackend()
   let sequence = 0
   const event = (type: string, data: unknown): AgentEvent => ({ id: `e${++sequence}`, streamId: 'qa-2', sequence, type, data, createdAt: '2026-10-08T10:00:00Z' })
@@ -57,8 +59,7 @@ it('shows the next check at work while the model chooses the next command', asyn
   ]
   render(<QALiveRun backend={backend} sessionId="qa-2" />)
   expect(await screen.findByText('Concluiu')).toBeInTheDocument()
-  expect(screen.getByText(/Preparando:/)).toHaveTextContent('Preparando: Build')
-  const rows = screen.getAllByRole('listitem')
-  expect(within(rows[1]).getByText('Preparando…')).toBeInTheDocument()
-  expect(screen.getAllByText('Ainda não começou')).toHaveLength(4)
+  expect(screen.getByText('Pensando no próximo passo…')).toBeInTheDocument()
+  expect(screen.queryByText(/Preparando/)).not.toBeInTheDocument()
+  expect(screen.getAllByText('Ainda não começou')).toHaveLength(5)
 })
