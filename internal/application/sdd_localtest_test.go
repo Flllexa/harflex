@@ -7,7 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/persioflexa/harflex/internal/agentcore"
 	"github.com/persioflexa/harflex/internal/catalog"
+	"github.com/persioflexa/harflex/internal/providers/openai"
 	"github.com/persioflexa/harflex/internal/storage/sqlite"
 )
 
@@ -32,6 +34,8 @@ func localTestPipeline(t *testing.T) (*Service, *sqlite.Store, PipelineDTO, Work
 		}
 	}
 	s, db, _ := setup(t)
+	provider := &fakeProvider{}
+	s.providerFactory = func(c openai.Config) (agentcore.Provider, error) { provider.key = c.APIKey; return provider, nil }
 	if _, err := s.SaveProviderProfile(profileInput()); err != nil {
 		t.Fatal(err)
 	}
@@ -229,8 +233,8 @@ func TestANewCodeVersionUndoesTheOlderTest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Prompt(PromptInput{SessionID: link.SessionID, Text: "Mais uma mudança"}); err != nil {
-		t.Fatal(err)
+	if result, err := s.Prompt(PromptInput{SessionID: link.SessionID, Text: "Mais uma mudança"}); err != nil || result.Status != RunCompleted {
+		t.Fatalf("the Coder's follow-up: %+v %v", result, err)
 	}
 	coderWrites(t, s, db, run.ID, link.SessionID, "second version\n")
 	next, err := coderSaidDone(t, s, run.ID).CompletePipelineCode(run.ID)
@@ -256,4 +260,27 @@ func localTestIDForTest(t *testing.T, s *Service, pipelineID string) string {
 
 func catalogService(name, terminalID string) catalog.LocalTestService {
 	return catalog.LocalTestService{Name: name, TerminalID: terminalID, Command: "npm run dev"}
+}
+
+// The tester is a conversation like any other: it takes its first message, and it reopens after the app restarts.
+func TestTheTesterConversationRunsAndReopens(t *testing.T) {
+	s, _, run, workspace, _ := localTestPipeline(t)
+	tester := startLocalTest(t, s, run)
+	if result, err := s.Prompt(PromptInput{SessionID: tester.Session.ID, Text: tester.Prompt}); err != nil || result.Status != RunCompleted {
+		t.Fatalf("the tester's first message: %+v %v", result, err)
+	}
+	restarted := NewService(t.Context(), Dependencies{Store: s.store, Secrets: s.secrets, External: map[string]ExternalBackend{}, ProviderFactory: s.providerFactory, ExecutionCacheRoot: s.executionCacheRoot})
+	opened, err := restarted.OpenSession(OpenSessionInput{SessionID: tester.Session.ID, WorkspaceID: workspace.ID})
+	if err != nil || !opened.Resumable {
+		t.Fatalf("the tester after a restart: %+v %v", opened, err)
+	}
+	if result, err := restarted.Prompt(PromptInput{SessionID: tester.Session.ID, Text: "Suba os serviços de novo"}); err != nil || result.Status != RunCompleted {
+		t.Fatalf("a message to the tester after a restart: %+v %v", result, err)
+	}
+	if _, err := restarted.UndoPipelineLocalTest(UndoPipelineLocalTestInput{PipelineID: run.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := restarted.Prompt(PromptInput{SessionID: tester.Session.ID, Text: "mais"}); ErrorCode(err) != "local_test_finished" {
+		t.Fatalf("a message after the undo: %v", err)
+	}
 }
