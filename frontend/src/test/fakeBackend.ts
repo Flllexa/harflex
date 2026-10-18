@@ -226,6 +226,7 @@ export function createFakeBackend() {
     createDirectSession: async input => backend.createSession(input.workspaceId, input.backendId, input.agentId),
     getSessionModelSelection: async sessionId => ({ sessionId, backendId: 'codex', modelId: 'runtime-model', reasoningEffort: '', source: 'codex_app_server', destination: '', status: '', confirmUnverifiedManual: false, confirmUnfiltered: false, confirmJitLoad: false, maxOutputTokens: 0, contextLength: 0, checkedAt: sessionMetadata.createdAt }),
     listSessions: async () => [],
+    listRunningSessions: async () => [],
     openSession: async (id, workspaceId) => ({ id, workspaceId, backendId: 'local', status: 'completed', ...sessionMetadata }),
     exportAudit: async (_sessionId, destination) => destination,
     prompt: async (_session, text): Promise<RunResult> => {

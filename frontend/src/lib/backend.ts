@@ -297,6 +297,7 @@ export type StageExecutor = z.infer<typeof stageExecutor>
 export type SaveStageExecutorInput = { workspaceId: string; stage: PipelineStage; backendId: string; modelId: string }
 /** The agent that runs a stage: the Coder writes, the Evaluator is QA, the Publisher opens the pull requests. */
 export type PipelineRole = 'coder' | 'evaluator' | 'publisher'
+export type RunningSession = { session: Session; pipelineId: string; role: '' | PipelineRole }
 export type PipelineSession = z.infer<typeof pipelineSession>
 export type PipelineCodeCopyPreview = z.infer<typeof pipelineCodeCopyPreview>
 export type CreateAuthoringPipelineInput = { workspaceId: string; requestId: string; discovery: string }
@@ -566,6 +567,8 @@ export interface Backend {
   createDirectSession(input: { workspaceId: string; backendId: string; agentId?: string; reason: string; modelId?: string; reasoningEffort?: string; catalogRevision?: string }): Promise<Session>
   getSessionModelSelection(sessionId: string): Promise<SessionModelSelection>
   listSessions(workspaceId: string): Promise<Session[]>
+  /** The project's conversations whose run is still going or waiting for an approval, newest first. */
+  listRunningSessions(workspaceId: string): Promise<RunningSession[]>
   openSession(sessionId: string, workspaceId: string): Promise<Session>
   exportAudit(sessionId: string, destination: string): Promise<string>
   prompt(sessionId: string, text: string): Promise<RunResult>
@@ -650,6 +653,7 @@ export const parse = {
   session: (value: unknown) => session.parse(value),
   sessionModelSelection: (value: unknown) => sessionModelSelection.parse(value),
   sessions: (value: unknown) => z.array(session).parse(value ?? []),
+  runningSessions: (value: unknown) => z.array(z.object({ session, pipelineId: z.string(), role: z.enum(['', 'coder', 'evaluator', 'publisher']) })).parse(value ?? []),
   chatProjects: (value: unknown) => z.array(chatProject).parse(value ?? []),
   id: (value: unknown) => id.parse(value),
   auditPath: (value: unknown) => auditPath.parse(value),

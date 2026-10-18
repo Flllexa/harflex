@@ -299,6 +299,16 @@ type SessionDTO struct {
 type ListSessionsInput struct {
 	WorkspaceID string `json:"workspaceId"`
 }
+type ListRunningSessionsInput struct {
+	WorkspaceID string `json:"workspaceId"`
+}
+
+// RunningSessionDTO is a conversation whose run is still going, with the pipeline and role it works for (none for a chat).
+type RunningSessionDTO struct {
+	Session    SessionDTO `json:"session"`
+	PipelineID string     `json:"pipelineId"`
+	Role       string     `json:"role"`
+}
 type OpenSessionInput struct {
 	SessionID   string `json:"sessionId"`
 	WorkspaceID string `json:"workspaceId"`

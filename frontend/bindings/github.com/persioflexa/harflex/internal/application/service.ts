@@ -444,6 +444,14 @@ export function ListProviderProfiles(): $CancellablePromise<$models.ProviderProf
     return $Call.ByID(1228489538);
 }
 
+/**
+ * ListRunningSessions lists the project's conversations whose run is still going or waiting for an approval, newest
+ * first, so the screen can show and switch between everything running.
+ */
+export function ListRunningSessions($in: $models.ListRunningSessionsInput): $CancellablePromise<$models.RunningSessionDTO[] | null> {
+    return $Call.ByID(317980701, $in);
+}
+
 export function ListScheduleJobs(workspaceID: string): $CancellablePromise<$models.ScheduleJobDTO[] | null> {
     return $Call.ByID(526981384, workspaceID);
 }

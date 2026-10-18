@@ -826,6 +826,10 @@ export interface ListLogEventsInput {
     "limit": number;
 }
 
+export interface ListRunningSessionsInput {
+    "workspaceId": string;
+}
+
 export interface ListSessionsInput {
     "workspaceId": string;
 }
@@ -1259,6 +1263,15 @@ export interface RunResultDTO {
     "reason"?: string;
     "code"?: string;
     "approval"?: ApprovalDTO | null;
+}
+
+/**
+ * RunningSessionDTO is a conversation whose run is still going, with the pipeline and role it works for (none for a chat).
+ */
+export interface RunningSessionDTO {
+    "session": SessionDTO;
+    "pipelineId": string;
+    "role": string;
 }
 
 export interface SaveAgentInput {

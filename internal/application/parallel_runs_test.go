@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/persioflexa/harflex/internal/agentcore"
+	"github.com/persioflexa/harflex/internal/catalog"
 	"github.com/persioflexa/harflex/internal/providers/openai"
 )
 
@@ -103,5 +104,49 @@ func TestProfileChangeInOneProjectDoesNotWaitForAnotherProjectsTool(t *testing.T
 		}
 	case <-time.After(time.Second):
 		t.Fatal("a profile change waited for another project's tool")
+	}
+}
+
+func TestListRunningSessionsReturnsOnlyLiveOnes(t *testing.T) {
+	s, db, _ := setup(t)
+	workspace, err := s.OpenWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := s.OpenWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	pipeline, err := s.CreatePipeline(CreatePipelineInput{WorkspaceID: workspace.ID, Title: "Work", Objective: "Change"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	for index, item := range []struct{ id, workspace, status string }{
+		{"chat-running", workspace.ID, "running"}, {"chat-approval", workspace.ID, "awaiting_approval"},
+		{"chat-done", workspace.ID, "completed"}, {"coder-running", workspace.ID, "running"}, {"elsewhere", other.ID, "running"},
+	} {
+		at := now.Add(time.Duration(index) * time.Second)
+		record := catalog.SessionRecord{ID: item.id, WorkspaceID: item.workspace, BackendID: "local", Status: item.status, CreatedAt: at, UpdatedAt: at}
+		if err := db.CreateSessionWithSnapshots(t.Context(), record, nil, "", nil, "agent_session", nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := db.LinkPipelineSession(t.Context(), catalog.PipelineSession{ID: "coder-link", PipelineID: pipeline.ID, SessionID: "coder-running", Role: "coder", CreatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	running, err := s.ListRunningSessions(ListRunningSessionsInput{WorkspaceID: workspace.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := map[string]RunningSessionDTO{}
+	for _, item := range running {
+		ids[item.Session.ID] = item
+	}
+	if len(running) != 3 || ids["chat-running"].Session.ID == "" || ids["chat-approval"].Session.ID == "" || ids["coder-running"].PipelineID != pipeline.ID || ids["coder-running"].Role != "coder" || ids["chat-running"].Role != "" {
+		t.Fatalf("running sessions: %+v", running)
+	}
+	if running[0].Session.ID != "coder-running" {
+		t.Fatalf("not newest first: %+v", running)
 	}
 }

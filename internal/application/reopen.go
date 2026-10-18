@@ -335,6 +335,47 @@ func (s *Service) ListSessions(in ListSessionsInput) ([]SessionDTO, error) {
 	return result, nil
 }
 
+// ListRunningSessions lists the project's conversations whose run is still going or waiting for an approval, newest
+// first, so the screen can show and switch between everything running.
+func (s *Service) ListRunningSessions(in ListRunningSessionsInput) ([]RunningSessionDTO, error) {
+	if err := s.beginCall(); err != nil {
+		return nil, err
+	}
+	defer s.endCall()
+	if strings.TrimSpace(in.WorkspaceID) == "" {
+		return nil, ErrInvalidInput
+	}
+	records, err := s.store.ListSessions(s.ctx, in.WorkspaceID)
+	if err != nil {
+		return nil, safe("list sessions", err)
+	}
+	result := make([]RunningSessionDTO, 0)
+	for _, record := range records {
+		if record.WorkspaceID != in.WorkspaceID || record.Status != "running" && record.Status != "awaiting_approval" {
+			continue
+		}
+		item := RunningSessionDTO{Session: s.sessionDTO(record)}
+		if item.Session.Purpose == "chat" && item.Session.Title == "" {
+			item.Session.Title = s.sessionTitle(record.ID)
+		}
+		if pipelineID, err := s.store.GetPipelineIDForSession(s.ctx, record.ID); err == nil {
+			item.PipelineID, item.Role = pipelineID, "evaluator"
+			if links, err := s.store.ListPipelineSessions(s.ctx, pipelineID, "coder"); err == nil {
+				for _, link := range links {
+					if link.SessionID == record.ID {
+						item.Role = "coder"
+					}
+				}
+			}
+		} else if pipelineID, err := s.store.GetPipelineIDForPRSession(s.ctx, record.ID); err == nil {
+			item.PipelineID, item.Role = pipelineID, "publisher"
+		}
+		result = append(result, item)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Session.UpdatedAt.After(result[j].Session.UpdatedAt) })
+	return result, nil
+}
+
 func (s *Service) OpenSession(in OpenSessionInput) (SessionDTO, error) {
 	if err := s.beginCall(); err != nil {
 		return SessionDTO{}, err
