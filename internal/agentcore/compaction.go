@@ -84,7 +84,9 @@ func (s *Session) estimateLocked() int {
 	if s.usageTokens > 0 {
 		return s.usageTokens + max(0, now-s.usageBytes)/4
 	}
-	return now / 4
+	// The provider's count already holds the tools sent with each request; a guess from the history adds them.
+	tools, _ := json.Marshal(s.tools.Specs())
+	return (now + len(tools)) / 4
 }
 
 // Compact summarizes the conversation now, between runs (the person asked for it).
@@ -101,22 +103,26 @@ func (s *Session) Compact(ctx context.Context) error {
 	opCtx := s.beginLocked(ctx)
 	s.mu.Unlock()
 	defer s.end()
-	return s.compact(opCtx)
+	return s.compact(opCtx, false)
 }
 
 // maybeCompact compacts at a turn boundary when the next request would pass the threshold. Callers hold no lock and
 // only call it with every tool call answered.
 func (s *Session) maybeCompact(ctx context.Context) error {
 	s.mu.Lock()
-	due := len(s.queue) == 0 && len(s.unanswered) == 0 && float64(s.estimateLocked()) > compactAt*float64(s.windowLocked())
+	estimate, window := s.estimateLocked(), s.windowLocked()
+	// After a compaction that barely shrank the history, summarizing again only helps once it grew by a fifth of the window.
+	due := len(s.queue) == 0 && len(s.unanswered) == 0 && float64(estimate) > compactAt*float64(window) && (s.stuckAt == 0 || estimate > s.stuckAt+window/5)
 	s.mu.Unlock()
 	if !due {
 		return nil
 	}
-	return s.compact(ctx)
+	return s.compact(ctx, false)
 }
 
-func (s *Session) compact(ctx context.Context) error {
+// compact replaces the history with a summary. After a refusal the window the model really has is smaller than
+// what was sent, so the summary request is cut to half of it rather than to the share of the assumed window.
+func (s *Session) compact(ctx context.Context, refused bool) error {
 	s.mu.Lock()
 	messages := cloneMessages(s.messages)
 	window := s.windowLocked()
@@ -129,7 +135,11 @@ func (s *Session) compact(ctx context.Context) error {
 	if lead == len(messages) {
 		return nil
 	}
-	request := append(fitForSummary(messages, lead, window*7/10), Message{Role: RoleUser, Content: summaryInstruction(window)})
+	budget := window * 7 / 10
+	if refused {
+		budget = min(budget, before/2)
+	}
+	request := append(fitForSummary(messages, lead, budget), Message{Role: RoleUser, Content: summaryInstruction(window)})
 	summary, err := s.collectText(ctx, ChatRequest{Messages: request})
 	if err != nil {
 		return err
@@ -152,6 +162,10 @@ func (s *Session) compact(ctx context.Context) error {
 	s.mu.Lock()
 	s.messages = append(cloneMessages(messages[:lead]), cloneMessages(kept)...)
 	s.usageTokens, s.usageBytes = 0, 0
+	s.stuckAt = 0
+	if after := s.estimateLocked(); after*5 > before*4 {
+		s.stuckAt = after
+	}
 	s.mu.Unlock()
 	return nil
 }
@@ -182,13 +196,19 @@ func fitForSummary(messages []Message, lead, budgetTokens int) []Message {
 			result[index].Content = shortenText(result[index].Content)
 		}
 	}
-	for messagesBytes(result)/4 > budgetTokens && len(result) > lead+2 {
+	// An exchange leaves whole (an answer with every result it got), and the newest one stays.
+	newest := len(result) - len(latestExchange(result, lead+1))
+	for messagesBytes(result)/4 > budgetTokens {
 		drop := lead + 1
 		end := drop + 1
-		for end < len(result)-1 && result[end].Role == RoleTool {
+		for end < len(result) && result[end].Role == RoleTool {
 			end++
 		}
+		if end > newest {
+			break
+		}
 		result = append(result[:drop], result[end:]...)
+		newest -= end - drop
 	}
 	return result
 }

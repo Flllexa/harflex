@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -148,5 +149,151 @@ func TestSessionEndsWhenTheContextErrorRepeats(t *testing.T) {
 	}
 	if countTypes(j, "context.compacted") != 1 {
 		t.Fatalf("compactions = %d, want exactly one", countTypes(j, "context.compacted"))
+	}
+}
+
+func requestTokens(req ChatRequest) int {
+	size := 0
+	for _, message := range req.Messages {
+		size += len(message.Content)
+	}
+	return size / 4
+}
+
+// A long run can fill its context more than once: each refusal after a turn that went through is recovered again.
+func TestSessionRecoversFromAFullContextMoreThanOncePerRun(t *testing.T) {
+	turns := 0
+	p := &sessionProvider{stream: func(_ context.Context, req ChatRequest) (<-chan StreamEvent, <-chan error) {
+		if isSummaryRequest(req) {
+			return streamEvents(StreamEvent{Type: "text_delta", Delta: "resumo"})
+		}
+		turns++
+		switch turns {
+		case 1, 3:
+			return failing(contextFull{})
+		case 2:
+			return streamEvents(toolEvent("call-1"))
+		}
+		return streamEvents(StreamEvent{Type: "text_delta", Delta: "fim"})
+	}}
+	tools := &sessionTools{risk: "read_only", execute: func(context.Context, string, json.RawMessage, ToolUpdateSink) (ToolExecutionResult, error) {
+		return ToolExecutionResult{Content: []byte(`"ok"`)}, nil
+	}}
+	j := &sessionJournal{}
+	if err := NewSession("session-1", p, tools, j, security.FullAccess).Prompt(t.Context(), "pedido"); err != nil {
+		t.Fatalf("the second full context of the run ended it: %v", err)
+	}
+	if countTypes(j, "context.compacted") != 2 {
+		t.Fatalf("compactions = %d", countTypes(j, "context.compacted"))
+	}
+}
+
+// A model whose real window is smaller than the one assumed refuses the turn; the summary request is cut to well
+// under what was refused, so it is not refused too.
+func TestSessionSummaryAfterARefusalFitsUnderWhatWasRefused(t *testing.T) {
+	const realWindow = 25_000
+	turns := 0
+	p := &sessionProvider{stream: func(_ context.Context, req ChatRequest) (<-chan StreamEvent, <-chan error) {
+		if requestTokens(req) > realWindow {
+			return failing(contextFull{})
+		}
+		if isSummaryRequest(req) {
+			return streamEvents(StreamEvent{Type: "text_delta", Delta: "resumo"})
+		}
+		if turns++; turns == 1 {
+			return streamEvents(toolEvent("call-1"))
+		}
+		return streamEvents(StreamEvent{Type: "text_delta", Delta: "fim"})
+	}}
+	tools := &sessionTools{risk: "read_only", execute: func(context.Context, string, json.RawMessage, ToolUpdateSink) (ToolExecutionResult, error) {
+		encoded, _ := json.Marshal(strings.Repeat("linha de log ", 160_000/13))
+		return ToolExecutionResult{Content: encoded}, nil
+	}}
+	s := NewSession("session-1", p, tools, &sessionJournal{}, security.FullAccess)
+	s.SetContextWindow(100_000)
+	if err := s.Prompt(t.Context(), "leia o log"); err != nil {
+		t.Fatalf("the summary was refused like the turn it was meant to fix: %v", err)
+	}
+}
+
+// A window too small for what must stay (the first request, the newest exchange) cannot be helped by summarizing
+// again: one compaction that barely shrank the history is not repeated on every turn.
+func TestSessionDoesNotCompactEveryTurnWhenItCannotShrink(t *testing.T) {
+	rounds, summaries := 0, 0
+	p := &sessionProvider{stream: func(_ context.Context, req ChatRequest) (<-chan StreamEvent, <-chan error) {
+		if isSummaryRequest(req) {
+			summaries++
+			return streamEvents(StreamEvent{Type: "text_delta", Delta: "resumo"})
+		}
+		if rounds++; rounds <= 3 {
+			return streamEvents(toolEvent(fmt.Sprintf("call-%d", rounds)))
+		}
+		return streamEvents(StreamEvent{Type: "text_delta", Delta: "fim"})
+	}}
+	tools := &sessionTools{risk: "read_only", execute: func(context.Context, string, json.RawMessage, ToolUpdateSink) (ToolExecutionResult, error) {
+		return ToolExecutionResult{Content: []byte(`"ok"`)}, nil
+	}}
+	s := NewSession("session-1", p, tools, &sessionJournal{}, security.FullAccess)
+	s.SetContextWindow(1000)
+	if err := s.Prompt(t.Context(), strings.Repeat("requisito ", 360)); err != nil {
+		t.Fatal(err)
+	}
+	if summaries > 1 {
+		t.Fatalf("summaries = %d for a history that cannot shrink", summaries)
+	}
+}
+
+// The tools sent with every request weigh on the window too, before any count from the provider.
+func TestSessionEstimateCountsTheToolsSentWithEachRequest(t *testing.T) {
+	summaries := 0
+	p := &sessionProvider{stream: func(_ context.Context, req ChatRequest) (<-chan StreamEvent, <-chan error) {
+		if isSummaryRequest(req) {
+			summaries++
+			return streamEvents(StreamEvent{Type: "text_delta", Delta: "resumo"})
+		}
+		return streamEvents(StreamEvent{Type: "text_delta", Delta: "ok"})
+	}}
+	tools := &sessionTools{specs: []ToolSpec{{Name: "big", Description: strings.Repeat("descrição longa ", 300), Schema: json.RawMessage(`{"type":"object"}`)}}}
+	j := &sessionJournal{}
+	s := NewSession("session-1", p, tools, j, security.Ask)
+	s.SetContextWindow(1000)
+	if err := s.Prompt(t.Context(), strings.Repeat("contexto ", 40)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Prompt(t.Context(), "segundo"); err != nil {
+		t.Fatal(err)
+	}
+	if summaries == 0 {
+		t.Fatal("a history plus tools past the window was never compacted")
+	}
+}
+
+// Leaving old exchanges out of the summary request takes each one whole, and never the newest: a tool result
+// without the call it answers is a request the provider refuses.
+func TestFitForSummaryDropsWholeExchangesAndKeepsTheNewest(t *testing.T) {
+	big := strings.Repeat("x", 40_000)
+	messages := []Message{
+		{Role: RoleSystem, Content: "sistema"},
+		{Role: RoleUser, Content: "pedido"},
+		{Role: RoleAssistant, ToolCalls: []ToolCall{{ID: "call-1", Name: "test"}}},
+		{Role: RoleTool, ToolCallID: "call-1", Content: big},
+		{Role: RoleAssistant, ToolCalls: []ToolCall{{ID: "call-2", Name: "test"}, {ID: "call-3", Name: "test"}}},
+		{Role: RoleTool, ToolCallID: "call-2", Content: big},
+		{Role: RoleTool, ToolCallID: "call-3", Content: big},
+	}
+	for _, budget := range []int{10, 3000, 12_000} {
+		fitted := fitForSummary(messages, 1, budget)
+		calls := map[string]bool{}
+		for _, message := range fitted {
+			for _, call := range message.ToolCalls {
+				calls[call.ID] = true
+			}
+			if message.Role == RoleTool && !calls[message.ToolCallID] {
+				t.Fatalf("budget %d: %s kept without its call: %+v", budget, message.ToolCallID, fitted)
+			}
+		}
+		if !calls["call-2"] || fitted[len(fitted)-1].ToolCallID != "call-3" {
+			t.Fatalf("budget %d: the newest exchange was cut: %+v", budget, fitted)
+		}
 	}
 }

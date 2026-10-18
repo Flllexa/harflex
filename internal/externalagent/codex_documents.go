@@ -282,6 +282,10 @@ func (s *codexDocumentState) consume(raw json.RawMessage, progress func(Event)) 
 		Item     struct {
 			ID, Type, Text, Message string
 		} `json:"item"`
+		Message string `json:"message"`
+		Error   struct {
+			Message string `json:"message"`
+		} `json:"error"`
 		Usage struct {
 			Input  *int64 `json:"input_tokens"`
 			Output *int64 `json:"output_tokens"`
@@ -321,6 +325,12 @@ func (s *codexDocumentState) consume(raw json.RawMessage, progress func(Event)) 
 				progress(Event{Type: "text_delta", Text: record.Item.Text, MessageID: record.Item.ID, SessionID: s.result.ThreadID})
 			}
 		}
+	case "turn.failed", "error":
+		// A prompt over the window fails the turn; anything else a failed turn says is still a broken run.
+		if cliSaysContextIsFull(record.Error.Message) || cliSaysContextIsFull(record.Message) {
+			return ErrCLIContextFull
+		}
+		return ErrCodexDocumentProtocol
 	case "turn.completed":
 		if !s.started {
 			return ErrCodexDocumentProtocol

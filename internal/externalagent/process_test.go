@@ -51,7 +51,7 @@ func TestMain(m *testing.M) {
 			runCodexCatalogHelper(mode)
 		case "opencode-catalog-lines", "opencode-catalog-invalid", "opencode-catalog-hang", "opencode-catalog-many", "opencode-catalog-overflow", "opencode-catalog-probe-fail":
 			runOpenCodeCatalogHelper(mode)
-		case "claude-auth-in", "claude-auth-out", "claude-auth-garbage", "claude-run", "claude-document", "claude-document-tools", "claude-document-logout":
+		case "claude-auth-in", "claude-auth-out", "claude-auth-garbage", "claude-run", "claude-document", "claude-document-tools", "claude-document-logout", "claude-document-full":
 			runClaudeHelper(mode)
 		case "codex-protocol", "opencode-protocol":
 			if mode == "opencode-protocol" && len(os.Args) == 2 && os.Args[1] == "--version" {

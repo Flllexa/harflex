@@ -71,6 +71,30 @@ func (a *publicAliases) transform(typ string, value any, patterns [][]byte) {
 	if !ok {
 		return
 	}
+	if typ == "context.compacted" {
+		// The kept history is stored with the event and read back on reopen: its calls and results take the same
+		// aliases, so they still pair up.
+		if messages, ok := object["messages"].([]any); ok {
+			for _, raw := range messages {
+				message, ok := raw.(map[string]any)
+				if !ok {
+					continue
+				}
+				if actual, ok := message["toolCallId"].(string); ok {
+					message["toolCallId"] = a.tool(actual, false, patterns)
+				}
+				if calls, ok := message["toolCalls"].([]any); ok {
+					for _, rawCall := range calls {
+						if call, ok := rawCall.(map[string]any); ok {
+							if actual, ok := call["id"].(string); ok {
+								call["id"] = a.tool(actual, false, patterns)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 	if typ == "message.assistant" {
 		if calls, ok := object["toolCalls"].([]any); ok {
 			for _, raw := range calls {

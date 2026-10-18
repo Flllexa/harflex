@@ -340,4 +340,25 @@ func TestDocumentProviderReportsAFullContextWithoutRetrying(t *testing.T) {
 	if !errors.As(err, &full) || !full.ContextLengthExceeded() || attempts != 1 {
 		t.Fatalf("err=%v attempts=%d", err, attempts)
 	}
+	// What the CLI adapters report once its text is gone from the process error.
+	provider = NewDocumentProvider(documentGeneratorFunc(func(context.Context, DocumentRequest, func(Event)) (DocumentResult, error) {
+		return DocumentResult{}, fmt.Errorf("document run: %w", ErrCLIContextFull)
+	}), base)
+	if _, err := collectDocumentProvider(t, t.Context(), provider, request); !errors.As(err, &full) {
+		t.Fatalf("a full context the adapter recognized was not classified: %v", err)
+	}
+}
+
+// Codex reports a prompt over the window as a failed turn; that is a full context, not a broken protocol.
+func TestCodexDocumentReportsAPromptThatDoesNotFit(t *testing.T) {
+	state := codexDocumentState{limit: 4096}
+	for _, line := range []string{`{"type":"thread.started","thread_id":"5b2c1d1e-2222-4c1f-9e0a-000000000002"}`, `{"type":"turn.started"}`} {
+		if err := state.consume(json.RawMessage(line), nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	err := state.consume(json.RawMessage(`{"type":"turn.failed","error":{"message":"Your input exceeds the context window of this model."}}`), nil)
+	if !errors.Is(err, ErrCLIContextFull) {
+		t.Fatalf("a failed turn over the window came back as %v", err)
+	}
 }

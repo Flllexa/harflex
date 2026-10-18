@@ -143,4 +143,15 @@ func TestAQAConversationStartsAndKeepsTalkingAfterItsVerdict(t *testing.T) {
 	if err != nil || !finished.Resumable {
 		t.Fatalf("a QA conversation closed after its verdict: %+v %v", finished, err)
 	}
+	before, err := s.GetPipeline(approved.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result, err := s.Prompt(PromptInput{SessionID: qa.Session.ID, Text: "Por que esse item falhou?"}); err != nil || result.Status != RunCompleted {
+		t.Fatalf("a question to QA after its verdict: %+v %v", result, err)
+	}
+	after, err := s.GetPipeline(approved.ID)
+	if err != nil || after.Artifacts["eval"] != before.Artifacts["eval"] || after.CurrentStage != before.CurrentStage || after.StageStatus["eval"] != before.StageStatus["eval"] {
+		t.Fatalf("talking to QA changed the pipeline: before %+v after %+v %v", before.Artifacts["eval"], after.Artifacts["eval"], err)
+	}
 }

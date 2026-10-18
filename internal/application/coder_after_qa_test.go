@@ -4,6 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/persioflexa/harflex/internal/catalog"
 
 	"github.com/persioflexa/harflex/internal/storage/sqlite"
 )
@@ -62,7 +65,8 @@ func TestCoderAfterPRsStaysClosed(t *testing.T) {
 
 func TestCoderMessageStopsARunningQA(t *testing.T) {
 	s, approved, coder, _, _ := codeVerifiedAndApproved(t)
-	if err := s.claimQALoop(approved.ID, QALoopDTO{Phase: "evaluating", Round: 1}); err != nil {
+	gen, err := s.claimQALoop(approved.ID, QALoopDTO{Phase: "evaluating", Round: 1})
+	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.Prompt(PromptInput{SessionID: coder.Session.ID, Text: "Corrija o rodapé"}); err != nil {
@@ -71,5 +75,37 @@ func TestCoderMessageStopsARunningQA(t *testing.T) {
 	loop, err := s.GetPipelineQALoop(approved.ID)
 	if err != nil || loop.Running || loop.Phase != "stopped" {
 		t.Fatalf("QA kept running on the old version: %+v %v", loop, err)
+	}
+	// The stopped loop's next step (its QA run ends cancelled) neither runs nor writes over "stopped".
+	s.qaLoopFailed(approved.ID, gen, 1, "", "O QA não terminou: cancelado")
+	if loop, err := s.GetPipelineQALoop(approved.ID); err != nil || loop.Phase != "stopped" {
+		t.Fatalf("the stopped loop wrote over its stop: %+v %v", loop, err)
+	}
+}
+
+// Talking to an earlier Coder of the same copy makes it the latest one: its next run is the one the review reads.
+func TestReturningAnEarlierCoderMakesItTheLatest(t *testing.T) {
+	s, approved, coder, workspace, _ := codeVerifiedAndApproved(t)
+	db := s.store.(*sqlite.Store)
+	later := catalog.SessionRecord{ID: "later-coder", WorkspaceID: workspace.ID, BackendID: "local", Status: "completed", Mode: "sdd_code", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	if err := db.CreateSessionWithSnapshots(t.Context(), later, nil, "", nil, "agent_session", nil); err != nil {
+		t.Fatal(err)
+	}
+	links, err := db.ListPipelineSessions(t.Context(), approved.ID, "coder")
+	if err != nil || len(links) != 1 {
+		t.Fatalf("links: %+v %v", links, err)
+	}
+	if err := db.LinkPipelineSession(t.Context(), catalog.PipelineSession{ID: "later-link", PipelineID: approved.ID, SessionID: later.ID, Role: "coder", ExecutionSnapshot: links[0].ExecutionSnapshot, CreatedAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Prompt(PromptInput{SessionID: coder.Session.ID, Text: "Volte a esta versão"}); err != nil {
+		t.Fatal(err)
+	}
+	latest, err := s.latestPipelineSession(approved.ID, "coder")
+	if err != nil || latest.SessionID != coder.Session.ID {
+		t.Fatalf("the returned Coder is not the latest: %+v %v", latest, err)
+	}
+	if active, err := s.pipelineCodeSessionActive(coder.Session.ID); err != nil || !active {
+		t.Fatalf("the returned Coder is not active: %v %v", active, err)
 	}
 }

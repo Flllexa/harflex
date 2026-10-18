@@ -41,9 +41,13 @@ func streamEvents(items ...StreamEvent) (<-chan StreamEvent, <-chan error) {
 type sessionTools struct {
 	risk    string
 	execute func(context.Context, string, json.RawMessage, ToolUpdateSink) (ToolExecutionResult, error)
+	specs   []ToolSpec
 }
 
-func (*sessionTools) Specs() []ToolSpec {
+func (t *sessionTools) Specs() []ToolSpec {
+	if t.specs != nil {
+		return t.specs
+	}
 	return []ToolSpec{{Name: "test", Schema: json.RawMessage(`{"type":"object"}`)}}
 }
 func (t *sessionTools) Risk(string) string { return t.risk }

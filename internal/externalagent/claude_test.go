@@ -40,7 +40,7 @@ func runClaudeHelper(mode string) {
 		default:
 			fmt.Println("not json")
 		}
-	case "claude-document", "claude-document-tools", "claude-document-logout":
+	case "claude-document", "claude-document-tools", "claude-document-logout", "claude-document-full":
 		runClaudeDocumentHelper(mode)
 	case "claude-run":
 		input, _ := io.ReadAll(os.Stdin)
@@ -197,6 +197,10 @@ func runClaudeDocumentHelper(mode string) {
 		toolList = `["StructuredOutput","Bash"]`
 	}
 	fmt.Printf(`{"type":"system","subtype":"init","session_id":%q,"tools":%s,"mcp_servers":[]}`+"\n", session, toolList)
+	if mode == "claude-document-full" {
+		fmt.Printf(`{"type":"result","subtype":"success","is_error":true,"result":"Prompt is too long","session_id":%q}`+"\n", session)
+		syscall.Exit(1)
+	}
 	if mode == "claude-document-logout" {
 		fmt.Printf(`{"type":"assistant","session_id":%q,"error":"authentication_failed","message":{"id":"m0","content":[{"type":"text","text":"Not logged in"}]}}`+"\n", session)
 		fmt.Printf(`{"type":"result","subtype":"success","is_error":true,"result":"Not logged in","session_id":%q}`+"\n", session)
@@ -299,5 +303,14 @@ func TestClaudeGetsTheHarflexMCPServerWithoutTheTokenInItsArguments(t *testing.T
 	joined := strings.Join(args, " ")
 	if !strings.Contains(joined, `"url":"http://127.0.0.1:9/mcp"`) || !strings.Contains(joined, "Bearer ${HARFLEX_MCP_TOKEN}") || !strings.Contains(joined, "--allowedTools mcp__harflex") || strings.Contains(joined, "secret") || strings.Contains(joined, "--strict-mcp-config") {
 		t.Fatalf("claude args: %v", args)
+	}
+}
+
+// Claude Code says a prompt does not fit in its result record; the process error that follows carries no text, so
+// the record is what tells the session to compact.
+func TestClaudeCodeDocumentReportsAPromptThatDoesNotFit(t *testing.T) {
+	adapter, request := claudeDocumentFixture(t, "claude-document-full")
+	if _, err := adapter.GenerateDocument(t.Context(), request, nil); !errors.Is(err, ErrCLIContextFull) {
+		t.Fatalf("a prompt the CLI said was too long came back as %v", err)
 	}
 }

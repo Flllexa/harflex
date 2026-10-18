@@ -205,6 +205,9 @@ func runClaudeDocumentInvocation(parent context.Context, invocation claudeDocume
 	if state.notLoggedIn {
 		return DocumentResult{}, ErrClaudeNotLoggedIn
 	}
+	if state.contextFull {
+		return DocumentResult{}, ErrCLIContextFull
+	}
 	if processErr != nil {
 		return DocumentResult{}, fmt.Errorf("Claude Code document process failed: %w", safeCause{processErr})
 	}
@@ -222,6 +225,7 @@ type claudeDocumentState struct {
 	limit              int
 	started, completed bool
 	notLoggedIn        bool
+	contextFull        bool
 }
 
 func (s *claudeDocumentState) consume(raw json.RawMessage) error {
@@ -278,6 +282,7 @@ func (s *claudeDocumentState) consume(raw json.RawMessage) error {
 		}
 		s.completed = true
 		if record.IsError || record.Subtype != "success" {
+			s.contextFull = record.Result != nil && cliSaysContextIsFull(*record.Result)
 			return nil
 		}
 		text := ""

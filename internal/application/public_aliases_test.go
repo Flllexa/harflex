@@ -290,3 +290,20 @@ func TestRealSessionAliasesShortCredentialApprovalWithoutChangingExecution(t *te
 		})
 	}
 }
+
+// The history a compaction keeps holds the real tool call ids; the stored event (read back on reopen) carries them
+// as aliases, a call and its result under the same one.
+func TestCompactionEventKeepsTheRealToolIDsOutOfThePublicEvent(t *testing.T) {
+	kept := []agentcore.Message{{Role: agentcore.RoleUser, Content: "pedido"}, {Role: agentcore.RoleAssistant, ToolCalls: []agentcore.ToolCall{{ID: "REAL-CALL-ID", Name: "read"}}}, {Role: agentcore.RoleTool, ToolCallID: "REAL-CALL-ID", Content: `"ok"`}}
+	raw, err := newSensitiveRedactor([]byte("segredo")).eventPayload(agentcore.Compacted{Summary: "resumo", Messages: kept, BeforeTokens: 900, AfterTokens: 90}, "context.compacted")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "REAL-CALL-ID") || !strings.Contains(string(raw), `"summary":"resumo"`) || !strings.Contains(string(raw), `"afterTokens":90`) {
+		t.Fatalf("public compaction event: %s", raw)
+	}
+	var stored agentcore.Compacted
+	if err := json.Unmarshal(raw, &stored); err != nil || len(stored.Messages) != 3 || stored.Messages[1].ToolCalls[0].ID == "" || stored.Messages[1].ToolCalls[0].ID != stored.Messages[2].ToolCallID {
+		t.Fatalf("the kept history no longer pairs its call and result: %+v %v", stored.Messages, err)
+	}
+}

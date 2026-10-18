@@ -50,7 +50,7 @@ func (p *documentProvider) generate(ctx context.Context, document DocumentReques
 	for attempt := 0; ; attempt++ {
 		result, err := p.generator.GenerateDocument(ctx, document, nil)
 		// A prompt that does not fit is not asked again as it is: the session compacts the conversation and retries.
-		if err != nil && cliSaysContextIsFull(err.Error()) {
+		if err != nil && (errors.Is(err, ErrCLIContextFull) || cliSaysContextIsFull(err.Error())) {
 			return nil, contextFullError{err}
 		}
 		if err == nil {
@@ -469,6 +469,10 @@ func convertDocumentProviderResult(result DocumentResult, tools map[string]agent
 // hostPromptBudget is how much of a long run's conversation one CLI turn carries. It keeps the turn inside the model's
 // context window, so it does not follow the answer limit: past it, the oldest tool results are shortened first.
 const hostPromptBudget = 512 * 1024
+
+// ErrCLIContextFull is what an adapter reports when the CLI said the prompt does not fit: the CLI's own text is gone
+// from the process error by then, so the adapter recognizes it where the CLI wrote it.
+var ErrCLIContextFull = errors.New("the prompt does not fit in the model's window")
 
 // contextFullError is a CLI's refusal of a prompt larger than the model's window.
 type contextFullError struct{ error }

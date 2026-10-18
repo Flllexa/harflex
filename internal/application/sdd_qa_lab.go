@@ -193,20 +193,46 @@ func (s *Service) qaLoopSet(state QALoopDTO) {
 	}
 }
 
-// claimQALoop marks the pipeline as running a QA loop, refusing a second one.
-func (s *Service) claimQALoop(pipelineID string, first QALoopDTO) error {
+// claimQALoop marks the pipeline as running a QA loop, refusing a second one, and returns the loop's number.
+func (s *Service) claimQALoop(pipelineID string, first QALoopDTO) (uint64, error) {
 	s.qaLoopMu.Lock()
+	defer s.qaLoopMu.Unlock()
 	if s.qaLoops == nil {
-		s.qaLoops = map[string]QALoopDTO{}
+		s.qaLoops, s.qaLoopGen = map[string]QALoopDTO{}, map[string]uint64{}
 	}
 	if current, ok := s.qaLoops[pipelineID]; ok && current.Running {
-		s.qaLoopMu.Unlock()
-		return ErrPipelineQABusy
+		return 0, ErrPipelineQABusy
 	}
 	first.PipelineID, first.Running, first.UpdatedAt = pipelineID, true, time.Now().UTC()
 	s.qaLoops[pipelineID] = first
+	s.qaLoopGen[pipelineID]++
+	return s.qaLoopGen[pipelineID], nil
+}
+
+// stopQALoop ends the pipeline's loop where it is: its next step finds its number outdated and does nothing.
+func (s *Service) stopQALoop(pipelineID, message string) {
+	s.qaLoopMu.Lock()
+	current, ok := s.qaLoops[pipelineID]
+	running := ok && current.Running
+	if running {
+		s.qaLoopGen[pipelineID]++
+	}
 	s.qaLoopMu.Unlock()
-	return nil
+	if running {
+		current.Running, current.Phase, current.Message = false, "stopped", message
+		s.qaLoopSet(current)
+	}
+}
+
+// qaLoopSetFor records a step of loop gen, or reports false when that loop was stopped meanwhile.
+func (s *Service) qaLoopSetFor(gen uint64, state QALoopDTO) bool {
+	s.qaLoopMu.Lock()
+	current := s.qaLoopGen[state.PipelineID] == gen
+	s.qaLoopMu.Unlock()
+	if current {
+		s.qaLoopSet(state)
+	}
+	return current
 }
 
 // GetPipelineQALoop returns the background QA state of a pipeline; Phase is empty when nothing ran since the app opened.
@@ -241,10 +267,11 @@ func (s *Service) StartPipelineQA(in StartPipelineQAInput) (QALoopDTO, error) {
 		return QALoopDTO{}, sdd.ErrInvalidTransition
 	}
 	first := QALoopDTO{Phase: "qa", Round: 1, Message: "Preparando o laboratório de QA"}
-	if err := s.claimQALoop(in.PipelineID, first); err != nil {
+	gen, err := s.claimQALoop(in.PipelineID, first)
+	if err != nil {
 		return QALoopDTO{}, err
 	}
-	go s.runQALoop(in.PipelineID, nil, in.Evaluator, 1)
+	go s.runQALoop(in.PipelineID, gen, nil, in.Evaluator, 1)
 	first.PipelineID, first.Running = in.PipelineID, true
 	return first, nil
 }
@@ -259,15 +286,16 @@ func (s *Service) FixPipelineFindings(in FixPipelineFindingsInput) (QALoopDTO, e
 		return QALoopDTO{}, ErrInvalidInput
 	}
 	first := QALoopDTO{Phase: "fixing", Round: 1, Message: "Enviando as correções para o Code"}
-	if err := s.claimQALoop(in.PipelineID, first); err != nil {
+	gen, err := s.claimQALoop(in.PipelineID, first)
+	if err != nil {
 		return QALoopDTO{}, err
 	}
 	if err := s.requestEvaluationRevision(in.PipelineID, feedback); err != nil {
-		s.qaLoopSet(QALoopDTO{PipelineID: in.PipelineID, Phase: "failed", Message: "Não foi possível voltar ao Code: " + err.Error()})
+		s.qaLoopSetFor(gen, QALoopDTO{PipelineID: in.PipelineID, Phase: "failed", Message: "Não foi possível voltar ao Code: " + err.Error()})
 		return QALoopDTO{}, err
 	}
 	coder := in.Coder
-	go s.runQALoop(in.PipelineID, &coder, in.Evaluator, 1)
+	go s.runQALoop(in.PipelineID, gen, &coder, in.Evaluator, 1)
 	first.PipelineID, first.Running = in.PipelineID, true
 	return first, nil
 }
@@ -296,11 +324,12 @@ func (s *Service) ResumePipelineFixes(in ResumePipelineFixesInput) (QALoopDTO, e
 		return QALoopDTO{}, sdd.ErrInvalidTransition
 	}
 	first := QALoopDTO{Phase: "fixing", Round: 1, Message: "Retomando as correções no Code"}
-	if err := s.claimQALoop(in.PipelineID, first); err != nil {
+	gen, err := s.claimQALoop(in.PipelineID, first)
+	if err != nil {
 		return QALoopDTO{}, err
 	}
 	coder := in.Coder
-	go s.runQALoop(in.PipelineID, &coder, in.Evaluator, 1)
+	go s.runQALoop(in.PipelineID, gen, &coder, in.Evaluator, 1)
 	first.PipelineID, first.Running = in.PipelineID, true
 	return first, nil
 }
@@ -422,52 +451,56 @@ func (s *Service) freshRoleChoice(pipelineID string, choice PipelineRoleChoice) 
 	return choice
 }
 
-func (s *Service) qaLoopFailed(pipelineID string, round int, sessionID, message string) {
-	s.qaLoopSet(QALoopDTO{PipelineID: pipelineID, Phase: "failed", Round: round, SessionID: sessionID, Message: message})
+func (s *Service) qaLoopFailed(pipelineID string, gen uint64, round int, sessionID, message string) {
+	s.qaLoopSetFor(gen, QALoopDTO{PipelineID: pipelineID, Phase: "failed", Round: round, SessionID: sessionID, Message: message})
 }
 
 // runQALoop: an optional Coder fix round, then QA; failures go back to Code by themselves while rounds remain.
-func (s *Service) runQALoop(pipelineID string, coder *PipelineRoleChoice, evaluator PipelineRoleChoice, round int) {
+func (s *Service) runQALoop(pipelineID string, gen uint64, coder *PipelineRoleChoice, evaluator PipelineRoleChoice, round int) {
 	previous := ""
 	for {
 		if coder != nil {
 			fixing := QALoopDTO{PipelineID: pipelineID, Phase: "fixing", Round: round, Running: true, Message: "O Coder está aplicando as correções na mesma cópia"}
-			s.qaLoopSet(fixing)
-			sessionID, err := s.runPipelineRole(pipelineID, "coder", *coder, true, func(id string) { fixing.SessionID = id; s.qaLoopSet(fixing) })
+			if !s.qaLoopSetFor(gen, fixing) {
+				return
+			}
+			sessionID, err := s.runPipelineRole(pipelineID, "coder", *coder, true, func(id string) { fixing.SessionID = id; s.qaLoopSetFor(gen, fixing) })
 			if err != nil {
-				s.qaLoopFailed(pipelineID, round, sessionID, "O Coder não terminou: "+err.Error())
+				s.qaLoopFailed(pipelineID, gen, round, sessionID, "O Coder não terminou: "+err.Error())
 				return
 			}
 			// A Coder that stopped to ask hands the loop back to the person with its questions.
 			if status, err := s.GetPipelineCoderStatus(pipelineID); err == nil && status.State == "questions" {
-				s.qaLoopFailed(pipelineID, round, sessionID, "O Coder precisa de respostas antes de continuar: "+strings.Join(status.Questions, " · "))
+				s.qaLoopFailed(pipelineID, gen, round, sessionID, "O Coder precisa de respostas antes de continuar: "+strings.Join(status.Questions, " · "))
 				return
 			}
 			if _, err := s.completePipelineCode(pipelineID, false); err != nil {
-				s.qaLoopFailed(pipelineID, round, sessionID, "O Coder não deixou mudanças verificáveis: "+err.Error())
+				s.qaLoopFailed(pipelineID, gen, round, sessionID, "O Coder não deixou mudanças verificáveis: "+err.Error())
 				return
 			}
 			if err := s.decideLatest(pipelineID, sdd.Code, "approve", ""); err != nil {
-				s.qaLoopFailed(pipelineID, round, sessionID, "Não foi possível levar a correção ao QA: "+err.Error())
+				s.qaLoopFailed(pipelineID, gen, round, sessionID, "Não foi possível levar a correção ao QA: "+err.Error())
 				return
 			}
 		}
 		testing := QALoopDTO{PipelineID: pipelineID, Phase: "qa", Round: round, Running: true, Message: "O QA está rodando build, testes e o app no laboratório"}
-		s.qaLoopSet(testing)
-		sessionID, err := s.runPipelineRole(pipelineID, "evaluator", evaluator, false, func(id string) { testing.SessionID = id; s.qaLoopSet(testing) })
+		if !s.qaLoopSetFor(gen, testing) {
+			return
+		}
+		sessionID, err := s.runPipelineRole(pipelineID, "evaluator", evaluator, false, func(id string) { testing.SessionID = id; s.qaLoopSetFor(gen, testing) })
 		if err != nil {
-			s.qaLoopFailed(pipelineID, round, sessionID, "O QA não terminou: "+err.Error())
+			s.qaLoopFailed(pipelineID, gen, round, sessionID, "O QA não terminou: "+err.Error())
 			return
 		}
 		run, err := s.completeQA(pipelineID, sessionID)
 		if err != nil {
-			s.qaLoopFailed(pipelineID, round, sessionID, "O QA não entregou um relatório válido: "+err.Error())
+			s.qaLoopFailed(pipelineID, gen, round, sessionID, "O QA não entregou um relatório válido: "+err.Error())
 			return
 		}
 		var report pipelineEvaluationArtifact
 		_ = json.Unmarshal([]byte(run.Artifacts[string(sdd.Eval)].Content), &report)
 		if report.Passed {
-			s.qaLoopSet(QALoopDTO{PipelineID: pipelineID, Phase: "done", Round: round, SessionID: sessionID, Message: "O QA passou. Revise e aprove para seguir aos PRs."})
+			s.qaLoopSetFor(gen, QALoopDTO{PipelineID: pipelineID, Phase: "done", Round: round, SessionID: sessionID, Message: "O QA passou. Revise e aprove para seguir aos PRs."})
 			return
 		}
 		// Failures loop by themselves until QA passes; improvements wait for the person, and so does the first QA run.
@@ -478,11 +511,11 @@ func (s *Service) runQALoop(pipelineID string, coder *PipelineRoleChoice, evalua
 			if coder != nil && len(report.Findings) > 0 {
 				message = "As mesmas falhas voltaram depois da correção. Escreva uma orientação para o Coder e corrija de novo."
 			}
-			s.qaLoopSet(QALoopDTO{PipelineID: pipelineID, Phase: "waiting", Round: round, SessionID: sessionID, Message: message})
+			s.qaLoopSetFor(gen, QALoopDTO{PipelineID: pipelineID, Phase: "waiting", Round: round, SessionID: sessionID, Message: message})
 			return
 		}
 		if err := s.requestEvaluationRevision(pipelineID, qaFixFeedback(report.Findings, nil, "")); err != nil {
-			s.qaLoopFailed(pipelineID, round, sessionID, "Não foi possível voltar ao Code: "+err.Error())
+			s.qaLoopFailed(pipelineID, gen, round, sessionID, "Não foi possível voltar ao Code: "+err.Error())
 			return
 		}
 		previous = failures

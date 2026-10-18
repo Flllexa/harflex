@@ -47,7 +47,7 @@ func (s *Store) LinkPipelineSession(ctx context.Context, link catalog.PipelineSe
 }
 
 func (s *Store) ListPipelineSessions(ctx context.Context, pipelineID, role string) ([]catalog.PipelineSession, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id, pipeline_id, session_id, role, baseline_git_hash, baseline_git_files, baseline_git_file_hashes, execution_snapshot, execution_applied_at, evaluation_criteria, created_at FROM pipeline_sessions WHERE pipeline_id = ? AND role = ? ORDER BY rowid DESC", pipelineID, role)
+	rows, err := s.db.QueryContext(ctx, "SELECT id, pipeline_id, session_id, role, baseline_git_hash, baseline_git_files, baseline_git_file_hashes, execution_snapshot, execution_applied_at, evaluation_criteria, created_at FROM pipeline_sessions WHERE pipeline_id = ? AND role = ? ORDER BY created_at DESC, rowid DESC", pipelineID, role)
 	if err != nil {
 		return nil, fmt.Errorf("list pipeline sessions: %w", err)
 	}
@@ -137,7 +137,7 @@ func (s *Store) MarkPipelineCodeApplied(ctx context.Context, pipelineID, session
 
 func (s *Store) GetPipelineIDForSession(ctx context.Context, sessionID string) (string, error) {
 	var pipelineID string
-	if err := s.db.QueryRowContext(ctx, "SELECT pipeline_id FROM pipeline_sessions WHERE session_id=? ORDER BY rowid DESC LIMIT 1", sessionID).Scan(&pipelineID); err != nil {
+	if err := s.db.QueryRowContext(ctx, "SELECT pipeline_id FROM pipeline_sessions WHERE session_id=? ORDER BY created_at DESC, rowid DESC LIMIT 1", sessionID).Scan(&pipelineID); err != nil {
 		return "", fmt.Errorf("get pipeline for session: %w", err)
 	}
 	return pipelineID, nil

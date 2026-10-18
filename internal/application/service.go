@@ -94,6 +94,8 @@ type Service struct {
 	// qaLoops holds the background QA state of each pipeline (QA lab and fix rounds).
 	qaLoopMu sync.Mutex
 	qaLoops  map[string]QALoopDTO
+	// qaLoopGen counts the loops of each pipeline: a loop whose number is no longer the latest was stopped.
+	qaLoopGen map[string]uint64
 	// prWatch tracks the review checks running for the pull requests.
 	prWatch           pullRequestWatchState
 	projectMemoryRuns map[string]string

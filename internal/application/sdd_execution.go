@@ -611,13 +611,7 @@ func (s *Service) stopPipelineQA(pipelineID, keep string) {
 			}
 		}
 	}
-	s.qaLoopMu.Lock()
-	current, ok := s.qaLoops[pipelineID]
-	s.qaLoopMu.Unlock()
-	if ok && current.Running {
-		current.Running, current.Phase, current.Message = false, "stopped", "QA parou: a conversa com o Coder continuou e o Code voltou para revisão."
-		s.qaLoopSet(current)
-	}
+	s.stopQALoop(pipelineID, "QA parou: a conversa com o Coder continuou e o Code voltou para revisão.")
 }
 
 func separateExecutionRoot(sourceRoot, executionRoot string) bool {

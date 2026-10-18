@@ -43,6 +43,10 @@ func (s *Service) rebindSession(record *catalog.SessionRecord) error {
 	if err != nil || !result.Complete {
 		return ErrBackendChanged
 	}
+	// The address the choice was checked against is the one the history went to; a profile now somewhere else stops here.
+	if stored.Destination != "" && stored.Destination != result.Destination {
+		return ErrBackendChanged
+	}
 	modelID := stored.ModelID
 	if !slices.ContainsFunc(result.Models, func(model modelcatalog.Model) bool { return model.ID == modelID }) {
 		modelID = profile.Model

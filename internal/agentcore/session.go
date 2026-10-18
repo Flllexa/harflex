@@ -134,6 +134,8 @@ type Session struct {
 	usageBytes    int
 	// streamed says the last turn wrote something, so a failure after it cannot be retried as if nothing happened.
 	streamed bool
+	// stuckAt is the estimate right after a compaction that shrank the history by less than a fifth (0: none).
+	stuckAt int
 }
 
 // AddInstructions puts a note at the head of the system instructions, for the next turns of a conversation that is
@@ -618,10 +620,11 @@ func (s *Session) drive(ctx context.Context) error {
 			return errTurnLimit
 		}
 		calls, err := s.respond(ctx)
-		// A request that no longer fits the window is compacted once and asked again; a second refusal ends the run.
+		// A request that no longer fits the window is compacted and asked again; a refusal right after that ends the
+		// run, while one after a turn that went through is recovered again.
 		if err != nil && contextLengthExceeded(err) && !s.streamed && !retriedFull {
 			retriedFull = true
-			if compactErr := s.compact(ctx); compactErr != nil {
+			if compactErr := s.compact(ctx, true); compactErr != nil {
 				return &executionError{"context_length_exceeded", errors.Join(err, compactErr)}
 			}
 			s.turns--
@@ -633,6 +636,7 @@ func (s *Session) drive(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		retriedFull = false
 		if len(calls) == 0 {
 			return nil
 		}
