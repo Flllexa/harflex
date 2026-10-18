@@ -16,6 +16,13 @@ import (
 	"github.com/persioflexa/harflex/internal/storage/sqlite"
 )
 
+// tickAndWait runs one scheduler tick and waits for the jobs it started: jobs run in their own goroutines.
+func tickAndWait(s *Service, ctx context.Context, now, openedAt time.Time) error {
+	err := s.tickSchedules(ctx, now, openedAt)
+	s.scheduleJobs.Wait()
+	return err
+}
+
 func scheduleService(t *testing.T) (*Service, *sqlite.Store, string) {
 	t.Helper()
 	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "schedules.db"))
@@ -81,7 +88,7 @@ func TestTickSchedulesCollapsesMissedRunsAndRecordsOutcome(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := s.tickSchedules(t.Context(), now, now); err != nil {
+	if err := tickAndWait(s, t.Context(), now, now); err != nil {
 		t.Fatal(err)
 	}
 	jobs, err := s.ListScheduleJobs(workspaceID)
@@ -95,7 +102,7 @@ func TestTickSchedulesCollapsesMissedRunsAndRecordsOutcome(t *testing.T) {
 	if statuses["catch-up"] != "completed" || statuses["skip"] != "skipped" {
 		t.Fatal(statuses)
 	}
-	if err := s.tickSchedules(t.Context(), now, now); err != nil {
+	if err := tickAndWait(s, t.Context(), now, now); err != nil {
 		t.Fatal(err)
 	}
 	again, _ := s.ListScheduleJobs(workspaceID)
@@ -112,7 +119,7 @@ func TestLiveScheduleSkipsALongDelayEvenWhileAppWasOpen(t *testing.T) {
 	if err := db.SaveSchedule(t.Context(), item, 0); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.tickSchedules(t.Context(), now, due.Add(-time.Minute)); err != nil {
+	if err := tickAndWait(s, t.Context(), now, due.Add(-time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 	jobs, err := s.ListScheduleJobs(workspaceID)
@@ -179,7 +186,7 @@ func TestManualScheduleExecutesWorkflowAndLinksDurableRun(t *testing.T) {
 		t.Fatalf("queue: %+v %v", job, err)
 	}
 	now := time.Now().UTC()
-	if err := s.tickSchedules(t.Context(), now, now); err != nil {
+	if err := tickAndWait(s, t.Context(), now, now); err != nil {
 		t.Fatal(err)
 	}
 	completed, err := s.GetScheduleJob(job.ID)
@@ -264,7 +271,7 @@ func TestFailedChildCancelRemainsNonTerminal(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Now().UTC()
-	if err := s.tickSchedules(t.Context(), now, now); err != nil {
+	if err := tickAndWait(s, t.Context(), now, now); err != nil {
 		t.Fatal(err)
 	}
 	completed, err := s.GetScheduleJob(job.ID)
@@ -347,7 +354,7 @@ func TestWorkflowCancellationWaitsForLinkedSessionReadback(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Now().UTC()
-	if err := s.tickSchedules(t.Context(), now, now); err != nil {
+	if err := tickAndWait(s, t.Context(), now, now); err != nil {
 		t.Fatal(err)
 	}
 	pending, err := s.GetScheduleJob(job.ID)
@@ -358,7 +365,7 @@ func TestWorkflowCancellationWaitsForLinkedSessionReadback(t *testing.T) {
 	if err := db.UpsertSession(t.Context(), record); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.tickSchedules(t.Context(), now.Add(time.Second), now); err != nil {
+	if err := tickAndWait(s, t.Context(), now.Add(time.Second), now); err != nil {
 		t.Fatal(err)
 	}
 	confirmed, err := s.GetScheduleJob(job.ID)
@@ -431,7 +438,7 @@ func TestApprovedPromptJobReconcilesToCompleted(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Now().UTC()
-	if err := s.tickSchedules(t.Context(), now, now); err != nil {
+	if err := tickAndWait(s, t.Context(), now, now); err != nil {
 		t.Fatal(err)
 	}
 	waiting, err := s.GetScheduleJob(job.ID)
@@ -461,7 +468,7 @@ func TestApprovedPromptJobReconcilesToCompleted(t *testing.T) {
 	if result, err := s.Approve(ApprovalInput{SessionID: waiting.SessionID, ApprovalID: approvalID, Allow: true}); err != nil || result.Status != RunCompleted {
 		t.Fatalf("approve: %+v %v", result, err)
 	}
-	if err := s.tickSchedules(t.Context(), now.Add(time.Second), now); err != nil {
+	if err := tickAndWait(s, t.Context(), now.Add(time.Second), now); err != nil {
 		t.Fatal(err)
 	}
 	completed, err := s.GetScheduleJob(job.ID)
@@ -487,7 +494,7 @@ func TestApprovedWorkflowJobContinuesRemainingSteps(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Now().UTC()
-	if err := s.tickSchedules(t.Context(), now, now); err != nil {
+	if err := tickAndWait(s, t.Context(), now, now); err != nil {
 		t.Fatal(err)
 	}
 	waiting, err := s.GetScheduleJob(job.ID)
@@ -517,7 +524,7 @@ func TestApprovedWorkflowJobContinuesRemainingSteps(t *testing.T) {
 	if result, err := s.Approve(ApprovalInput{SessionID: waiting.SessionID, ApprovalID: approvalID, Allow: true}); err != nil || result.Status != RunCompleted {
 		t.Fatalf("approve workflow: %+v %v", result, err)
 	}
-	if err := s.tickSchedules(t.Context(), now.Add(time.Second), now); err != nil {
+	if err := tickAndWait(s, t.Context(), now.Add(time.Second), now); err != nil {
 		t.Fatal(err)
 	}
 	completed, err := s.GetScheduleJob(job.ID)
@@ -553,7 +560,7 @@ func TestWaitingWorkflowJobWithMissingSessionFailsSafely(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Now().UTC()
-	if err := s.tickSchedules(t.Context(), now, now); err != nil {
+	if err := tickAndWait(s, t.Context(), now, now); err != nil {
 		t.Fatal(err)
 	}
 	failed, err := s.GetScheduleJob(job.ID)

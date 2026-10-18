@@ -384,9 +384,8 @@ func (s *Service) tickSchedules(ctx context.Context, now, openedAt time.Time) er
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := s.runScheduleJob(ctx, job); err != nil {
-			return err
-		}
+		// Each job runs on its own: a long one never holds up the next one due.
+		s.dispatchScheduleJob(job.ID, func() { _ = s.runScheduleJob(ctx, job) })
 	}
 	s.scheduleMu.Lock()
 	afterID := s.scheduleWaitingCursor
@@ -468,10 +467,7 @@ func (s *Service) reconcileWaitingScheduleJob(ctx context.Context, job catalog.S
 }
 
 func (s *Service) reconcileRequestedCancellation(ctx context.Context, job catalog.ScheduleJob) error {
-	s.scheduleMu.Lock()
-	active := s.scheduleRunning == job.ID
-	s.scheduleMu.Unlock()
-	if active {
+	if s.scheduleJobActive(job.ID) {
 		return nil
 	}
 	status, code := "", ""
@@ -566,21 +562,13 @@ func (s *Service) reconcileWaitingWorkflowJob(ctx context.Context, job catalog.S
 		} else if err != nil {
 			return safe("resume schedule job", err)
 		}
-		s.scheduleMu.Lock()
-		s.scheduleRunning = job.ID
-		s.scheduleMu.Unlock()
-		defer func() {
-			s.scheduleMu.Lock()
-			if s.scheduleRunning == job.ID {
-				s.scheduleRunning = ""
-			}
-			delete(s.scheduleCanceled, job.ID)
-			s.scheduleMu.Unlock()
-		}()
 		s.emitScheduleChange(job.WorkspaceID)
-		status, code := s.runWorkflowJobSteps(ctx, &job, run)
-		job.Status, job.ErrorCode, job.FinishedAt = status, code, time.Now().UTC()
-		return s.finishExecutedScheduleJob(ctx, job)
+		s.dispatchScheduleJob(job.ID, func() {
+			status, code := s.runWorkflowJobSteps(ctx, &job, run)
+			job.Status, job.ErrorCode, job.FinishedAt = status, code, time.Now().UTC()
+			_ = s.finishExecutedScheduleJob(ctx, job)
+		})
+		return nil
 	}
 	status, code := "failed", "workflow_paused"
 	if run.Status == "completed" {
@@ -606,17 +594,6 @@ func (s *Service) runScheduleJob(ctx context.Context, job catalog.ScheduleJob) e
 	} else if err != nil {
 		return safe("start schedule job", err)
 	}
-	s.scheduleMu.Lock()
-	s.scheduleRunning = job.ID
-	s.scheduleMu.Unlock()
-	defer func() {
-		s.scheduleMu.Lock()
-		if s.scheduleRunning == job.ID {
-			s.scheduleRunning = ""
-		}
-		delete(s.scheduleCanceled, job.ID)
-		s.scheduleMu.Unlock()
-	}()
 	s.emitScheduleChange(job.WorkspaceID)
 	status, code := s.executeScheduleJob(ctx, &job)
 	job.Status, job.ErrorCode, job.FinishedAt = status, code, time.Now().UTC()
@@ -762,4 +739,45 @@ func (s *Service) wakeScheduler() {
 	case s.scheduleWake <- struct{}{}:
 	default:
 	}
+}
+
+// dispatchScheduleJob runs a job in its own goroutine unless it is already running, and forgets it when it ends.
+// The scheduler waits for every dispatched job before it stops.
+func (s *Service) dispatchScheduleJob(jobID string, run func()) bool {
+	s.scheduleMu.Lock()
+	if _, active := s.scheduleRunning[jobID]; active {
+		s.scheduleMu.Unlock()
+		return false
+	}
+	s.scheduleRunning[jobID] = struct{}{}
+	s.scheduleJobs.Add(1)
+	s.scheduleMu.Unlock()
+	go func() {
+		defer s.scheduleJobs.Done()
+		defer func() {
+			s.scheduleMu.Lock()
+			delete(s.scheduleRunning, jobID)
+			delete(s.scheduleCanceled, jobID)
+			s.scheduleMu.Unlock()
+		}()
+		run()
+	}()
+	return true
+}
+
+func (s *Service) scheduleJobActive(jobID string) bool {
+	s.scheduleMu.Lock()
+	defer s.scheduleMu.Unlock()
+	_, active := s.scheduleRunning[jobID]
+	return active
+}
+
+func (s *Service) activeScheduleJobs() []string {
+	s.scheduleMu.Lock()
+	defer s.scheduleMu.Unlock()
+	ids := make([]string, 0, len(s.scheduleRunning))
+	for id := range s.scheduleRunning {
+		ids = append(ids, id)
+	}
+	return ids
 }

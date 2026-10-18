@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-// Scheduler is owned by the desktop lifecycle. Its sole worker serializes
-// scheduled jobs; Stop cancels active work and joins before SQLite closes.
+// Scheduler is owned by the desktop lifecycle. Its worker claims due jobs and runs each one in its own goroutine;
+// Stop cancels active work and joins every job before SQLite closes.
 type Scheduler struct {
 	service *Service
 	cancel  context.CancelFunc
@@ -27,11 +27,26 @@ func (scheduler *Scheduler) run(ctx context.Context) {
 	openedAt := time.Now().UTC()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
+	// Pull requests are watched on their own beat, so a running job never holds them up.
+	watching := make(chan struct{})
+	go func() {
+		defer close(watching)
+		watch := time.NewTicker(time.Second)
+		defer watch.Stop()
+		for {
+			scheduler.service.pullRequestWatch(time.Now().UTC())
+			select {
+			case <-ctx.Done():
+				return
+			case <-watch.C:
+			}
+		}
+	}()
+	defer func() { <-watching }()
 	for {
 		if ctx.Err() != nil {
 			return
 		}
-		scheduler.service.tickPullRequestWatch(time.Now().UTC())
 		_ = scheduler.service.tickSchedules(ctx, time.Now().UTC(), openedAt)
 		select {
 		case <-ctx.Done():
@@ -45,12 +60,18 @@ func (scheduler *Scheduler) run(ctx context.Context) {
 func (scheduler *Scheduler) Stop() {
 	scheduler.once.Do(func() {
 		scheduler.cancel()
-		scheduler.service.scheduleMu.Lock()
-		active := scheduler.service.scheduleRunning
-		scheduler.service.scheduleMu.Unlock()
-		if active != "" {
+		for _, active := range scheduler.service.activeScheduleJobs() {
 			_, _ = scheduler.service.CancelScheduleJob(active)
 		}
 		<-scheduler.done
+		scheduler.service.scheduleJobs.Wait()
 	})
+}
+
+func (s *Service) pullRequestWatch(now time.Time) {
+	if s.pullRequestWatchTick != nil {
+		s.pullRequestWatchTick(now)
+		return
+	}
+	s.tickPullRequestWatch(now)
 }

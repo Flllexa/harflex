@@ -160,7 +160,7 @@ func TestCancelWaitingScheduleJobReachesTerminalAndRejectsApproval(t *testing.T)
 		t.Fatal(err)
 	}
 	now := time.Now().UTC()
-	if err := s.tickSchedules(t.Context(), now, now); err != nil {
+	if err := tickAndWait(s, t.Context(), now, now); err != nil {
 		t.Fatal(err)
 	}
 	waiting, err := s.GetScheduleJob(job.ID)
@@ -171,7 +171,7 @@ func TestCancelWaitingScheduleJobReachesTerminalAndRejectsApproval(t *testing.T)
 	if _, err := s.CancelScheduleJob(job.ID); err != nil {
 		t.Fatalf("cancel waiting job: %v", err)
 	}
-	if err := s.tickSchedules(t.Context(), now.Add(time.Second), now); err != nil {
+	if err := tickAndWait(s, t.Context(), now.Add(time.Second), now); err != nil {
 		t.Fatal(err)
 	}
 	terminal, err := s.GetScheduleJob(job.ID)
@@ -207,7 +207,7 @@ func TestCancelWaitingWorkflowScheduleReachesTerminal(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Now().UTC()
-	if err := s.tickSchedules(t.Context(), now, now); err != nil {
+	if err := tickAndWait(s, t.Context(), now, now); err != nil {
 		t.Fatal(err)
 	}
 	waiting, err := s.GetScheduleJob(job.ID)
@@ -218,7 +218,7 @@ func TestCancelWaitingWorkflowScheduleReachesTerminal(t *testing.T) {
 	if _, err := s.CancelScheduleJob(job.ID); err != nil {
 		t.Fatalf("cancel waiting workflow job: %v", err)
 	}
-	if err := s.tickSchedules(t.Context(), now.Add(time.Second), now); err != nil {
+	if err := tickAndWait(s, t.Context(), now.Add(time.Second), now); err != nil {
 		t.Fatal(err)
 	}
 	terminal, err := s.GetScheduleJob(job.ID)

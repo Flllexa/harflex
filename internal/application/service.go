@@ -79,12 +79,15 @@ type Service struct {
 	drained                      chan struct{}
 	scheduleWake                 chan struct{}
 	scheduleMu                   sync.Mutex
-	scheduleRunning              string
-	scheduleCanceled             map[string]bool
-	scheduleWaitingCursor        string
-	delegationTimeout            time.Duration
-	projectMemoryMu              sync.Mutex
-	terminals                    *terminal.Manager
+	scheduleRunning              map[string]struct{}
+	scheduleJobs                 sync.WaitGroup
+	// pullRequestWatchTick checks the watched pull requests; tests replace it to count ticks.
+	pullRequestWatchTick  func(time.Time)
+	scheduleCanceled      map[string]bool
+	scheduleWaitingCursor string
+	delegationTimeout     time.Duration
+	projectMemoryMu       sync.Mutex
+	terminals             *terminal.Manager
 	// platformMCP serves the Harflex tools to CLI chats; platformMCPTokens holds one token per session.
 	platformMCP       *mcpserver.Server
 	platformMCPTokens map[string]string
@@ -110,7 +113,7 @@ func NewService(ctx context.Context, deps Dependencies) *Service {
 	if factory == nil {
 		factory = func(c openai.Config) (agentcore.Provider, error) { return openai.New(c) }
 	}
-	service := &Service{ctx: ctx, store: deps.Store, secrets: deps.Secrets, external: external, executionCacheRoot: deps.ExecutionCacheRoot, sessions: make(map[string]sessionRunner), journals: make(map[string]*eventJournal), authoringCodeOwners: make(map[string]*authoringCodeOwner), providerFactory: factory, modelHTTPClient: &http.Client{Transport: http.DefaultTransport}, modelCatalogCache: modelcatalog.NewCache(time.Now), privateWorkspaceParent: deps.PrivateWorkspaceParent, privateCodeCopy: sddworkspace.CreatePrivateCopyAt, authoringCodeScan: sddworkspace.Scan, authoringCodeReadbackTimeout: 15 * time.Minute, authoringCodePatchMaxBytes: sddworkspace.MaxPatchEvidenceBytes, privateCodeCopyInFlight: make(map[string]struct{}), audit: deps.Audit, emit: deps.Emit, drained: make(chan struct{}), scheduleWake: make(chan struct{}, 1), scheduleCanceled: make(map[string]bool), delegationTimeout: defaultDelegationTimeout, projectMemoryRuns: make(map[string]string)}
+	service := &Service{ctx: ctx, store: deps.Store, secrets: deps.Secrets, external: external, executionCacheRoot: deps.ExecutionCacheRoot, sessions: make(map[string]sessionRunner), journals: make(map[string]*eventJournal), authoringCodeOwners: make(map[string]*authoringCodeOwner), providerFactory: factory, modelHTTPClient: &http.Client{Transport: http.DefaultTransport}, modelCatalogCache: modelcatalog.NewCache(time.Now), privateWorkspaceParent: deps.PrivateWorkspaceParent, privateCodeCopy: sddworkspace.CreatePrivateCopyAt, authoringCodeScan: sddworkspace.Scan, authoringCodeReadbackTimeout: 15 * time.Minute, authoringCodePatchMaxBytes: sddworkspace.MaxPatchEvidenceBytes, privateCodeCopyInFlight: make(map[string]struct{}), audit: deps.Audit, emit: deps.Emit, drained: make(chan struct{}), scheduleWake: make(chan struct{}, 1), scheduleCanceled: make(map[string]bool), scheduleRunning: make(map[string]struct{}), delegationTimeout: defaultDelegationTimeout, projectMemoryRuns: make(map[string]string)}
 	_, tokenErr := rand.Read(service.catalogTokenKey[:])
 	service.catalogTokenReady = tokenErr == nil
 	if service.audit == nil {
