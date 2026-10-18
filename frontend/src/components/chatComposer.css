@@ -58,3 +58,9 @@
 .compaction-divider-line::before, .compaction-divider-line::after { content: ''; flex: 1; height: 1px; background: var(--hairline); }
 .compaction-divider details { align-self: center; max-width: 680px; }
 .compaction-divider pre { white-space: pre-wrap; font: inherit; color: var(--paper); }
+/* A pasted or attached image shows a small picture of itself in its chip. */
+.chat-composer-thumb { width: 22px; height: 22px; flex: none; margin-left: -4px; border-radius: 6px; object-fit: cover; border: 1px solid var(--hairline); background: var(--ink, #0a0d0f); }
+/* A long file name never widens the box: it shortens with an ellipsis inside its chip. */
+.chat-composer-box { grid-template-columns: minmax(0, 1fr); }
+.chat-composer-attachments { min-width: 0; }
+.chat-composer-attachments .chat-composer-chip { min-width: 0; }

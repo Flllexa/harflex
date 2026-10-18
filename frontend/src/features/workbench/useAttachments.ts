@@ -12,6 +12,11 @@ function looksBinary(text: string) {
   return text.includes('\u0000')
 }
 
+// The chip's small picture; without object URLs (tests) the chip shows the image icon instead.
+function previewOf(file: File) {
+  try { return typeof URL.createObjectURL === 'function' ? URL.createObjectURL(file) : undefined } catch { return undefined }
+}
+
 async function base64(file: File) {
   const bytes = new Uint8Array(await file.arrayBuffer())
   let binary = ''
@@ -34,7 +39,7 @@ export function useAttachments(backend: Backend, workspaceId: string | undefined
         if (file.type.startsWith('image/')) {
           if (!workspaceId) throw new Error(t('Abra um projeto para anexar imagens.'))
           const saved = await backend.saveChatAttachment({ sessionId: sessionId ?? '', workspaceId, name: file.name, data: await base64(file) })
-          setItems(current => [...current, { id, name: file.name, kind: 'image', size: file.size, path: saved.path }])
+          setItems(current => [...current, { id, name: file.name, kind: 'image', size: file.size, path: saved.path, preview: previewOf(file) }])
           continue
         }
         if (file.size > maxTextBytes) { setError(t('{name} passa de 256 KB: anexe um trecho ou peça para a IA ler o arquivo no projeto.', { name: file.name })); continue }
@@ -44,8 +49,15 @@ export function useAttachments(backend: Backend, workspaceId: string | undefined
       } catch (failure) { setError(errorMessage(failure)) }
     }
   }, [backend, workspaceId, sessionId])
-  const remove = useCallback((id: string) => setItems(current => current.filter(item => item.id !== id)), [])
-  const clear = useCallback(() => { setItems([]); setError(undefined) }, [])
+  // The chip's picture is held in memory until the image leaves the message.
+  const remove = useCallback((id: string) => setItems(current => {
+    for (const item of current) if (item.id === id && item.preview) URL.revokeObjectURL(item.preview)
+    return current.filter(item => item.id !== id)
+  }), [])
+  const clear = useCallback(() => {
+    setItems(current => { for (const item of current) if (item.preview) URL.revokeObjectURL(item.preview); return [] })
+    setError(undefined)
+  }, [])
   /** What goes after the person's words: each text file in a fenced block, each image as the path to read. */
   const block = useCallback(() => {
     if (!items.length) return ''

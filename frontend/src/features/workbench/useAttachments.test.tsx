@@ -25,3 +25,15 @@ it('refuses a binary file that is not an image, saying why', async () => {
   expect(result.current.items).toEqual([])
   expect(result.current.error).toBe('app.bin não é texto nem imagem: anexe arquivos de texto, código ou imagens.')
 })
+
+it('keeps a picture of each attached image for its chip, and lets it go when removed', async () => {
+  const { backend } = createFakeBackend()
+  const create = vi.fn(() => 'blob:tela'), revoke = vi.fn()
+  vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: create, revokeObjectURL: revoke }))
+  const { result } = renderHook(() => useAttachments(backend, 'workspace-1', 'session-1'))
+  await act(async () => { await result.current.attach([new File([new Uint8Array([137, 80, 78, 71])], 'tela.png', { type: 'image/png' })]) })
+  expect(result.current.items[0].preview).toBe('blob:tela')
+  act(() => result.current.remove(result.current.items[0].id))
+  expect(revoke).toHaveBeenCalledWith('blob:tela')
+  vi.unstubAllGlobals()
+})

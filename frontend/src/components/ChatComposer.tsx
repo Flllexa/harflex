@@ -1,9 +1,10 @@
-import { useEffect, useRef, type KeyboardEvent, type ReactNode, type Ref } from 'react'
+import { useEffect, useRef, type ClipboardEvent, type KeyboardEvent, type ReactNode, type Ref } from 'react'
 import { ArrowUp, FileText, ImageIcon, ListPlus, Plus, X } from 'lucide-react'
 import { useT } from '../i18n'
 import './chatComposer.css'
 
-export type ComposerAttachment = { id: string; name: string; kind: 'text' | 'image'; size: number }
+/** A file attached to the message; an image carries a small picture of itself (an object URL) for its chip. */
+export type ComposerAttachment = { id: string; name: string; kind: 'text' | 'image'; size: number; preview?: string }
 
 export type ComposerProps = {
   id: string
@@ -59,6 +60,16 @@ export function ChatComposer({ id, label, value, onChange, onSend, canSend, plac
     if (canSend) { onSend(); return }
     if (running && onQueue && value.trim()) onQueue()
   }
+  // An image pasted from the clipboard (a screenshot) is attached like a picked file; text pastes into the box as usual.
+  function pasted(event: ClipboardEvent<HTMLTextAreaElement>) {
+    if (!onAttach || disabled) return
+    const data = event.clipboardData
+    let files = [...(data.files ?? [])]
+    if (!files.length) files = [...(data.items ?? [])].flatMap(item => item.kind === 'file' ? [item.getAsFile()].filter((file): file is File => !!file) : [])
+    if (!files.length) return
+    if (!data.getData('text/plain')) event.preventDefault()
+    onAttach(files.map((file, index) => file.type.startsWith('image/') ? new File([file], pastedImageName(file, index, files.length), { type: file.type }) : file))
+  }
   const stoppable = (running || stopping) && !!onStop
   const hint = placeholder ?? (onQueue ? t('↵ para enviar, ⌘↵ para adicionar à fila') : t('↵ para enviar, ⇧↵ quebra a linha'))
   return <div className="chat-composer">
@@ -71,7 +82,7 @@ export function ChatComposer({ id, label, value, onChange, onSend, canSend, plac
       {notices && <div className="chat-composer-notices">{notices}</div>}
       {attachments.length > 0 && <ul className="chat-composer-attachments" aria-label={t('Anexos')}>
         {attachments.map(item => <li key={item.id} className="chat-composer-chip">
-          {item.kind === 'image' ? <ImageIcon aria-hidden="true" /> : <FileText aria-hidden="true" />}<span>{item.name}</span>
+          {item.kind === 'image' ? item.preview ? <img className="chat-composer-thumb" src={item.preview} alt="" /> : <ImageIcon aria-hidden="true" /> : <FileText aria-hidden="true" />}<span>{item.name}</span>
           {onRemoveAttachment && <button type="button" className="chat-composer-chip-remove" aria-label={t('Remover {name}', { name: item.name })} onClick={() => onRemoveAttachment(item.id)}><X aria-hidden="true" /></button>}
         </li>)}
       </ul>}
@@ -82,7 +93,7 @@ export function ChatComposer({ id, label, value, onChange, onSend, canSend, plac
         </>}
         <label className="visually-hidden" htmlFor={id}>{label}</label>
         <textarea ref={setRefs} id={id} className="chat-composer-input" rows={1} value={value} maxLength={maxLength} disabled={disabled} placeholder={hint}
-          onChange={event => onChange(event.target.value)} onKeyDown={keyDown} />
+          onChange={event => onChange(event.target.value)} onKeyDown={keyDown} onPaste={pasted} />
         {stoppable
           ? <button type="button" className="chat-composer-icon chat-composer-stop" aria-label={stopping ? t('Cancelando…') : t('Cancelar execução')} title={t('Cancelar execução')} disabled={stopping} onClick={event => { event.preventDefault(); event.stopPropagation(); onStop?.() }}><span aria-hidden="true" /></button>
           : <button type="submit" className="chat-composer-icon chat-composer-send" aria-label={sendLabel ?? t('Enviar')} title={sendLabel ?? t('Enviar')} disabled={!canSend}><ArrowUp aria-hidden="true" /></button>}
@@ -93,4 +104,13 @@ export function ChatComposer({ id, label, value, onChange, onSend, canSend, plac
       <div className="chat-composer-footer-end">{footerEnd}</div>
     </div>}
   </div>
+}
+
+/** A pasted screenshot arrives as "image.png": it gets a name of its own, by when it was pasted. */
+function pastedImageName(file: File, index: number, count: number) {
+  const now = new Date()
+  const two = (value: number) => String(value).padStart(2, '0')
+  const stamp = `${now.getFullYear()}${two(now.getMonth() + 1)}${two(now.getDate())}-${two(now.getHours())}${two(now.getMinutes())}${two(now.getSeconds())}`
+  const extension = file.type.split('/')[1]?.replace('jpeg', 'jpg').replace(/[^a-z0-9]/g, '') || 'png'
+  return `imagem-colada-${stamp}${count > 1 ? `-${index + 1}` : ''}.${extension}`
 }

@@ -56,6 +56,27 @@ describe('ChatComposer', () => {
     expect(onRemoveAttachment).toHaveBeenCalledWith('a1')
   })
 
+  it('attaches an image pasted from the clipboard, and leaves pasted text to the box', () => {
+    const onAttach = vi.fn()
+    render(<Harness onAttach={onAttach} />)
+    const box = screen.getByLabelText('Mensagem')
+    const image = new File([new Uint8Array([137, 80, 78, 71])], 'image.png', { type: 'image/png' })
+    fireEvent.paste(box, { clipboardData: { files: [image], items: [{ kind: 'file', type: 'image/png', getAsFile: () => image }], getData: () => '', types: ['Files'] } })
+    expect(onAttach).toHaveBeenCalledTimes(1)
+    const [pasted] = onAttach.mock.calls[0][0] as File[]
+    expect(pasted.type).toBe('image/png')
+    expect(pasted.name).toMatch(/^imagem-colada-\d{8}-\d{6}(-\d+)?\.png$/)
+    fireEvent.paste(box, { clipboardData: { files: [], items: [{ kind: 'string', type: 'text/plain', getAsFile: () => null }], getData: () => 'só texto', types: ['text/plain'] } })
+    expect(onAttach).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows an attached image as a small picture of itself', () => {
+    render(<Harness onAttach={() => undefined} attachments={[{ id: 'i1', name: 'imagem-colada.png', kind: 'image', size: 4, preview: 'blob:preview-1' }]} />)
+    const chip = screen.getByRole('listitem')
+    expect(chip.querySelector('img')).toHaveAttribute('src', 'blob:preview-1')
+    expect(screen.getByText('imagem-colada.png')).toBeInTheDocument()
+  })
+
   it('puts permissions under the box on the left and the model on the right', () => {
     render(<Harness footerStart={<span>Ignorar permissões</span>} footerEnd={<span>Opus 5.5 Alto</span>} />)
     const footer = screen.getByText('Ignorar permissões').closest('.chat-composer-footer')
