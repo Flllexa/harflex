@@ -209,7 +209,7 @@ export function ConversationPane({ sessionKey, state, loadingHistory, permission
       disabled={state.readOnly && !continuing || continuing && state.calling || loadingHistory}
       placeholder={switching ? t('Enter envia e abre um novo chat com o modelo escolhido, levando o contexto') : continuing ? t('Continue de onde parou · Enter envia e abre um novo chat com o contexto') : undefined}
       running={running || state.calling && !loadingHistory && !continuing} stopping={cancelPending} onStop={onCancel}
-      onQueue={!state.readOnly && onQueue ? onQueue : undefined} queued={queued} onUnqueue={onUnqueue}
+      onQueue={!state.readOnly && !switching && onQueue ? onQueue : undefined} queued={queued} onUnqueue={onUnqueue}
       attachments={attachments} onAttach={!state.readOnly ? onAttach : undefined} onRemoveAttachment={onRemoveAttachment}
       notices={<>
         {/* What the box will do with the next message is said inside it, on one quiet line, never between the run and the box. */}

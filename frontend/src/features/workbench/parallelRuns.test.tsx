@@ -195,3 +195,79 @@ describe('the chat composer', () => {
     expect(screen.queryByRole('list', { name: 'Anexos' })).not.toBeInTheDocument()
   })
 })
+
+describe('a run that ends while the next chat opens', () => {
+  afterEach(() => { cleanup(); localStorage.clear() })
+
+  it('never lands on the chat being opened', async () => {
+    const user = userEvent.setup()
+    const { backend, finish } = twoChats()
+    const open = backend.openSession
+    let release!: () => void
+    const gate = new Promise<void>(resolve => { release = resolve })
+    localStorage.setItem('harflex:view-mode', 'casual')
+    render(<App backend={backend} />)
+    await openProject(user)
+    await user.click(await screen.findByRole('button', { name: /Pedido do chat A/ }))
+    await user.type(await screen.findByLabelText('Mensagem'), 'Continue A{Enter}')
+    await screen.findByText('Continue A')
+    backend.openSession = async (id, workspaceId) => { if (id === 'chat-b') await gate; return open(id, workspaceId) }
+    // A's journal is slow to read back, so A's call is still finishing when B takes the screen.
+    const events = backend.listEvents
+    let slowA: Promise<void> | undefined
+    let releaseA!: () => void
+    backend.listEvents = async (id, after, limit) => { if (id === 'chat-a' && slowA) await slowA; return events(id, after, limit) }
+    await user.click(screen.getByRole('button', { name: /Pedido do chat B/ }))
+    slowA = new Promise<void>(resolve => { releaseA = resolve })
+    finish('chat-a', 'Resposta do A')
+    await new Promise(resolve => setTimeout(resolve, 20))
+    release()
+    await screen.findByText('Pronto chat-b')
+    releaseA()
+    slowA = undefined
+    expect(await screen.findByText('Pronto chat-b')).toBeInTheDocument()
+    await new Promise(resolve => setTimeout(resolve, 100))
+    expect(screen.queryByText('Resposta do A')).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Não foi possível atualizar/)).not.toBeInTheDocument()
+  })
+})
+
+describe('the queue and the stop button', () => {
+  afterEach(() => { cleanup(); localStorage.clear() })
+
+  it('stopping the answer puts the queued message back in the box instead of sending it', async () => {
+    const user = userEvent.setup()
+    const { backend } = twoChats()
+    const sent: string[] = []
+    const prompt = backend.prompt
+    backend.prompt = (sessionId, text) => { sent.push(text); return prompt(sessionId, text) }
+    backend.cancel = async () => undefined
+    localStorage.setItem('harflex:view-mode', 'casual')
+    render(<App backend={backend} />)
+    await openProject(user)
+    await user.click(await screen.findByRole('button', { name: /Pedido do chat A/ }))
+    await user.type(await screen.findByLabelText('Mensagem'), 'Primeiro{Enter}')
+    await screen.findByText('Primeiro')
+    await user.type(screen.getByLabelText('Mensagem'), 'Depois isto')
+    await user.keyboard('{Meta>}{Enter}{/Meta}')
+    await screen.findByRole('list', { name: 'Na fila · 1' })
+    await user.click(screen.getByRole('button', { name: 'Cancelar execução' }))
+    await waitFor(() => expect(screen.getByLabelText('Mensagem')).toHaveValue('Depois isto'))
+    expect(screen.queryByRole('list', { name: /Na fila/ })).not.toBeInTheDocument()
+    expect(sent).toEqual(['Primeiro'])
+  })
+
+  it('Cmd+Enter in an idle chat sends, never queues', async () => {
+    const user = userEvent.setup()
+    const { backend } = twoChats()
+    localStorage.setItem('harflex:view-mode', 'casual')
+    render(<App backend={backend} />)
+    await openProject(user)
+    await user.click(await screen.findByRole('button', { name: /Pedido do chat A/ }))
+    await user.type(await screen.findByLabelText('Mensagem'), 'Agora')
+    await user.keyboard('{Meta>}{Enter}{/Meta}')
+    await screen.findByText('Agora')
+    expect(screen.queryByRole('list', { name: /Na fila/ })).not.toBeInTheDocument()
+  })
+})

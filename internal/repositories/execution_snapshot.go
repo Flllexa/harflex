@@ -334,7 +334,8 @@ func walkExecutionPathsSkipping(root string, snapshot *ExecutionSnapshot, skip f
 		if err != nil {
 			return ErrExecutionSnapshotUnsafePath
 		}
-		if entry.Name() == ".git" {
+		// Git metadata, and the files attached to chats (.harflex, which ignores itself in git), are never the project's.
+		if entry.Name() == ".git" || relative == ".harflex" && entry.IsDir() {
 			snapshot.ExcludedPaths = append(snapshot.ExcludedPaths, filepath.ToSlash(relative))
 			if entry.IsDir() {
 				return filepath.SkipDir

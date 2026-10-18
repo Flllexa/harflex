@@ -373,3 +373,24 @@ func TestExecutionResultLeavesOutWhatTheRunInstalled(t *testing.T) {
 		t.Fatalf("installed dependencies reached the original: %v", err)
 	}
 }
+
+// Images attached to a chat live under .harflex: a project without git must not see them as a change of its own.
+func TestExecutionManifestLeavesOutChatAttachmentsWithoutGit(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, ".harflex", "attachments"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".harflex", "attachments", "tela.png"), []byte("png"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	manifest, err := ExecutionManifest(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(manifest) != 1 || manifest[0].Path != "main.go" {
+		t.Fatalf("manifest = %+v", manifest)
+	}
+}

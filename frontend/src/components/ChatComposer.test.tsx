@@ -62,3 +62,4 @@ describe('ChatComposer', () => {
     expect(footer).toContainElement(screen.getByText('Opus 5.5 Alto'))
   })
 })
+

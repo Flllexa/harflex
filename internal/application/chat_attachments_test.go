@@ -33,3 +33,21 @@ func TestSaveChatAttachmentKeepsImagesWhereTheAICanReadThemAndGitIgnoresThem(t *
 		t.Fatal("an oversized attachment was saved")
 	}
 }
+
+func TestSaveChatAttachmentNeverFollowsAHarflexLinkOutOfTheProject(t *testing.T) {
+	s, _, _, session := sessionSetup(t, &fakeProvider{})
+	workspace, err := s.store.GetWorkspace(t.Context(), session.WorkspaceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(workspace.Path, ".harflex")); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+	if _, err := s.SaveChatAttachment(SaveChatAttachmentInput{SessionID: session.ID, WorkspaceID: session.WorkspaceID, Name: "tela.png", Data: base64.StdEncoding.EncodeToString([]byte("png"))}); err == nil {
+		t.Fatal("an attachment was written through a link that leaves the project")
+	}
+	if entries, _ := os.ReadDir(outside); len(entries) != 0 {
+		t.Fatalf("files appeared outside the project: %v", entries)
+	}
+}

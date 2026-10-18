@@ -63,25 +63,29 @@ func (s *Service) SaveChatAttachment(in SaveChatAttachmentInput) (ChatAttachment
 	if name == "" {
 		name = "anexo"
 	}
-	if len(name) > 120 {
-		name = name[len(name)-120:]
+	if runes := []rune(name); len(runes) > 120 {
+		name = string(runes[len(runes)-120:])
 	}
 	nonce := make([]byte, 4)
 	if _, err := rand.Read(nonce); err != nil {
 		return ChatAttachmentDTO{}, safe("name attachment", err)
 	}
-	folder := filepath.Join(root, ".harflex", "attachments")
-	if err := os.MkdirAll(folder, 0o700); err != nil {
+	// Everything goes through the root: a .harflex that links out of the folder is refused, never followed.
+	tree, err := os.OpenRoot(root)
+	if err != nil {
+		return ChatAttachmentDTO{}, safe("open conversation folder", err)
+	}
+	defer tree.Close()
+	if err := tree.MkdirAll(".harflex/attachments", 0o700); err != nil {
 		return ChatAttachmentDTO{}, safe("create attachments folder", err)
 	}
-	ignore := filepath.Join(root, ".harflex", ".gitignore")
-	if _, err := os.Stat(ignore); errors.Is(err, os.ErrNotExist) {
-		if err := os.WriteFile(ignore, []byte("*\n"), 0o600); err != nil {
+	if _, err := tree.Lstat(".harflex/.gitignore"); errors.Is(err, os.ErrNotExist) {
+		if err := tree.WriteFile(".harflex/.gitignore", []byte("*\n"), 0o600); err != nil {
 			return ChatAttachmentDTO{}, safe("ignore attachments folder", err)
 		}
 	}
 	file := hex.EncodeToString(nonce) + "-" + name
-	if err := os.WriteFile(filepath.Join(folder, file), content, 0o600); err != nil {
+	if err := tree.WriteFile(".harflex/attachments/"+file, content, 0o600); err != nil {
 		return ChatAttachmentDTO{}, safe("save attachment", err)
 	}
 	return ChatAttachmentDTO{Path: ".harflex/attachments/" + file}, nil

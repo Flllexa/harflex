@@ -1,6 +1,7 @@
 /* The chat box, after Claude Code: one rounded field, quiet controls inside it, settings in plain text underneath. */
-.chat-composer { width: min(calc(100% - 2 * var(--space-4)), 812px); margin: 0 auto var(--space-3); display: grid; gap: var(--space-2); }
-.chat-composer-box { display: grid; gap: var(--space-2); padding: 14px 14px 14px 18px; border: 1px solid color-mix(in srgb, var(--paper) 16%, var(--hairline)); border-radius: 22px; background: var(--surface-1); box-shadow: var(--shadow-float); transition: border-color 160ms ease, box-shadow 160ms ease; }
+.chat-composer { position: relative; width: min(calc(100% - 2 * var(--space-4)), 812px); min-width: 0; margin: 0 auto var(--space-3); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+.chat-composer > * { min-width: 0; }
+.chat-composer-box { position: relative; display: grid; gap: var(--space-2); padding: 14px 14px 14px 18px; border: 1px solid color-mix(in srgb, var(--paper) 16%, var(--hairline)); border-radius: 22px; background: var(--surface-1); box-shadow: var(--shadow-float); transition: border-color 160ms ease, box-shadow 160ms ease; }
 .chat-composer-box:focus-within { border-color: color-mix(in srgb, var(--paper) 28%, var(--hairline)); }
 .chat-composer-row { display: flex; align-items: center; gap: var(--space-3); min-height: 44px; }
 .chat-composer-input { flex: 1; min-width: 0; resize: none; border: 0; outline: 0; background: transparent; box-shadow: none; color: var(--paper); font: inherit; font-size: 16px; line-height: 1.5; padding: 8px 0; max-height: 240px; overflow-y: auto; }
@@ -29,7 +30,9 @@
 .chat-composer-chip-remove svg { width: 12px; height: 12px; }
 .chat-composer-footer { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding-inline: var(--space-4); min-height: 28px; color: var(--muted); font-size: 14px; }
 .chat-composer-footer-start, .chat-composer-footer-end { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
-.chat-composer-footer-end { justify-content: flex-end; }
+.chat-composer-footer-end { justify-content: flex-end; flex-wrap: wrap; row-gap: 0; }
+.chat-composer-footer-end > * { min-width: 0; max-width: 100%; }
+.chat-composer-footer .chat-model-trigger-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Controls in the footer read as plain text until hovered. */
 .chat-composer-footer button, .chat-composer-footer [role="button"] { border: 0 !important; background: transparent !important; box-shadow: none !important; color: var(--muted); padding: 2px 4px; min-height: 28px; font-size: 14px; }
 .chat-composer-footer button:hover, .chat-composer-footer [role="button"]:hover { color: var(--paper); }

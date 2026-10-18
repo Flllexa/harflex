@@ -55,7 +55,7 @@ export function ChatComposer({ id, label, value, onChange, onSend, canSend, plac
   function keyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
     event.preventDefault()
-    if ((event.metaKey || event.ctrlKey) && onQueue && value.trim()) { onQueue(); return }
+    if ((event.metaKey || event.ctrlKey) && running && onQueue && value.trim()) { onQueue(); return }
     if (canSend) { onSend(); return }
     if (running && onQueue && value.trim()) onQueue()
   }
@@ -84,7 +84,7 @@ export function ChatComposer({ id, label, value, onChange, onSend, canSend, plac
         <textarea ref={setRefs} id={id} className="chat-composer-input" rows={1} value={value} maxLength={maxLength} disabled={disabled} placeholder={hint}
           onChange={event => onChange(event.target.value)} onKeyDown={keyDown} />
         {stoppable
-          ? <button type="button" className="chat-composer-icon chat-composer-stop" aria-label={stopping ? t('Cancelando…') : t('Cancelar execução')} title={t('Cancelar execução')} disabled={stopping} onClick={onStop}><span aria-hidden="true" /></button>
+          ? <button type="button" className="chat-composer-icon chat-composer-stop" aria-label={stopping ? t('Cancelando…') : t('Cancelar execução')} title={t('Cancelar execução')} disabled={stopping} onClick={event => { event.preventDefault(); event.stopPropagation(); onStop?.() }}><span aria-hidden="true" /></button>
           : <button type="submit" className="chat-composer-icon chat-composer-send" aria-label={sendLabel ?? t('Enviar')} title={sendLabel ?? t('Enviar')} disabled={!canSend}><ArrowUp aria-hidden="true" /></button>}
       </div>
     </form>

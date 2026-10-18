@@ -30,7 +30,8 @@ for (const width of [320, 768, 900, 1440]) {
 
     await page.getByRole('button', { name: 'Abrir conversa do subagente child-ru' }).click()
     await expect(page.getByLabel('Mensagem')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Voltar à sessão pai' })).toBeDisabled()
+    // The running child never holds the person in it: the parent stays one click away.
+    await expect(page.getByRole('button', { name: 'Voltar à sessão pai' })).toBeEnabled()
     await openAgents(page, width)
     await page.getByRole('button', { name: 'Cancelar subagente child-ru' }).click()
     await expect(page.getByText('Cancelado')).toBeVisible()

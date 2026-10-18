@@ -1066,3 +1066,31 @@ it('starts another pipeline while a stage of the first one is still starting', a
   await user.click(screen.getByRole('button', { name: 'Executar Coder' }))
   await waitFor(() => expect(started).toEqual([first.id, second.id]))
 })
+
+it('a slow save on one pipeline never pulls the screen back to it', async () => {
+  const user = userEvent.setup()
+  const { backend } = createFakeBackend()
+  const date = '2026-10-18T10:00:00Z'
+  const first: Pipeline = { id: 'pipeline-1', workspaceId: 'workspace-1', title: 'Primeiro', objective: 'SPEC', currentStage: 'spec', stageStatus: { discovery: 'completed', spec: 'active', plan: 'pending', code: 'pending', eval: 'pending' }, revision: 2, artifacts: { spec: { stage: 'spec', version: 1, content: 'Versão 1', updatedAt: date } }, createdAt: date, updatedAt: date }
+  const second: Pipeline = { ...first, id: 'pipeline-2', title: 'Segundo' }
+  let finishSave!: (run: Pipeline) => void
+  backend.listPipelines = async () => [first, second]
+  backend.getPipeline = async id => id === second.id ? second : first
+  backend.savePipelineArtifact = () => new Promise<Pipeline>(resolve => { finishSave = resolve })
+  const shown: string[] = []
+  function Harness() {
+    const [selected, setSelected] = useState(first)
+    return <>
+      <button type="button" onClick={() => setSelected(second)}>Ir para o segundo</button>
+      <PipelinesPage backend={backend} backends={[]} workspaceId="workspace-1" selectedPipeline={selected} onSelectPipeline={item => { if (item) { shown.push(item.id); setSelected(item) } }} onProjects={() => undefined} onStartRole={async () => undefined} />
+    </>
+  }
+  render(<Harness />)
+  await user.type(await screen.findByLabelText('Artefato da fase'), ' editada')
+  await user.click(screen.getByRole('button', { name: 'Salvar artefato' }))
+  await user.click(screen.getByRole('button', { name: 'Ir para o segundo' }))
+  const before = shown.length
+  await act(async () => finishSave({ ...first, revision: 3 }))
+  expect(shown.slice(before)).not.toContain('pipeline-1')
+  expect(screen.queryByText('Artefato salvo e versionado.')).not.toBeInTheDocument()
+})

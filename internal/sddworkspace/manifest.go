@@ -774,6 +774,8 @@ func exclusionReason(name string) (string, bool) {
 	switch {
 	case strings.EqualFold(name, ".git"):
 		return "git metadata", true
+	case name == ".harflex":
+		return "files attached to Harflex chats", true
 	case strings.EqualFold(name, ".ssh"):
 		return "SSH credentials directory", true
 	case strings.EqualFold(name, ".env"):

@@ -484,25 +484,33 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     if (signal.aborted) return false
     // The person moved to another conversation meanwhile: the outcome is in this one's journal and shows when it is
     // opened again. Nothing of it may land on the conversation now on screen.
-    if (store.getState().session?.id !== session.id) return !callError && result?.status !== 'failed'
+    // Checked again after every wait below: the person may open another conversation at any of them.
+    const elsewhere = () => store.getState().session?.id !== session.id
+    const outcome = !callError && result?.status !== 'failed'
+    if (elsewhere()) return outcome
     if (closed) store.setState({ readOnly: true })
     let delegationReadbackError: string | undefined
     try { await refreshDelegation(session.id) }
     catch { delegationReadbackError = t('Não foi possível reler o orçamento do subagente. Atualize a sessão antes de enviar outra mensagem.') }
+    if (signal.aborted) return false
+    if (elsewhere()) return outcome
     expectedReplay.current = result ? { after, approval: result.status === 'awaiting_approval' } : undefined
     try {
       await catchUp()
       if (signal.aborted) return false
+      if (elsewhere()) return outcome
       checkReplayOutcome(store.getState(), expectedReplay.current)
       // A call that failed for an unknown reason says nothing about the conversation: ask what it can still do. One that
       // said it is closed has answered already.
       if (!closed && (!result || result.status !== 'awaiting_approval')) await refreshContinuity()
       if (signal.aborted) return false
+      if (elsewhere()) return outcome
       expectedReplay.current = undefined
       store.getState().setConnection('ready')
       store.getState().finishCall(result, callError ?? delegationReadbackError)
-      return !callError && result?.status !== 'failed'
+      return outcome
     } catch {
+      if (elsewhere()) return outcome
       if (!signal.aborted) {
         store.getState().setConnection('degraded')
         store.getState().finishCall(undefined, t(replayErrorMessage))
@@ -563,7 +571,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     const sent = carried ? `${withFiles.trimEnd()}${carried.context}` : withFiles
     pendingDraft.current = { sessionId: current.session?.id ?? '', text: sent, draft: text, afterSequence: current.contiguousSequence, draftRevision: draftRevision.current }
     await run(id => backend.prompt(id, sent))
-    if (signal?.aborted) return
+    if (signal?.aborted || store.getState().session?.id !== current.session?.id) return
     reconcilePendingDraft()
     if (!expectedReplay.current && store.getState().connectionState !== 'degraded') pendingDraft.current = undefined
   }
@@ -577,6 +585,12 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     const { session, contiguousSequence: after } = store.getState()
     const signal = lifetime.current?.signal
     if (!session || !signal || signal.aborted || cancelPendingRef.current) return
+    // Whoever stops the answer wants nothing more sent: what was queued goes back to the box, as in Claude Code.
+    const waiting = queues[session.id]
+    if (waiting?.length) {
+      setQueues(all => ({ ...all, [session.id]: [] }))
+      updateDraft([...waiting, store.getState().draft].filter(text => text.trim()).join('\n\n'))
+    }
     cancelPendingRef.current = true
     setCancelPending(true)
     try {

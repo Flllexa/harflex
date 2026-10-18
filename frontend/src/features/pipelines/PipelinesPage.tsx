@@ -258,6 +258,15 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
   const pending = !!run && pendingIds.has(run.id)
   const creating = pendingIds.has('create')
   const selecting = pendingIds.has('select')
+  // An action's result belongs to its own pipeline: when the person moved to another one meanwhile, it does not pull
+  // the screen back nor show its notice there.
+  const shownRun = useRef(run?.id)
+  shownRun.current = run?.id
+  const forRun = (key: string) => ({
+    select: (updated: Pipeline) => { if (shownRun.current === key) onSelectPipeline(updated) },
+    notice: (text?: string) => { if (shownRun.current === key) setNotice(text) },
+    error: (text?: string) => { if (shownRun.current === key) setError(text) },
+  })
   const conversational = run?.kind === 'ai_authoring' && run.preparationExperience === 'conversational'
   const visibleItems = items.filter(item => item.workspaceId === workspaceId)
   const backendAllowed = (item: BackendOption) => item.available && (item.kind === 'api' || isDocumentCLI(item.id) && item.professionalAvailable === true)
@@ -448,25 +457,25 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
 
   async function save() {
     if (!run?.currentStage || pending) return
-    const pendingKey = run.id; busyWith(pendingKey, true); setError(undefined); setNotice(undefined)
-    try { const saved = await backend.savePipelineArtifact(run.id, run.currentStage, draft); setDraftDirty(false); onSelectPipeline(saved); setNotice(t('Artefato salvo e versionado.')) }
-    catch (failure) { setError(errorMessage(failure)) }
+    const pendingKey = run.id; const shown = forRun(pendingKey); busyWith(pendingKey, true); setError(undefined); shown.notice(undefined)
+    try { const saved = await backend.savePipelineArtifact(run.id, run.currentStage, draft); setDraftDirty(false); shown.select(saved); shown.notice(t('Artefato salvo e versionado.')) }
+    catch (failure) { shown.error(errorMessage(failure)) }
     finally { busyWith(pendingKey, false) }
   }
 
   async function advance() {
     if (!run || pending) return
-    const pendingKey = run.id; busyWith(pendingKey, true); setError(undefined); setNotice(undefined)
-    try { onSelectPipeline(await backend.advancePipeline(run.id)); setNotice(t('Fase avançada com evidência salva.')) }
-    catch (failure) { setError(errorMessage(failure)) }
+    const pendingKey = run.id; const shown = forRun(pendingKey); busyWith(pendingKey, true); setError(undefined); shown.notice(undefined)
+    try { shown.select(await backend.advancePipeline(run.id)); shown.notice(t('Fase avançada com evidência salva.')) }
+    catch (failure) { shown.error(errorMessage(failure)) }
     finally { busyWith(pendingKey, false) }
   }
 
   async function skip() {
     if (!run || pending) return
-    const pendingKey = run.id; busyWith(pendingKey, true); setError(undefined); setNotice(undefined)
-    try { onSelectPipeline(await backend.skipPipelineStage(run.id, reason)); setReason(''); setSkipConfirm(false); setNotice(t('Etapa pulada e registrada no histórico.')) }
-    catch (failure) { setError(errorMessage(failure)) }
+    const pendingKey = run.id; const shown = forRun(pendingKey); busyWith(pendingKey, true); setError(undefined); shown.notice(undefined)
+    try { shown.select(await backend.skipPipelineStage(run.id, reason)); setReason(''); setSkipConfirm(false); shown.notice(t('Etapa pulada e registrada no histórico.')) }
+    catch (failure) { shown.error(errorMessage(failure)) }
     finally { busyWith(pendingKey, false) }
   }
 
@@ -483,40 +492,40 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
 
   async function replyToCoder(text: string) {
     if (!run || pending || !onReplyCoder) return
-    const pendingKey = run.id; busyWith(pendingKey, true); setError(undefined); setNotice(undefined)
+    const pendingKey = run.id; const shown = forRun(pendingKey); busyWith(pendingKey, true); setError(undefined); shown.notice(undefined)
     try { await onReplyCoder(run.id, text, selectedBackendId ? { backendId: selectedBackendId } : undefined) }
-    catch (failure) { setError(errorMessage(failure)) }
+    catch (failure) { shown.error(errorMessage(failure)) }
     finally { busyWith(pendingKey, false) }
   }
   async function requestCodeRevision(text: string) {
     const artifact = run?.artifacts.code
     if (!run || pending || !artifact?.contentDigest) return
-    const pendingKey = run.id; busyWith(pendingKey, true); setError(undefined); setNotice(undefined)
+    const pendingKey = run.id; const shown = forRun(pendingKey); busyWith(pendingKey, true); setError(undefined); shown.notice(undefined)
     try {
-      onSelectPipeline(await backend.decidePipelineExecutionArtifact({ pipelineId: run.id, requestId: crypto.randomUUID(), stage: 'code', artifactVersion: artifact.version, artifactDigest: artifact.contentDigest, decision: 'request_revision', feedback: text, pipelineRevision: run.revision }))
-      setNotice(t('Resposta registrada. Execute o Coder de novo: ele recebe a sua resposta.'))
-    } catch (failure) { setError(errorMessage(failure)) }
+      shown.select(await backend.decidePipelineExecutionArtifact({ pipelineId: run.id, requestId: crypto.randomUUID(), stage: 'code', artifactVersion: artifact.version, artifactDigest: artifact.contentDigest, decision: 'request_revision', feedback: text, pipelineRevision: run.revision }))
+      shown.notice(t('Resposta registrada. Execute o Coder de novo: ele recebe a sua resposta.'))
+    } catch (failure) { shown.error(errorMessage(failure)) }
     finally { busyWith(pendingKey, false) }
   }
 
   async function completeRole(role: PipelineRole) {
     if (!run || pending) return
-    const pendingKey = run.id; busyWith(pendingKey, true); setError(undefined); setNotice(undefined)
+    const pendingKey = run.id; const shown = forRun(pendingKey); busyWith(pendingKey, true); setError(undefined); shown.notice(undefined)
     try {
       const updated = role === 'coder' ? await backend.completePipelineCode(run.id) : await backend.completePipelineEvaluation(run.id)
-      onSelectPipeline(updated)
-      setNotice(role === 'coder' ? t('Code salvo para revisão. Aprove a versão para liberar o QA.') : t('Resultado do QA salvo. Revise as evidências e decida o próximo passo.'))
-    } catch (failure) { setError(errorCode(failure) === 'evidence_required' ? unfinishedRunText(t)[role] : errorMessage(failure)) }
+      shown.select(updated)
+      shown.notice(role === 'coder' ? t('Code salvo para revisão. Aprove a versão para liberar o QA.') : t('Resultado do QA salvo. Revise as evidências e decida o próximo passo.'))
+    } catch (failure) { shown.error(errorCode(failure) === 'evidence_required' ? unfinishedRunText(t)[role] : errorMessage(failure)) }
     finally { busyWith(pendingKey, false) }
   }
 
   async function finishPullRequests(outcome: 'completed' | 'skipped', reason?: string) {
     if (!run || pending) return
-    const pendingKey = run.id; busyWith(pendingKey, true); setError(undefined); setNotice(undefined)
+    const pendingKey = run.id; const shown = forRun(pendingKey); busyWith(pendingKey, true); setError(undefined); shown.notice(undefined)
     try {
-      onSelectPipeline(await backend.finishPipelinePRs(run.id, outcome, reason))
-      setNotice(outcome === 'completed' ? t('PRs concluídos. O relatório da IA ficou guardado no pipeline.') : t('Etapa de PRs pulada e registrada no histórico.'))
-    } catch (failure) { setError(errorMessage(failure)) }
+      shown.select(await backend.finishPipelinePRs(run.id, outcome, reason))
+      shown.notice(outcome === 'completed' ? t('PRs concluídos. O relatório da IA ficou guardado no pipeline.') : t('Etapa de PRs pulada e registrada no histórico.'))
+    } catch (failure) { shown.error(errorMessage(failure)) }
     finally { busyWith(pendingKey, false) }
   }
 
@@ -530,13 +539,13 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
 
   async function applyCode() {
     if (!run || pending || !applyConfirmed) return
-    const pendingKey = run.id; busyWith(pendingKey, true); setError(undefined); setNotice(undefined)
+    const pendingKey = run.id; const shown = forRun(pendingKey); busyWith(pendingKey, true); setError(undefined); shown.notice(undefined)
     try {
       const updated = await backend.applyPipelineCode(run.id)
-      onSelectPipeline(updated)
+      shown.select(updated)
       setApplyConfirmed(false)
-      setNotice(t('Patch aplicado à pasta original e conferido após a gravação.'))
-    } catch (failure) { setError(errorMessage(failure)) }
+      shown.notice(t('Patch aplicado à pasta original e conferido após a gravação.'))
+    } catch (failure) { shown.error(errorMessage(failure)) }
     finally { busyWith(pendingKey, false) }
   }
 
