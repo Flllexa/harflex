@@ -29,3 +29,10 @@
 .side-panel-resizer:hover::after, .side-panel-resizer:focus-visible::after, .is-resizing-panel .side-panel-resizer::after { background: var(--cyan); }
 .app-shell.is-resizing-panel { cursor: col-resize; user-select: none; }
 .app-shell.is-resizing-panel iframe, .app-shell.is-resizing-panel .terminal-host { pointer-events: none; }
+
+/* One tab per service a local test started, next to the person's own shell. */
+.terminal-tabs { display: flex; gap: 4px; padding: 0 var(--space-3) var(--space-2); overflow-x: auto; }
+.terminal-tab { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: inherit; font-size: 12px; white-space: nowrap; cursor: pointer; }
+.terminal-tab[aria-selected="true"] { border-color: var(--accent, #7ef0b0); background: color-mix(in srgb, var(--accent, #7ef0b0) 12%, transparent); }
+.terminal-tab-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted, #7a8a90); }
+.terminal-tab-dot.is-running { background: var(--success, #7ef0b0); }

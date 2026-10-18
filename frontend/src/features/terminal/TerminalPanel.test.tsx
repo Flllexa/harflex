@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { TerminalOutput } from '../../lib/backend'
@@ -51,5 +51,48 @@ describe('terminal panel', () => {
     const { TerminalPanel } = await import('./TerminalPanel')
     render(<TerminalPanel backend={backend} onClose={() => undefined} visible />)
     expect(screen.getByText('Abra um projeto para usar o terminal na pasta dele.')).toBeInTheDocument()
+  })
+
+  it('lists a service tab next to the shell, and lists again when one starts', async () => {
+    const { backend } = createFakeBackend()
+    let changed: (() => void) | undefined
+    let services = [{ id: 'term-web', shell: '/bin/zsh', path: '/p', name: 'web', running: true }]
+    backend.listTerminals = vi.fn(async () => services)
+    backend.onTerminalsChanged = listener => { changed = listener; return () => undefined }
+    const { TerminalPanel } = await import('./TerminalPanel')
+    render(<TerminalPanel backend={backend} workspace={{ id: 'workspace-tabs', path: '/p', profile: 'ask' }} onClose={() => undefined} visible />)
+    const tabs = await screen.findByRole('tablist', { name: 'Terminais do projeto' })
+    expect(within(tabs).getByRole('tab', { name: 'Shell' })).toHaveAttribute('aria-selected', 'true')
+    expect(await within(tabs).findByRole('tab', { name: 'web' })).toBeInTheDocument()
+    services = [...services, { id: 'term-api', shell: '/bin/zsh', path: '/p', name: 'api', running: false }]
+    changed?.()
+    expect(await within(tabs).findByRole('tab', { name: 'api (encerrado)' })).toBeInTheDocument()
+  })
+
+  it('a service tab replays its recent output and takes what is typed', async () => {
+    const user = userEvent.setup()
+    const { backend } = createFakeBackend()
+    backend.listTerminals = async () => [{ id: 'term-svc', shell: '/bin/zsh', path: '/p', name: 'web', running: true }]
+    const recent = vi.fn(async () => btoa('servidor pronto'))
+    backend.recentTerminalOutput = recent
+    const write = vi.spyOn(backend, 'writeTerminal')
+    const { TerminalPanel } = await import('./TerminalPanel')
+    render(<TerminalPanel backend={backend} workspace={{ id: 'workspace-replay', path: '/p', profile: 'ask' }} onClose={() => undefined} visible />)
+    await user.click(await screen.findByRole('tab', { name: 'web' }))
+    await waitFor(() => expect(recent).toHaveBeenCalledWith('term-svc'))
+    await waitFor(() => expect(written.some(chunk => chunk instanceof Uint8Array && new TextDecoder().decode(chunk) === 'servidor pronto')).toBe(true))
+    typeInto?.('\u0003')
+    expect(write).toHaveBeenCalledWith('term-svc', '\u0003')
+  })
+
+  it('opening a service from the local test card focuses its tab', async () => {
+    const { backend } = createFakeBackend()
+    backend.listTerminals = async () => [{ id: 'term-focus', shell: '/bin/zsh', path: '/p', name: 'api', running: true }]
+    const recent = vi.fn(async () => btoa('api no ar'))
+    backend.recentTerminalOutput = recent
+    const { TerminalPanel } = await import('./TerminalPanel')
+    render(<TerminalPanel backend={backend} workspace={{ id: 'workspace-focus', path: '/p', profile: 'ask' }} onClose={() => undefined} visible focusTerminalId="term-focus" focusRequest={1} />)
+    expect(await screen.findByRole('tab', { name: 'api' })).toHaveAttribute('aria-selected', 'true')
+    await waitFor(() => expect(recent).toHaveBeenCalledWith('term-focus'))
   })
 })

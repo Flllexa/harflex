@@ -3,7 +3,7 @@ import { RotateCcw, SquareTerminal, X } from 'lucide-react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
-import { errorMessage, type Backend, type TerminalOutput, type Workspace } from '../../lib/backend'
+import { errorMessage, type Backend, type TerminalInfo, type TerminalOutput, type Workspace } from '../../lib/backend'
 import { useT } from '../../i18n'
 import './terminal.css'
 
@@ -47,7 +47,7 @@ const theme = {
   brightBlack: '#5c6b73', brightRed: '#ff9d9d', brightGreen: '#a8f5c8', brightYellow: '#f7dc85', brightBlue: '#8cc8ff', brightMagenta: '#dcb5f5', brightCyan: '#8ee6f0', brightWhite: '#ffffff',
 }
 
-export function TerminalPanel({ backend, workspace, onClose, visible }: Props) {
+export function TerminalPanel({ backend, workspace, onClose, visible, focusTerminalId, focusRequest = 0 }: Props) {
   const t = useT()
   const host = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<'starting' | 'ready' | 'exited' | 'error'>('starting')
@@ -56,6 +56,24 @@ export function TerminalPanel({ backend, workspace, onClose, visible }: Props) {
   const [shell, setShell] = useState('')
   const terminal = useRef<Terminal>()
   const fit = useRef<FitAddon>()
+  // The services a local test started in this project, each in a tab next to the person's own shell ('' is the shell).
+  const [services, setServices] = useState<TerminalInfo[]>([])
+  const [listed, setListed] = useState(false)
+  const [tab, setTab] = useState('')
+  const service = services.find(item => item.id === tab)
+
+  useEffect(() => {
+    setServices([]); setListed(false); setTab('')
+    if (!workspace) return
+    let live = true
+    const read = () => void backend.listTerminals(workspace.id).then(list => { if (live) { setServices(list.filter(item => item.name)); setListed(true) } }, () => undefined)
+    read()
+    const stop = backend.onTerminalsChanged(read)
+    return () => { live = false; stop() }
+  }, [backend, workspace?.id])
+  useEffect(() => { if (focusRequest > 0) setTab(focusTerminalId ?? '') }, [focusRequest, focusTerminalId])
+  // A service that is no longer listed (forgotten after its test was undone) leaves its tab for the shell.
+  useEffect(() => { if (tab && listed && !services.some(item => item.id === tab)) setTab('') }, [tab, listed, services])
 
   useEffect(() => {
     if (!workspace || !host.current) return
@@ -68,7 +86,7 @@ export function TerminalPanel({ backend, workspace, onClose, visible }: Props) {
     terminal.current = term
     fit.current = fitAddon
     try { fitAddon.fit() } catch { /* The panel may not be laid out yet. */ }
-    const key = workspace.id
+    const key = tab || workspace.id
     let session = sessions.get(key)
     const attach = (current: Session) => {
       for (const chunk of current.chunks) term.write(chunk)
@@ -84,7 +102,16 @@ export function TerminalPanel({ backend, workspace, onClose, visible }: Props) {
     listeners.add(listener)
     const typed = term.onData(data => { const current = sessions.get(key); if (current && current.exitCode === undefined) void backend.writeTerminal(current.id, data).catch(() => undefined) })
     const resized = term.onResize(({ cols, rows }) => { const current = sessions.get(key); if (current && current.exitCode === undefined) void backend.resizeTerminal(current.id, cols, rows).catch(() => undefined) })
-    if (session && session.exitCode === undefined) attach(session)
+    if (tab) {
+      // A service: what it printed so far, then its live output.
+      setState('starting'); setError('')
+      void backend.recentTerminalOutput(tab).then(data => {
+        const bytes = data ? decode(data) : new Uint8Array()
+        session = { id: tab, shell: '', chunks: bytes.length ? [bytes] : [], bytes: bytes.length, exitCode: services.find(item => item.id === tab)?.running === false ? 0 : undefined }
+        sessions.set(key, session)
+        if (live) attach(session)
+      }, failure => { if (live) { setError(errorMessage(failure)); setState('error') } })
+    } else if (session && session.exitCode === undefined) attach(session)
     else {
       setState('starting'); setError('')
       void backend.startTerminal(workspace.id, term.cols, term.rows).then(info => {
@@ -96,7 +123,7 @@ export function TerminalPanel({ backend, workspace, onClose, visible }: Props) {
     const observer = new ResizeObserver(() => { try { fitAddon.fit() } catch { /* Hidden. */ } })
     observer.observe(host.current)
     return () => { live = false; listeners.delete(listener); typed.dispose(); resized.dispose(); observer.disconnect(); term.dispose(); terminal.current = undefined }
-  }, [backend, workspace?.id, restart])
+  }, [backend, workspace?.id, restart, tab])
 
   // Showing the tab again: fit to the panel and give the shell the keyboard.
   useEffect(() => {
@@ -118,14 +145,22 @@ export function TerminalPanel({ backend, workspace, onClose, visible }: Props) {
     <div className="panel-heading terminal-heading">
       <div className="terminal-title"><SquareTerminal aria-hidden="true" /><div><h2>{t('Terminal')}</h2>{workspace && <span className="muted mono" title={workspace.path}>{shell ? `${shell.split('/').pop()} · ` : ''}{name}</span>}</div></div>
       <div className="terminal-actions">
-        {workspace && <button type="button" className="touch-target icon-button" aria-label={t('Novo terminal')} title={t('Novo terminal')} onClick={newShell}><RotateCcw aria-hidden="true" /></button>}
+        {workspace && !tab && <button type="button" className="touch-target icon-button" aria-label={t('Novo terminal')} title={t('Novo terminal')} onClick={newShell}><RotateCcw aria-hidden="true" /></button>}
         <button type="button" className="touch-target icon-button" aria-label={t('Fechar painel')} onClick={onClose}><X aria-hidden="true" /></button>
       </div>
     </div>
+    {workspace && services.length > 0 && <div className="terminal-tabs" role="tablist" aria-label={t('Terminais do projeto')}>
+      <button type="button" role="tab" className="terminal-tab" aria-selected={!tab} onClick={() => setTab('')}>{t('Shell')}</button>
+      {services.map(item => <button key={item.id} type="button" role="tab" className="terminal-tab" aria-selected={tab === item.id} aria-label={item.running ? item.name : t('{name} (encerrado)', { name: item.name ?? '' })} onClick={() => setTab(item.id)}>
+        <span className={`terminal-tab-dot${item.running ? ' is-running' : ''}`} aria-hidden="true" />{item.name}{!item.running && <span className="muted"> ({t('encerrado')})</span>}
+      </button>)}
+    </div>}
     {!workspace && <p className="muted terminal-note">{t('Abra um projeto para usar o terminal na pasta dele.')}</p>}
     {state === 'starting' && workspace && <p className="muted terminal-note" role="status">{t('Abrindo o shell…')}</p>}
     {state === 'error' && <div className="terminal-note" role="alert"><span className="form-error">{error}</span><button type="button" className="touch-target text-button" onClick={newShell}>{t('Tentar de novo')}</button></div>}
-    {state === 'exited' && <div className="terminal-note" role="status"><span className="muted">{t('O shell foi encerrado.')}</span><button type="button" className="touch-target text-button" onClick={newShell}>{t('Abrir um novo')}</button></div>}
+    {state === 'exited' && (service
+      ? <div className="terminal-note" role="status"><span className="muted">{t('Este serviço terminou. Peça ao teste local para subi-lo de novo.')}</span></div>
+      : <div className="terminal-note" role="status"><span className="muted">{t('O shell foi encerrado.')}</span><button type="button" className="touch-target text-button" onClick={newShell}>{t('Abrir um novo')}</button></div>)}
     {workspace && <div ref={host} className="terminal-host" />}
   </aside>
 }
