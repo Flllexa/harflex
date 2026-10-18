@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -15,8 +16,10 @@ func TestListTerminalsShowsAServiceStartedForTheProject(t *testing.T) {
 	}
 	t.Setenv("SHELL", "/bin/sh")
 	s, _, _ := setup(t)
+	// Each terminal emits from its own goroutine.
+	var mu sync.Mutex
 	var events []string
-	SetEmitter(s, func(name string, _ any) { events = append(events, name) })
+	SetEmitter(s, func(name string, _ any) { mu.Lock(); events = append(events, name); mu.Unlock() })
 	workspace, err := s.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -52,6 +55,8 @@ func TestListTerminalsShowsAServiceStartedForTheProject(t *testing.T) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
+	mu.Lock()
+	defer mu.Unlock()
 	found := false
 	for _, name := range events {
 		found = found || name == TerminalsEvent
