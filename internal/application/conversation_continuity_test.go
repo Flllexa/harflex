@@ -111,7 +111,7 @@ func TestACodeConversationTakesAFollowUpAfterTheAppRestarts(t *testing.T) {
 
 // QA is one verdict: a conversation that has not run can start it (the screen has to be able to send the QA
 // request), and one that has run is not continued, so the verdict stays the last thing it said.
-func TestAQAConversationCanStartButNotBeContinuedAfterItsVerdict(t *testing.T) {
+func TestAQAConversationStartsAndKeepsTalkingAfterItsVerdict(t *testing.T) {
 	s, run, coder, workspace, root := codeConversationFixture(t)
 	if first, err := s.Prompt(PromptInput{SessionID: coder.Session.ID, Text: coder.Prompt}); err != nil || first.Status != RunCompleted {
 		t.Fatalf("Coder run: %+v %v", first, err)
@@ -134,8 +134,9 @@ func TestAQAConversationCanStartButNotBeContinuedAfterItsVerdict(t *testing.T) {
 	if result, err := s.Prompt(PromptInput{SessionID: qa.Session.ID, Text: qa.Prompt}); err != nil || result.Status != RunCompleted {
 		t.Fatalf("QA run: %+v %v", result, err)
 	}
+	// The person can ask QA about its verdict in the same chat; the verdict recorded for the pipeline stays as it was.
 	finished, err := s.OpenSession(OpenSessionInput{SessionID: qa.Session.ID, WorkspaceID: workspace.ID})
-	if err != nil || finished.Resumable {
-		t.Fatalf("a QA conversation that gave its verdict must not be continued: %+v %v", finished, err)
+	if err != nil || !finished.Resumable {
+		t.Fatalf("a QA conversation closed after its verdict: %+v %v", finished, err)
 	}
 }

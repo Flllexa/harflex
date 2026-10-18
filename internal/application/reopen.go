@@ -137,8 +137,9 @@ func (s *Service) sessionContinuationCached(record catalog.SessionRecord, cache 
 	// a bound thread ID while producing history, but that thread is not a
 	// continuation capability for this evaluation session.
 	if record.Mode == "evaluation" {
-		// An API QA session that has not run yet can start; one that has run holds its verdict and is not continued.
-		if _, external := s.external[record.BackendID]; external || record.Status != "ready" {
+		// QA keeps talking after its verdict, which stays as it was recorded; a new verdict takes a new QA round. Only a
+		// CLI that runs on its own (not through Harflex's tools) cannot pick its thread up again.
+		if _, external := s.external[record.BackendID]; external && !isCodexHostSession(record) {
 			return false, false, externalagent.ErrNotResumable
 		}
 	}
@@ -161,9 +162,9 @@ func (s *Service) sessionContinuationCached(record catalog.SessionRecord, cache 
 				if err != nil || !active {
 					return false, true, externalagent.ErrNotResumable
 				}
-				// A finished run does not close an API conversation: the person can keep refining the Code until they verify
-				// it. A CLI thread cannot be picked up again once its run is over.
-				if _, external := s.external[record.BackendID]; external {
+				// A finished run does not close the conversation: the person can keep refining the Code. A CLI that
+				// Harflex mediates keeps its history here and continues too; only a CLI's own thread cannot be picked up.
+				if _, external := s.external[record.BackendID]; external && !isCodexHostSession(record) {
 					completed := false
 					if err := s.walkEvents(s.ctx, record.ID, func(event events.Event) error {
 						if event.Type == "run.completed" || event.Type == "external.run.completed" {
