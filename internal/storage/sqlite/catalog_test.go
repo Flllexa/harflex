@@ -163,7 +163,8 @@ func TestProviderProfilesRoundTripUpdateOrderAndCredentialReferences(t *testing.
 	if err := store.DB().QueryRow("SELECT COUNT(*) FROM pragma_table_info('provider_profiles')").Scan(&columns); err != nil {
 		t.Fatal(err)
 	}
-	if columns != 10 {
+	// The tenth and eleventh hold no secret: base_url_changed_at only says when the address last changed.
+	if columns != 11 {
 		t.Fatalf("unexpected profile columns: %d", columns)
 	}
 }

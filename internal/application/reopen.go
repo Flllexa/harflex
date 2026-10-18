@@ -447,6 +447,10 @@ func (s *Service) OpenSession(in OpenSessionInput) (SessionDTO, error) {
 		return SessionDTO{}, err
 	}
 	_, _, continuationErr := s.sessionContinuation(record)
+	// An edited provider no longer closes its chats: the conversation follows the profile as it is now.
+	if errors.Is(continuationErr, ErrBackendChanged) && s.rebindSession(&record) == nil {
+		_, _, continuationErr = s.sessionContinuation(record)
+	}
 	var runner sessionRunner
 	var journal *eventJournal
 	if continuationErr == nil {

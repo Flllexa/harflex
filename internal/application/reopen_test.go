@@ -138,7 +138,7 @@ func TestOpenExternalRestoresSessionIDAndDoesNotReadKeyring(t *testing.T) {
 	}
 }
 
-func TestOpenChangedProfileRemainsReadableButCannotContinue(t *testing.T) {
+func TestOpenChangedProfileFollowsItsModelChange(t *testing.T) {
 	first, db, vault, session := sessionSetup(t, &fakeProvider{})
 	Shutdown(first)
 	profile, err := db.GetProviderProfile(t.Context(), "local")
@@ -146,6 +146,26 @@ func TestOpenChangedProfileRemainsReadableButCannotContinue(t *testing.T) {
 		t.Fatal(err)
 	}
 	profile.Model = "different-model"
+	profile.UpdatedAt = profile.UpdatedAt.Add(time.Second)
+	if err := db.UpsertProviderProfile(t.Context(), profile); err != nil {
+		t.Fatal(err)
+	}
+	next := NewService(t.Context(), Dependencies{Store: db, Secrets: vault, External: map[string]ExternalBackend{}})
+	if dto, err := next.OpenSession(OpenSessionInput{SessionID: session.ID, WorkspaceID: session.WorkspaceID}); err != nil || !dto.Resumable {
+		t.Fatal("a model change in the profile closed the chat", dto, err)
+	}
+}
+
+// A profile that now points at another server does not take the old conversations there.
+func TestOpenProfileMovedToAnotherAddressStaysReadable(t *testing.T) {
+	first, db, vault, session := sessionSetup(t, &fakeProvider{})
+	Shutdown(first)
+	profile, err := db.GetProviderProfile(t.Context(), "local")
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile.BaseURL = "http://127.0.0.1:9999/v1"
+	profile.UpdatedAt = profile.UpdatedAt.Add(time.Second)
 	if err := db.UpsertProviderProfile(t.Context(), profile); err != nil {
 		t.Fatal(err)
 	}

@@ -99,13 +99,16 @@ func (s *Store) SaveSettings(ctx context.Context, settings catalog.AppSettings) 
 
 func (s *Store) GetProviderProfile(ctx context.Context, id string) (catalog.ProviderProfile, error) {
 	var value catalog.ProviderProfile
-	var created, updated string
-	err := s.db.QueryRowContext(ctx, "SELECT id, name, kind, provider_type, base_url, model, credential_provider, credential_account, created_at, updated_at FROM provider_profiles WHERE id = ?", id).Scan(&value.ID, &value.Name, &value.Kind, &value.ProviderType, &value.BaseURL, &value.Model, &value.CredentialProvider, &value.CredentialAccount, &created, &updated)
+	var created, updated, moved string
+	err := s.db.QueryRowContext(ctx, "SELECT id, name, kind, provider_type, base_url, model, credential_provider, credential_account, created_at, updated_at, base_url_changed_at FROM provider_profiles WHERE id = ?", id).Scan(&value.ID, &value.Name, &value.Kind, &value.ProviderType, &value.BaseURL, &value.Model, &value.CredentialProvider, &value.CredentialAccount, &created, &updated, &moved)
 	if err == nil {
 		value.CreatedAt, err = time.Parse(time.RFC3339Nano, created)
 	}
 	if err == nil {
 		value.UpdatedAt, err = time.Parse(time.RFC3339Nano, updated)
+	}
+	if err == nil && moved != "" {
+		value.BaseURLChangedAt, err = time.Parse(time.RFC3339Nano, moved)
 	}
 	if err != nil {
 		return catalog.ProviderProfile{}, fmt.Errorf("get provider profile: %w", err)
@@ -158,7 +161,8 @@ func upsertProviderProfile(ctx context.Context, executor catalogExecutor, profil
 		profile.ProviderType = "generic" // Transitional callers before application validation.
 	}
 	_, err := executor.ExecContext(ctx, `INSERT INTO provider_profiles (id, name, kind, provider_type, base_url, model, credential_provider, credential_account, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET name = excluded.name, kind = excluded.kind, provider_type = excluded.provider_type, base_url = excluded.base_url, model = excluded.model, credential_provider = excluded.credential_provider, credential_account = excluded.credential_account, updated_at = excluded.updated_at`,
+		ON CONFLICT(id) DO UPDATE SET name = excluded.name, kind = excluded.kind, provider_type = excluded.provider_type, base_url = excluded.base_url, model = excluded.model, credential_provider = excluded.credential_provider, credential_account = excluded.credential_account, updated_at = excluded.updated_at,
+			base_url_changed_at = CASE WHEN provider_profiles.base_url <> excluded.base_url OR provider_profiles.kind <> excluded.kind THEN excluded.updated_at ELSE provider_profiles.base_url_changed_at END`,
 		profile.ID, profile.Name, profile.Kind, profile.ProviderType, profile.BaseURL, profile.Model, profile.CredentialProvider, profile.CredentialAccount, formatCatalogTime(profile.CreatedAt), formatCatalogTime(profile.UpdatedAt))
 	if err != nil {
 		return fmt.Errorf("upsert provider profile: %w", err)

@@ -31,7 +31,7 @@ func TestSessionResumableReflectsBackendAndDurableContinuation(t *testing.T) {
 				p, _ := db.GetProviderProfile(t.Context(), "local")
 				p.Model = "changed"
 				db.UpsertProviderProfile(t.Context(), p)
-				wantErr = ErrBackendChanged
+				// Same address, so opening it follows the edited profile (the listing still shows it as it was).
 			case "unknown":
 				record.BackendID = "unknown"
 				record.BackendRevision = ""
@@ -94,6 +94,10 @@ func TestSessionResumableReflectsBackendAndDurableContinuation(t *testing.T) {
 				}
 				if again, err := next.OpenSession(OpenSessionInput{SessionID: record.ID, WorkspaceID: record.WorkspaceID}); err != nil || again != dto {
 					t.Fatal("readonly open not idempotent", again, err)
+				}
+			} else if mode == "changed_api" {
+				if err != nil || !dto.Resumable {
+					t.Fatal("an edited profile at the same address closed the chat", dto, err)
 				}
 			} else if err != nil || dto.Resumable != want {
 				t.Fatal(dto, err)

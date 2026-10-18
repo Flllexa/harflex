@@ -829,6 +829,12 @@ func (s *Service) Prompt(in PromptInput) (RunResultDTO, error) {
 		defer cancel()
 	}
 	runErr := runner.Prompt(runCtx, in.Text)
+	// The provider was edited while this conversation was open: it follows the profile and the message goes once more.
+	if errors.Is(runErr, ErrBackendChanged) && !delegated {
+		if fresh, ok := s.reloadAfterProviderChange(record); ok {
+			runErr = fresh.Prompt(runCtx, in.Text)
+		}
+	}
 	if delegated && (errors.Is(runErr, agentcore.ErrSessionBusy) || errors.Is(runErr, externalagent.ErrSessionBusy) || errors.Is(runErr, externalagent.ErrNotResumable) || errors.Is(runErr, ErrBackendChanged) || errors.Is(runErr, ErrProviderEndpointBlocked)) {
 		if err := s.store.ReleaseDelegationPrompt(s.ctx, in.SessionID); err != nil {
 			return RunResultDTO{}, safe("release refused delegated prompt", err)

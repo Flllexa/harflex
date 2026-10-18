@@ -206,3 +206,31 @@ func (s *Store) GetSessionSkillSnapshot(ctx context.Context, sessionID string) (
 	}
 	return content, nil
 }
+
+// RebindSessionModelSelection points a conversation at its provider as it is now (the person edited the profile): the
+// confirmed selection and the session's backend revision change together, and the history stays as it was.
+func (s *Store) RebindSessionModelSelection(ctx context.Context, sessionID, backendRevision string, selection *catalog.ModelSelection) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin rebind: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if selection != nil {
+		efforts, err := json.Marshal(selection.SupportedReasoningEfforts)
+		if err != nil {
+			return fmt.Errorf("encode reasoning capability: %w", err)
+		}
+		result, err := tx.ExecContext(ctx, `UPDATE session_model_selections SET model_id=?,reasoning_effort=?,catalog_revision=?,local_revision=?,source=?,checked_at=?,destination=?,credential_identity=?,status=?,max_output_tokens=?,context_length=?,supported_reasoning_efforts=? WHERE session_id=?`,
+			selection.ModelID, selection.ReasoningEffort, selection.CatalogRevision, selection.LocalRevision, selection.Source, formatCatalogTime(selection.CheckedAt), selection.Destination, selection.CredentialIdentity, selection.Status, selection.MaxOutputTokens, selection.ContextLength, string(efforts), sessionID)
+		if err != nil {
+			return fmt.Errorf("rebind session model selection: %w", err)
+		}
+		if changed, err := result.RowsAffected(); err != nil || changed != 1 {
+			return fmt.Errorf("rebind session model selection: no selection for %s", sessionID)
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE sessions SET backend_revision=? WHERE id=?`, backendRevision, sessionID); err != nil {
+		return fmt.Errorf("rebind session backend: %w", err)
+	}
+	return tx.Commit()
+}

@@ -92,6 +92,8 @@ type ProviderProfile struct {
 	CredentialAccount  string    `json:"credentialAccount"`
 	CreatedAt          time.Time `json:"createdAt"`
 	UpdatedAt          time.Time `json:"updatedAt"`
+	// BaseURLChangedAt is when the profile last pointed at a new address (zero: never since it was made).
+	BaseURLChangedAt time.Time `json:"-"`
 }
 
 type SessionRecord struct {
