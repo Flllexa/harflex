@@ -240,7 +240,14 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
   const [phasesOpen, setPhasesOpen] = useState<boolean>()
   const [inspectedStage, setInspectedStage] = useState<PipelineStage>('eval')
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
-  const [pending, setPending] = useState(false)
+  // What is in flight, per pipeline (and 'create'/'select' for the list): work on one pipeline never holds up another.
+  const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(new Set())
+  const busyWith = (key: string, value: boolean) => setPendingIds(current => {
+    if (current.has(key) === value) return current
+    const next = new Set(current)
+    if (value) next.add(key); else next.delete(key)
+    return next
+  })
   const [error, setError] = useState<string>()
   const [notice, setNotice] = useState<string>()
   const [createOpen, setCreateOpen] = useState(creationDraft?.open ?? false)
@@ -248,6 +255,9 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
   const [applyConfirmed, setApplyConfirmed] = useState(false)
   const refreshGeneration = useRef(0)
   const run = selectedPipeline?.workspaceId === workspaceId ? selectedPipeline : undefined
+  const pending = !!run && pendingIds.has(run.id)
+  const creating = pendingIds.has('create')
+  const selecting = pendingIds.has('select')
   const conversational = run?.kind === 'ai_authoring' && run.preparationExperience === 'conversational'
   const visibleItems = items.filter(item => item.workspaceId === workspaceId)
   const backendAllowed = (item: BackendOption) => item.available && (item.kind === 'api' || isDocumentCLI(item.id) && item.professionalAvailable === true)
@@ -331,7 +341,7 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
     createWorkspace.current = workspaceId
     createEpoch.current++
     createIntent.current = creationDraft?.intent
-    setPending(false); setError(undefined); setNotice(undefined); setDiscovery(creationDraft?.discovery ?? ''); setCreateOpen(creationDraft?.open ?? false); setAutoPrepare(undefined)
+    setPendingIds(new Set()); setError(undefined); setNotice(undefined); setDiscovery(creationDraft?.discovery ?? ''); setCreateOpen(creationDraft?.open ?? false); setAutoPrepare(undefined)
     setCreationScope({ backend, workspaceId })
     lastNewWorkRequest.current = creationDraft?.newWorkRequest ?? 0
     return () => { createEpoch.current++ }
@@ -405,11 +415,11 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
 
   async function create(event: FormEvent) {
     event.preventDefault()
-    if (!workspaceId || pending) return
+    if (!workspaceId || creating) return
     const targetWorkspace = workspaceId
     const current = ++createEpoch.current
     const stillCurrent = () => createEpoch.current === current && createWorkspace.current === targetWorkspace
-    setPending(true); setError(undefined); setNotice(undefined)
+    busyWith('create', true); setError(undefined); setNotice(undefined)
     try {
       const content = discovery.trim()
       const intent = createIntent.current?.workspaceId === workspaceId && createIntent.current.discovery === content
@@ -425,87 +435,89 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
       // usable provider the work is still there, and the chat is made the next time one is.
       void backend.ensureWorkChats(targetWorkspace).catch(() => undefined)
     } catch (failure) { if (stillCurrent()) setError(errorMessage(failure)) }
-    finally { if (stillCurrent()) setPending(false) }
+    finally { if (stillCurrent()) busyWith('create', false) }
   }
 
   async function select(id: string) {
     refreshGeneration.current++
-    setPending(true); setError(undefined); setNotice(undefined)
+    busyWith('select', true); setError(undefined); setNotice(undefined)
     try { onSelectPipeline(await backend.getPipeline(id)) }
     catch (failure) { setError(errorMessage(failure)) }
-    finally { setPending(false) }
+    finally { busyWith('select', false) }
   }
 
   async function save() {
     if (!run?.currentStage || pending) return
-    setPending(true); setError(undefined); setNotice(undefined)
+    const pendingKey = run.id; busyWith(pendingKey, true); setError(undefined); setNotice(undefined)
     try { const saved = await backend.savePipelineArtifact(run.id, run.currentStage, draft); setDraftDirty(false); onSelectPipeline(saved); setNotice(t('Artefato salvo e versionado.')) }
     catch (failure) { setError(errorMessage(failure)) }
-    finally { setPending(false) }
+    finally { busyWith(pendingKey, false) }
   }
 
   async function advance() {
     if (!run || pending) return
-    setPending(true); setError(undefined); setNotice(undefined)
+    const pendingKey = run.id; busyWith(pendingKey, true); setError(undefined); setNotice(undefined)
     try { onSelectPipeline(await backend.advancePipeline(run.id)); setNotice(t('Fase avançada com evidência salva.')) }
     catch (failure) { setError(errorMessage(failure)) }
-    finally { setPending(false) }
+    finally { busyWith(pendingKey, false) }
   }
 
   async function skip() {
     if (!run || pending) return
-    setPending(true); setError(undefined); setNotice(undefined)
+    const pendingKey = run.id; busyWith(pendingKey, true); setError(undefined); setNotice(undefined)
     try { onSelectPipeline(await backend.skipPipelineStage(run.id, reason)); setReason(''); setSkipConfirm(false); setNotice(t('Etapa pulada e registrada no histórico.')) }
     catch (failure) { setError(errorMessage(failure)) }
-    finally { setPending(false) }
+    finally { busyWith(pendingKey, false) }
   }
 
   async function startRole(role: PipelineRole, backendId: string, selection: PipelineRoleModelSelection | undefined, confirmWorkspaceCopy: boolean) {
     if (!run || !backendId || pending) return
     // Code and QA run with a model confirmed against the catalog; the pull request chat does too when the project chose a model for it, and otherwise uses the profile's own.
     if (!selection && role !== 'publisher') { setError(t('Escolha um modelo confirmado para esta fase.')); return }
-    setPending(true); setError(undefined); setNotice(undefined)
+    const pendingKey = run.id
+    busyWith(pendingKey, true); setError(undefined); setNotice(undefined)
     try { await onStartRole(run.id, backendId, role, selection, confirmWorkspaceCopy) }
-    catch (failure) { setError(errorMessage(failure)); setPending(false) }
+    catch (failure) { setError(errorMessage(failure)) }
+    finally { busyWith(pendingKey, false) }
   }
 
   async function replyToCoder(text: string) {
     if (!run || pending || !onReplyCoder) return
-    setPending(true); setError(undefined); setNotice(undefined)
+    const pendingKey = run.id; busyWith(pendingKey, true); setError(undefined); setNotice(undefined)
     try { await onReplyCoder(run.id, text, selectedBackendId ? { backendId: selectedBackendId } : undefined) }
     catch (failure) { setError(errorMessage(failure)) }
-    finally { setPending(false) }
+    finally { busyWith(pendingKey, false) }
   }
   async function requestCodeRevision(text: string) {
     const artifact = run?.artifacts.code
     if (!run || pending || !artifact?.contentDigest) return
-    setPending(true); setError(undefined); setNotice(undefined)
+    const pendingKey = run.id; busyWith(pendingKey, true); setError(undefined); setNotice(undefined)
     try {
       onSelectPipeline(await backend.decidePipelineExecutionArtifact({ pipelineId: run.id, requestId: crypto.randomUUID(), stage: 'code', artifactVersion: artifact.version, artifactDigest: artifact.contentDigest, decision: 'request_revision', feedback: text, pipelineRevision: run.revision }))
       setNotice(t('Resposta registrada. Execute o Coder de novo: ele recebe a sua resposta.'))
     } catch (failure) { setError(errorMessage(failure)) }
-    finally { setPending(false) }
+    finally { busyWith(pendingKey, false) }
   }
 
   async function completeRole(role: PipelineRole) {
     if (!run || pending) return
-    setPending(true); setError(undefined); setNotice(undefined)
+    const pendingKey = run.id; busyWith(pendingKey, true); setError(undefined); setNotice(undefined)
     try {
       const updated = role === 'coder' ? await backend.completePipelineCode(run.id) : await backend.completePipelineEvaluation(run.id)
       onSelectPipeline(updated)
       setNotice(role === 'coder' ? t('Code salvo para revisão. Aprove a versão para liberar o QA.') : t('Resultado do QA salvo. Revise as evidências e decida o próximo passo.'))
     } catch (failure) { setError(errorCode(failure) === 'evidence_required' ? unfinishedRunText(t)[role] : errorMessage(failure)) }
-    finally { setPending(false) }
+    finally { busyWith(pendingKey, false) }
   }
 
   async function finishPullRequests(outcome: 'completed' | 'skipped', reason?: string) {
     if (!run || pending) return
-    setPending(true); setError(undefined); setNotice(undefined)
+    const pendingKey = run.id; busyWith(pendingKey, true); setError(undefined); setNotice(undefined)
     try {
       onSelectPipeline(await backend.finishPipelinePRs(run.id, outcome, reason))
       setNotice(outcome === 'completed' ? t('PRs concluídos. O relatório da IA ficou guardado no pipeline.') : t('Etapa de PRs pulada e registrada no histórico.'))
     } catch (failure) { setError(errorMessage(failure)) }
-    finally { setPending(false) }
+    finally { busyWith(pendingKey, false) }
   }
 
   // The one-click PRs action applies the patch QA approved; the backend checks it against the approved version.
@@ -518,14 +530,14 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
 
   async function applyCode() {
     if (!run || pending || !applyConfirmed) return
-    setPending(true); setError(undefined); setNotice(undefined)
+    const pendingKey = run.id; busyWith(pendingKey, true); setError(undefined); setNotice(undefined)
     try {
       const updated = await backend.applyPipelineCode(run.id)
       onSelectPipeline(updated)
       setApplyConfirmed(false)
       setNotice(t('Patch aplicado à pasta original e conferido após a gravação.'))
     } catch (failure) { setError(errorMessage(failure)) }
-    finally { setPending(false) }
+    finally { busyWith(pendingKey, false) }
   }
 
   return <div className="pipelines-page">
@@ -533,10 +545,10 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
     {!workspaceId ? <div className="catalog-empty"><FolderOpen aria-hidden="true" /><strong>{t('Abra um projeto para começar')}</strong><span className="muted">{t('Cada pipeline pertence a uma pasta local autorizada.')}</span><button type="button" className="touch-target primary-button" onClick={onProjects}>{t('Abrir projetos')}</button></div> : <>
       <PipelinePhaseExecutors key={workspaceId} backend={backend} backends={backends} workspaceId={workspaceId} executors={stageExecutors} onExecutorsChange={setStageExecutors} profiles={profiles} loading={!choicesReady} loadFailed={choicesFailed} onRetry={() => setExecutorsRead(count => count + 1)}
         defaults={{ backendId: preferredBackendId, modelBackendId: preferredModelBackendId, modelId: preferredModelId }} open={phasesOpen ?? (state === 'ready' && visibleItems.length === 0)} onToggle={setPhasesOpen} currentStage={run?.currentStage || undefined} disabled={pending} />
-      {state === 'ready' && (visibleItems.length === 0 || createOpen) && <form className="pipeline-create" onSubmit={create}><div className="destination-heading"><div><h3>{t('Novo pipeline')}</h3><p className="muted">{t('Descreva o problema, contexto e resultado esperado.')}</p></div><ListTree aria-hidden="true" /></div><div className="pipeline-create-fields"><label className="field">Discovery<textarea aria-label="Discovery" value={discovery} onChange={event => setDiscovery(event.target.value)} maxLength={20000} required rows={7} placeholder={t('O que você quer descobrir ou construir?')} /></label></div><button type="submit" className="touch-target primary-button" disabled={pending || !discovery.trim()}><Plus aria-hidden="true" />{t('Criar pipeline')}</button></form>}
+      {state === 'ready' && (visibleItems.length === 0 || createOpen) && <form className="pipeline-create" onSubmit={create}><div className="destination-heading"><div><h3>{t('Novo pipeline')}</h3><p className="muted">{t('Descreva o problema, contexto e resultado esperado.')}</p></div><ListTree aria-hidden="true" /></div><div className="pipeline-create-fields"><label className="field">Discovery<textarea aria-label="Discovery" value={discovery} onChange={event => setDiscovery(event.target.value)} maxLength={20000} required rows={7} placeholder={t('O que você quer descobrir ou construir?')} /></label></div><button type="submit" className="touch-target primary-button" disabled={creating || !discovery.trim()}><Plus aria-hidden="true" />{t('Criar pipeline')}</button></form>}
       {state === 'loading' && <p className="muted" role="status">{t('Carregando pipelines…')}</p>}
       {state === 'error' && <div className="inline-error" role="alert"><p>{t('Não foi possível carregar os pipelines.')}</p><button type="button" className="touch-target secondary-button" onClick={() => void refresh()}>{t('Tentar novamente')}</button></div>}
-      {visibleItems.length > 0 && <div className={`pipeline-layout${conversational ? ' pipeline-layout-conversational' : ''}`}>{conversational ? <div className="pipeline-work-selector"><IonPicker id="pipeline-work" label={t('Trabalho deste projeto')} value={run.id} onChange={id => void select(id)} disabled={pending} searchable options={visibleItems.map(item => ({ value: item.id, label: item.title }))} /></div> : <section className="pipeline-list" aria-labelledby="pipeline-list-title"><h3 id="pipeline-list-title">{t('Trabalhos deste projeto')}</h3><ul>{visibleItems.map(item => <li key={item.id}><button type="button" className={`touch-target pipeline-list-item${run?.id === item.id ? ' is-selected' : ''}`} onClick={() => void select(item.id)} disabled={pending}><strong>{item.title}</strong><span className="muted">{item.currentStage ? labels[item.currentStage] : t('Encerrado')} · {new Date(item.updatedAt).toLocaleDateString(localeTag())}</span></button></li>)}</ul></section>}
+      {visibleItems.length > 0 && <div className={`pipeline-layout${conversational ? ' pipeline-layout-conversational' : ''}`}>{conversational ? <div className="pipeline-work-selector"><IonPicker id="pipeline-work" label={t('Trabalho deste projeto')} value={run.id} onChange={id => void select(id)} disabled={selecting} searchable options={visibleItems.map(item => ({ value: item.id, label: item.title }))} /></div> : <section className="pipeline-list" aria-labelledby="pipeline-list-title"><h3 id="pipeline-list-title">{t('Trabalhos deste projeto')}</h3><ul>{visibleItems.map(item => <li key={item.id}><button type="button" className={`touch-target pipeline-list-item${run?.id === item.id ? ' is-selected' : ''}`} onClick={() => void select(item.id)} disabled={selecting}><strong>{item.title}</strong><span className="muted">{item.currentStage ? labels[item.currentStage] : t('Encerrado')} · {new Date(item.updatedAt).toLocaleDateString(localeTag())}</span></button></li>)}</ul></section>}
         {run && <section className={`pipeline-detail${benchMode ? ' is-bench' : ''}`} aria-labelledby="pipeline-detail-title">{benchMode ? <h3 id="pipeline-detail-title" className="visually-hidden">{run.title}</h3> : <div className="destination-heading"><div><h3 id="pipeline-detail-title">{run.title}</h3>{!conversational && run.objective !== run.title && <p className="muted">{run.objective}</p>}</div><span className="status-chip status-ready">{run.currentStage ? labels[run.currentStage] : t('Encerrado')}</span></div>}
           {!conversational && <div className="pipeline-phase-list" aria-label={t('Fases do pipeline')}>{([...stageOrder]).map(stage => <span key={stage} className={`pipeline-phase phase-${run.stageStatus[stage]}`}>{labels[stage]}<small>{run.stageStatus[stage] === 'skipped' ? t('Pulada') : run.stageStatus[stage] === 'completed' ? t('Concluída') : run.stageStatus[stage] === 'active' ? t('Atual') : run.stageStatus[stage] === 'failed' ? t('Reprovada') : run.stageStatus[stage] === 'waiting_user' ? t('Aguardando decisão') : run.stageStatus[stage] === 'paused' ? t('Pausada') : t('Pendente')}</small></span>)}</div>}
           {viewStage && !(benchMode && (viewStage === 'code' || viewStage === 'eval' || viewStage === 'prs')) && <StageActivityPane key={`${run.id}:${viewStage}:${viewRequestId ?? 0}`} backend={backend} pipeline={run} stage={viewStage} />}

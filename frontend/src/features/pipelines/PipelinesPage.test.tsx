@@ -1047,3 +1047,22 @@ it('lets a manual pipeline write its Brainstorm and move on, like any other prep
   render(<PipelinesPage backend={backend} backends={[]} workspaceId="workspace-1" selectedPipeline={run} onSelectPipeline={() => undefined} onProjects={() => undefined} onStartRole={async () => undefined} />)
   expect(await screen.findByLabelText('Artefato da fase')).toBeInTheDocument()
 })
+
+it('starts another pipeline while a stage of the first one is still starting', async () => {
+  const { backend } = createFakeBackend(), base = designPipeline(), user = userEvent.setup()
+  const first: Pipeline = { ...base, currentStage: 'code', stageStatus: { discovery: 'completed', spec: 'completed', plan: 'completed', code: 'active', eval: 'pending' } }
+  const second: Pipeline = { ...first, id: 'pipeline-2', title: 'Segundo trabalho' }
+  installPipelineDesignFixture(backend, undefined, { pipeline: first, design: { ...designReadback(first, true), state: 'approved', needsDerivation: true } })
+  backend.getPipelineStageActivity = async (pipelineId, stage) => ({ pipelineId, workspaceId: first.workspaceId, stage, status: 'completed', phase: '', sessionId: '', modelId: '', updatedAt: first.updatedAt })
+  const started: string[] = []
+  const onStartRole = vi.fn((pipelineId: string) => { started.push(pipelineId); return new Promise<void>(() => undefined) })
+  const props = { backend, backends: [{ id: 'api-1', name: 'API de teste', kind: 'api' as const, available: true }], preferredBackendId: 'api-1', preferredModelBackendId: 'api-1', preferredModelId: 'test-model', workspaceId: first.workspaceId, onSelectPipeline: () => undefined, onProjects: () => undefined, onStartRole }
+  const view = render(<PipelinesPage {...props} selectedPipeline={first} />)
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Executar Coder' })).toBeEnabled())
+  await user.click(screen.getByRole('button', { name: 'Executar Coder' }))
+  await waitFor(() => expect(started).toEqual([first.id]))
+  view.rerender(<PipelinesPage {...props} selectedPipeline={second} />)
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Executar Coder' })).toBeEnabled())
+  await user.click(screen.getByRole('button', { name: 'Executar Coder' }))
+  await waitFor(() => expect(started).toEqual([first.id, second.id]))
+})
