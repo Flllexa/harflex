@@ -322,3 +322,44 @@ func restoreTrackedPath(ctx context.Context, root, path string) error {
 	}
 	return nil
 }
+
+// IsIgnored says whether Git ignores a path of the project, asking the repository that owns it (the deepest folder
+// with a .git between the path and the project root). Tracked files are never ignored; outside Git nothing is.
+func IsIgnored(ctx context.Context, root, slashPath string) (bool, error) {
+	relative := filepath.FromSlash(slashPath)
+	if !safeExecutionRelativePath(relative) {
+		return false, ErrExecutionSnapshotUnsafePath
+	}
+	full := filepath.Join(root, relative)
+	repository := ""
+	for dir := filepath.Dir(full); pathWithin(root, dir); dir = filepath.Dir(dir) {
+		if _, err := os.Lstat(filepath.Join(dir, ".git")); err == nil {
+			repository = dir
+			break
+		}
+		if dir == root {
+			break
+		}
+	}
+	if repository == "" {
+		return false, nil
+	}
+	inner, err := filepath.Rel(repository, full)
+	if err != nil {
+		return false, err
+	}
+	callCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	command := exec.CommandContext(callCtx, "git", "check-ignore", "-q", "--", filepath.ToSlash(inner))
+	command.Dir = repository
+	err = command.Run()
+	var exit *exec.ExitError
+	switch {
+	case err == nil:
+		return true, nil
+	case errors.As(err, &exit) && exit.ExitCode() == 1:
+		return false, nil
+	default:
+		return false, fmt.Errorf("check ignored path: %w", err)
+	}
+}

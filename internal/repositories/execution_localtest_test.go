@@ -222,3 +222,29 @@ func TestLocalTestUndoRestoresANestedRepository(t *testing.T) {
 		t.Fatalf("the workspace is not back: %v %v", matches, err)
 	}
 }
+
+// The tester may write only what Git ignores, judged by the repository that owns the path: a nested repository's
+// tracked file is not "ignored" just because the outer repository ignores its folder.
+func TestIsIgnoredAsksTheRepositoryThatOwnsThePath(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git unavailable")
+	}
+	ctx := context.Background()
+	root, _ := multiRepoWorkspace(t)
+	for path, want := range map[string]bool{
+		".env":                                false,
+		"node_modules/x/index.js":             true,
+		"README.md":                           false,
+		"domains/contracts/baixa.go":          false,
+		"domains/contracts/node_modules/a.js": true,
+		".local/notes.md":                     true,
+	} {
+		got, err := IsIgnored(ctx, root, path)
+		if err != nil || got != want {
+			t.Errorf("IsIgnored(%s) = %v %v, want %v", path, got, err, want)
+		}
+	}
+	if got, err := IsIgnored(ctx, t.TempDir(), "anything.txt"); err != nil || got {
+		t.Fatalf("a folder without Git ignores nothing: %v %v", got, err)
+	}
+}

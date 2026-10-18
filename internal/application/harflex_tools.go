@@ -89,6 +89,8 @@ func harflexToolFailure(err error) error {
 		return (&agentcore.ToolFailure{Code: "not_found", Message: "this pull request is not recorded for this pipeline; record it with harflex_register_pull_request first"}).WithCause(err)
 	case errors.Is(err, errWorkPastDiscovery):
 		return (&agentcore.ToolFailure{Code: "work_past_discovery", Message: "This conversation coordinates a work that is already past Discovery. A new piece of work starts in a new chat: tell the person to open one."}).WithCause(err)
+	case errors.Is(err, errNoLocalTest):
+		return (&agentcore.ToolFailure{Code: "no_local_test", Message: "this project has no local test applied; the person undid it or it was never started"}).WithCause(err)
 	case errors.Is(err, ErrPipelineNotFound):
 		return (&agentcore.ToolFailure{Code: "not_found", Message: "no pipeline with this id in this project; list the pipelines first"}).WithCause(err)
 	case errors.Is(err, ErrWorkspaceNotFound):
