@@ -127,6 +127,12 @@ type Store interface {
 	ListWatchedPullRequests(context.Context) ([]catalog.PipelinePullRequest, error)
 	LinkPipelinePRSession(context.Context, catalog.PipelinePRSession) error
 	ListPipelinePRSessions(context.Context, string) ([]catalog.PipelinePRSession, error)
+	CreatePipelineLocalTest(ctx context.Context, test catalog.PipelineLocalTest) error
+	ActivePipelineLocalTest(ctx context.Context, workspaceID string) (catalog.PipelineLocalTest, error)
+	LatestPipelineLocalTest(ctx context.Context, pipelineID string) (catalog.PipelineLocalTest, error)
+	SetPipelineLocalTestSession(ctx context.Context, id, sessionID string) error
+	AddPipelineLocalTestService(ctx context.Context, id string, service catalog.LocalTestService) error
+	FinishPipelineLocalTest(ctx context.Context, id string, at time.Time) error
 	ListWorkspaceStageExecutors(context.Context, string) ([]catalog.StageExecutor, error)
 	GetWorkspaceStageExecutor(context.Context, string, sdd.Stage) (catalog.StageExecutor, error)
 	SaveWorkspaceStageExecutor(context.Context, catalog.StageExecutor) error
