@@ -166,8 +166,16 @@ func (s *Service) StartAuthoringCode(in StartAuthoringCodeInput) (AuthoringCodeR
 		return AuthoringCodeRunDTO{}, err
 	}
 	defer s.endCall()
+	// The gate covers admission and composition only: the run itself must not hold up recovery of other sessions.
 	s.recoveryGate.RLock()
-	defer s.recoveryGate.RUnlock()
+	gateHeld := true
+	releaseGate := func() {
+		if gateHeld {
+			gateHeld = false
+			s.recoveryGate.RUnlock()
+		}
+	}
+	defer releaseGate()
 	if !validAuthoringCodeRunInput(in) {
 		return AuthoringCodeRunDTO{}, ErrInvalidInput
 	}
@@ -402,6 +410,7 @@ func (s *Service) StartAuthoringCode(in StartAuthoringCodeInput) (AuthoringCodeR
 		return finishBeforeRun(err, "cancelled")
 	}
 
+	releaseGate()
 	runErr := api.Prompt(runCtx, prompt)
 	result, resultErr := s.sessionResult(record.ID, "authoring Code run", runErr)
 	journalCtx, journalCancel := context.WithTimeout(context.WithoutCancel(s.ctx), authoringCodeJournalTimeout)

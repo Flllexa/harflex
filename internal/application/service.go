@@ -47,7 +47,9 @@ type Service struct {
 	pipelineApplyGate   sync.Mutex
 	embeddingGate       sync.Mutex
 	recoveryGate        sync.RWMutex
-	shutdownGate        sync.Mutex
+	// sessionOpenGates lets one session be recovered at a time without holding up any other.
+	sessionOpenGates keyedMutex
+	shutdownGate     sync.Mutex
 	// Serializes durable authoring admission/ownership registration with shutdown.
 	// Provider calls and composition never hold this gate.
 	authoringAdmissionGate       sync.Mutex

@@ -343,9 +343,16 @@ func (s *Service) OpenSession(in OpenSessionInput) (SessionDTO, error) {
 	if strings.TrimSpace(in.SessionID) == "" || strings.TrimSpace(in.WorkspaceID) == "" {
 		return SessionDTO{}, ErrInvalidInput
 	}
-	// Serializes admission and recovery without holding the callback/lifecycle lock.
-	s.recoveryGate.Lock()
-	defer s.recoveryGate.Unlock()
+	// A session already loaded opens at once; recovering one waits only for another open of the same session, never
+	// for a run in progress elsewhere. Startup recovery still holds the gate exclusively.
+	s.mu.RLock()
+	_, loaded := s.sessions[in.SessionID]
+	s.mu.RUnlock()
+	if !loaded {
+		s.recoveryGate.RLock()
+		defer s.recoveryGate.RUnlock()
+		defer s.sessionOpenGates.lock(in.SessionID)()
+	}
 	record, err := s.store.GetSession(s.ctx, in.SessionID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return SessionDTO{}, ErrSessionNotFound
