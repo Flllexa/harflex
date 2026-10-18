@@ -468,7 +468,7 @@ describe('Harflex control room', () => {
     await user.click(within(screen.getByTestId('picker-settings-default-backend')).getByRole('button'))
     await user.click(screen.getByRole('option', { name: 'Local' }))
     await user.click(screen.getByRole('button', { name: 'Salvar preferências' }))
-    expect(saveSettings).toHaveBeenCalledWith({ defaultBackendId: 'local', defaultModelBackendId: 'local', defaultModelId: 'modelo-local' })
+    expect(saveSettings).toHaveBeenCalledWith({ defaultBackendId: 'local', defaultModelBackendId: 'local', defaultModelId: 'modelo-local', maxContextTokens: 0 })
     expect(await screen.findByRole('status')).toHaveTextContent('Preferências salvas')
   })
 
