@@ -104,8 +104,7 @@ func (s *Service) makeCodexHostRunner(record *catalog.SessionRecord, workspace c
 		return nil, ErrSessionCorrupt
 	}
 	core.SetPolicyGuard(func(ctx context.Context, risk security.Risk, action func(security.Decision) error) error {
-		s.workspacePolicyGate.RLock()
-		defer s.workspacePolicyGate.RUnlock()
+		defer s.workspacePolicyGate.rlock(workspace.ID)()
 		current, err := s.store.GetWorkspace(ctx, workspace.ID)
 		if err != nil {
 			return safe("read isolated Code policy", err)

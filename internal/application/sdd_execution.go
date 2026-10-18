@@ -778,11 +778,13 @@ func (s *Service) ApplyPipelineCode(pipelineID string) (PipelineDTO, error) {
 		return PipelineDTO{}, err
 	}
 	defer s.endCall()
-	s.pipelineApplyGate.Lock()
-	defer s.pipelineApplyGate.Unlock()
-
+	// Two applies to the same project folder never interleave; other projects apply at the same time.
 	run, err := s.loadPipeline(pipelineID)
 	if err != nil {
+		return PipelineDTO{}, err
+	}
+	defer s.pipelineApplyGate.lock(run.WorkspaceID)()
+	if run, err = s.loadPipeline(pipelineID); err != nil {
 		return PipelineDTO{}, err
 	}
 	// The patch is applied once QA approved it: while the pull request stage is current, or on a pipeline that finished before that stage existed.

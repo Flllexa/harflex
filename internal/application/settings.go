@@ -107,8 +107,7 @@ func (s *Service) SetWorkspaceProfile(in SetWorkspaceProfileInput) (WorkspaceDTO
 	if in.WorkspaceID == "" || !selectableWorkspaceProfile(in.Profile, in.ConfirmFullAccess) {
 		return WorkspaceDTO{}, ErrInvalidInput
 	}
-	s.workspacePolicyGate.Lock()
-	defer s.workspacePolicyGate.Unlock()
+	defer s.workspacePolicyGate.lock(in.WorkspaceID)()
 	workspace, err := s.store.GetWorkspace(s.ctx, in.WorkspaceID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return WorkspaceDTO{}, ErrWorkspaceNotFound

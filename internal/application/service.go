@@ -42,9 +42,9 @@ type Service struct {
 	// Never hold mu with profileGate; finish external calls and release profileGate
 	// before acquiring mu for lifecycle or session state.
 	profileGate         sync.RWMutex
-	workspacePolicyGate sync.RWMutex
+	workspacePolicyGate keyedRWMutex
 	mcpGate             sync.Mutex
-	pipelineApplyGate   sync.Mutex
+	pipelineApplyGate   keyedMutex
 	embeddingGate       sync.Mutex
 	recoveryGate        sync.RWMutex
 	// sessionOpenGates lets one session be recovered at a time without holding up any other.

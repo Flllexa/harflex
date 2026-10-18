@@ -69,3 +69,39 @@ func TestOpeningTheSameSessionTwiceRecoversOnce(t *testing.T) {
 		t.Fatal("the session was not loaded")
 	}
 }
+
+// A long tool call in one project holds that project's permission gate; changing another project's profile goes on.
+func TestProfileChangeInOneProjectDoesNotWaitForAnotherProjectsTool(t *testing.T) {
+	s, _, _ := setup(t)
+	first, err := s.OpenWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := s.OpenWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	release := make(chan struct{})
+	held := make(chan struct{})
+	go func() {
+		unlock := s.workspacePolicyGate.rlock(second.ID)
+		close(held)
+		<-release
+		unlock()
+	}()
+	defer close(release)
+	<-held
+	done := make(chan error, 1)
+	go func() {
+		_, err := s.SetWorkspaceProfile(SetWorkspaceProfileInput{WorkspaceID: first.ID, Profile: "ask"})
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("a profile change waited for another project's tool")
+	}
+}
