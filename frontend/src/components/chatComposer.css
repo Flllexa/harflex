@@ -1,0 +1,39 @@
+/* The chat box, after Claude Code: one rounded field, quiet controls inside it, settings in plain text underneath. */
+.chat-composer { width: min(calc(100% - 2 * var(--space-4)), 812px); margin: 0 auto var(--space-3); display: grid; gap: var(--space-2); }
+.chat-composer-box { display: grid; gap: var(--space-2); padding: 14px 14px 14px 18px; border: 1px solid color-mix(in srgb, var(--paper) 16%, var(--hairline)); border-radius: 22px; background: var(--surface-1); box-shadow: var(--shadow-float); transition: border-color 160ms ease, box-shadow 160ms ease; }
+.chat-composer-box:focus-within { border-color: color-mix(in srgb, var(--paper) 28%, var(--hairline)); }
+.chat-composer-row { display: flex; align-items: center; gap: var(--space-3); min-height: 44px; }
+.chat-composer-input { flex: 1; min-width: 0; resize: none; border: 0; outline: 0; background: transparent; box-shadow: none; color: var(--paper); font: inherit; font-size: 16px; line-height: 1.5; padding: 8px 0; max-height: 240px; overflow-y: auto; }
+.chat-composer-input::placeholder { color: var(--muted); }
+.chat-composer-input:disabled { opacity: .6; }
+.chat-composer-icon { flex: none; display: inline-grid; place-items: center; width: 36px; height: 36px; min-height: 36px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--paper); cursor: pointer; transition: background-color 120ms ease, opacity 120ms ease; }
+.chat-composer-icon:hover:not(:disabled) { background: color-mix(in srgb, var(--paper) 8%, transparent); }
+.chat-composer-icon:disabled { opacity: .35; cursor: default; }
+.chat-composer-icon svg { width: 22px; height: 22px; stroke-width: 1.6; }
+.chat-composer-send { background: var(--paper); color: var(--surface-1); }
+.chat-composer-send:hover:not(:disabled) { background: color-mix(in srgb, var(--paper) 85%, transparent); }
+.chat-composer-send:disabled { background: color-mix(in srgb, var(--paper) 18%, transparent); color: var(--surface-1); opacity: 1; }
+.chat-composer-send svg { width: 18px; height: 18px; stroke-width: 2.2; }
+.chat-composer-stop span { display: block; width: 22px; height: 22px; border: 2px solid currentColor; border-radius: 50%; position: relative; }
+.chat-composer-stop span::after { content: ''; position: absolute; inset: 5px; border-radius: 2px; background: currentColor; }
+.chat-composer-notices { display: grid; gap: var(--space-1); color: var(--muted); font-size: 12px; }
+.chat-composer-notices .composer-notice { margin: 0; }
+.chat-composer-attachments, .chat-composer-queue { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.chat-composer-chip, .chat-composer-queue li { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 6px 4px 10px; border: 1px solid var(--hairline); border-radius: 999px; font-size: 12px; color: var(--paper); background: color-mix(in srgb, var(--paper) 4%, transparent); }
+.chat-composer-chip span, .chat-composer-queue li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-composer-chip svg, .chat-composer-queue li > svg { width: 14px; height: 14px; flex: none; color: var(--muted); }
+.chat-composer-queue { flex-direction: column; padding-inline: var(--space-3); }
+.chat-composer-queue li { border-radius: 12px; }
+.chat-composer-chip-remove { display: inline-grid; place-items: center; width: 20px; height: 20px; min-height: 20px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
+.chat-composer-chip-remove:hover { color: var(--paper); background: color-mix(in srgb, var(--paper) 10%, transparent); }
+.chat-composer-chip-remove svg { width: 12px; height: 12px; }
+.chat-composer-footer { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding-inline: var(--space-4); min-height: 28px; color: var(--muted); font-size: 14px; }
+.chat-composer-footer-start, .chat-composer-footer-end { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.chat-composer-footer-end { justify-content: flex-end; }
+/* Controls in the footer read as plain text until hovered. */
+.chat-composer-footer button, .chat-composer-footer [role="button"] { border: 0 !important; background: transparent !important; box-shadow: none !important; color: var(--muted); padding: 2px 4px; min-height: 28px; font-size: 14px; }
+.chat-composer-footer button:hover, .chat-composer-footer [role="button"]:hover { color: var(--paper); }
+@media (max-width: 640px) {
+  .chat-composer { width: calc(100% - 2 * var(--space-2)); }
+  .chat-composer-footer { flex-wrap: wrap; padding-inline: var(--space-2); }
+}

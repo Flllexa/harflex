@@ -569,6 +569,8 @@ export interface Backend {
   listSessions(workspaceId: string): Promise<Session[]>
   /** The project's conversations whose run is still going or waiting for an approval, newest first. */
   listRunningSessions(workspaceId: string): Promise<RunningSession[]>
+  /** Saves a file attached to a chat message where the conversation's tools can read it; returns its relative path. */
+  saveChatAttachment(input: { sessionId: string; workspaceId: string; name: string; data: string }): Promise<{ path: string }>
   openSession(sessionId: string, workspaceId: string): Promise<Session>
   exportAudit(sessionId: string, destination: string): Promise<string>
   prompt(sessionId: string, text: string): Promise<RunResult>

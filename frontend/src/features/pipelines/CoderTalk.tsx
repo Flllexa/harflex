@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { CircleHelp, MessageSquareReply, Play, TriangleAlert } from 'lucide-react'
+import { CircleHelp, Play, TriangleAlert } from 'lucide-react'
 import type { Backend, CoderStatus, Pipeline } from '../../lib/backend'
 import { Markdown } from '../../components/Markdown'
+import { ChatComposer } from '../../components/ChatComposer'
 import { useT } from '../../i18n'
 
 /** Where the Coder of this work stands, read again whenever its run changes and every few seconds while Code is open. */
@@ -65,11 +66,9 @@ export function CoderTalk({ status, disabled, onReply, review = false }: Props) 
           <textarea rows={2} value={answers[index] ?? ''} disabled={disabled || sending} placeholder={t('Sua resposta')} onChange={event => setAnswers(current => { const next = [...current]; next[index] = event.target.value; return next })} /></label>
       </div>
     </li>)}</ol>}
-    <label className="coder-talk-note"><span>{questions.length ? t('Algo mais para o Coder (opcional)') : t('Sua resposta ao Coder')}</span>
-      <textarea rows={2} value={note} disabled={disabled || sending} onChange={event => setNote(event.target.value)} placeholder={t('Uma decisão, um caminho, um detalhe que ele precisa saber')} /></label>
-    <div className="coder-talk-actions">
-      {!asking && <button type="button" className="touch-target secondary-button" disabled={disabled || sending} onClick={() => void send(keepGoing)}><Play aria-hidden="true" />{t('Pedir para continuar')}</button>}
-      <button type="button" className="touch-target primary-button" disabled={disabled || sending || !composed} onClick={() => void send(composed)}><MessageSquareReply aria-hidden="true" />{review ? t('Pedir revisão com esta resposta') : t('Responder ao Coder')}</button>
-    </div>
+    <ChatComposer id="coder-talk-note" label={questions.length ? t('Algo mais para o Coder (opcional)') : t('Sua resposta ao Coder')} value={note} onChange={setNote} disabled={disabled || sending}
+      placeholder={t('Uma decisão, um caminho, um detalhe que ele precisa saber')} canSend={!disabled && !sending && !!composed} onSend={() => void send(composed)}
+      sendLabel={review ? t('Pedir revisão com esta resposta') : t('Responder ao Coder')}
+      footerStart={!asking ? <button type="button" className="touch-target text-button" disabled={disabled || sending} onClick={() => void send(keepGoing)}><Play aria-hidden="true" />{t('Pedir para continuar')}</button> : undefined} />
   </section>
 }

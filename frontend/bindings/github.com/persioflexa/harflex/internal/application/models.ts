@@ -453,6 +453,13 @@ export interface ChannelMessageDTO {
     "updatedAt": string;
 }
 
+export interface ChatAttachmentDTO {
+    /**
+     * Path is relative to the folder the conversation's tools read, with forward slashes.
+     */
+    "path": string;
+}
+
 /**
  * ChatCommandEventDTO is one chunk of a chat command's output, or its end.
  */
@@ -1291,6 +1298,20 @@ export interface SaveAuthoringStageModelPreferenceInput {
     "effortMode": string;
     "explicitEffort": string;
     "selection": APIModelSelectionInput;
+}
+
+export interface SaveChatAttachmentInput {
+    /**
+     * SessionID is empty for the first message of a chat that does not exist yet.
+     */
+    "sessionId": string;
+    "workspaceId": string;
+    "name": string;
+
+    /**
+     * Data is the file, base64-encoded.
+     */
+    "data": string;
 }
 
 export interface SaveKnowledgeEmbeddingProfileInput {

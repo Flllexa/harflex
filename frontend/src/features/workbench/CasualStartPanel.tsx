@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, type FormEvent, type ReactNode, type RefObject } from 'react'
-import { Compass, Layers, MessageSquarePlus, Search, Send, Settings2, Workflow } from 'lucide-react'
+import { Compass, Layers, MessageSquarePlus, Search, Settings2, Workflow } from 'lucide-react'
 import type { BackendOption, ModelCatalogResult } from '../../lib/backend'
+import { ChatComposer } from '../../components/ChatComposer'
 import { ChatModelBar } from './ChatModelBar'
 import { useT } from '../../i18n'
 import './casualStart.css'
@@ -86,19 +87,13 @@ export function CasualStartPanel({ firstPrompt, onFirstPrompt, onSubmit, backend
       <button ref={providerTrigger} type="button" className="text-button casual-configure" onClick={onConfigure} disabled={pending}><Settings2 aria-hidden="true" />{t('Configurar provedor')}</button>
     </div>
 
-    <form className="composer composer-card" onSubmit={onSubmit}>
-      <label className="visually-hidden" htmlFor="casual-start-input">{t('Mensagem inicial')}</label>
-      <textarea ref={composer} id="casual-start-input" className="composer-input" rows={1} value={firstPrompt} maxLength={20000} required disabled={pending}
-        placeholder={t('Descreva o trabalho · Enter envia, Shift+Enter quebra a linha')} onChange={event => onFirstPrompt(event.target.value)}
-        onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && canStart && !pending) { event.preventDefault(); event.currentTarget.form?.requestSubmit() } }} />
-      <div className="composer-card-actions">
+    <ChatComposer id="casual-start-input" label={t('Mensagem inicial')} value={firstPrompt} onChange={onFirstPrompt} maxLength={20000} disabled={pending} inputRef={composer}
+      canSend={canStart && !pending && !!firstPrompt.trim()} onSend={() => onSubmit({ preventDefault() {} } as FormEvent)} sendLabel={pending ? t('Iniciando…') : t('Enviar')}
+      footerStart={permissionControl} footerEnd={<>
         <ChatModelBar backends={backends} backendId={selectedBackend} onBackend={onBackend} fixedModel={apiModelName} loading={catalogLoading}
           modelOptions={listed.map(item => ({ value: item.id, label: item.displayName || item.id, disabled: item.availability === 'unavailable' }))} modelId={modelId} onModel={onModel}
           efforts={model?.supportedReasoningEfforts ?? []} effort={effort} onEffort={onEffort} disabled={pending} />
         {projectControl}
-        {permissionControl && <div className="composer-card-permission">{permissionControl}</div>}
-        <button type="submit" className="touch-target primary-button composer-card-send" disabled={!canStart || pending}><Send aria-hidden="true" />{pending ? t('Iniciando…') : t('Enviar')}</button>
-      </div>
-    </form>
+      </>} />
   </section>
 }

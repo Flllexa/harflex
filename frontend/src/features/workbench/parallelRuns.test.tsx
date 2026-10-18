@@ -150,3 +150,48 @@ describe('running Coders', () => {
     await waitFor(() => expect(verified).toEqual(['pipeline-1']))
   })
 })
+
+describe('the chat composer', () => {
+  afterEach(() => { cleanup(); localStorage.clear() })
+
+  it('queues a message with Cmd+Enter and sends it when the answer ends', async () => {
+    const user = userEvent.setup()
+    const { backend, finish } = twoChats()
+    const sent: string[] = []
+    const prompt = backend.prompt
+    backend.prompt = (sessionId, text) => { sent.push(text); return prompt(sessionId, text) }
+    localStorage.setItem('harflex:view-mode', 'casual')
+    render(<App backend={backend} />)
+    await openProject(user)
+    await user.click(await screen.findByRole('button', { name: /Pedido do chat A/ }))
+    await user.type(await screen.findByLabelText('Mensagem'), 'Primeiro{Enter}')
+    await screen.findByText('Primeiro')
+    await user.type(screen.getByLabelText('Mensagem'), 'Depois rode os testes')
+    await user.keyboard('{Meta>}{Enter}{/Meta}')
+    expect(await screen.findByRole('list', { name: 'Na fila · 1' })).toHaveTextContent('Depois rode os testes')
+    expect(screen.getByLabelText('Mensagem')).toHaveValue('')
+    expect(sent).toEqual(['Primeiro'])
+    finish('chat-a', 'Feito')
+    await waitFor(() => expect(sent).toEqual(['Primeiro', 'Depois rode os testes']))
+    expect(screen.queryByRole('list', { name: /Na fila/ })).not.toBeInTheDocument()
+  })
+
+  it('sends an attached text file with the message', async () => {
+    const user = userEvent.setup()
+    const { backend } = twoChats()
+    const sent: string[] = []
+    const prompt = backend.prompt
+    backend.prompt = (sessionId, text) => { sent.push(text); return prompt(sessionId, text) }
+    localStorage.setItem('harflex:view-mode', 'casual')
+    render(<App backend={backend} />)
+    await openProject(user)
+    await user.click(await screen.findByRole('button', { name: /Pedido do chat A/ }))
+    await user.upload(await screen.findByLabelText('Arquivos para anexar'), new File(['regra: usar UTC'], 'regras.md', { type: 'text/markdown' }))
+    expect(await screen.findByRole('list', { name: 'Anexos' })).toHaveTextContent('regras.md')
+    await user.type(screen.getByLabelText('Mensagem'), 'Siga as regras{Enter}')
+    await waitFor(() => expect(sent).toHaveLength(1))
+    expect(sent[0]).toContain('Siga as regras')
+    expect(sent[0]).toContain('regra: usar UTC')
+    expect(screen.queryByRole('list', { name: 'Anexos' })).not.toBeInTheDocument()
+  })
+})

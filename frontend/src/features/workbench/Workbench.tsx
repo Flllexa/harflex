@@ -8,6 +8,7 @@ import { cliCatalogProblem, codedError, errorCode, errorMessage, type Agent, typ
 import { checkReplayOutcome, replayErrorMessage, replaySession, type ReplayExpectation } from '../../lib/replay'
 import { useRecentWork, workProgress } from '../pipelines/RecentWork'
 import { useVerifyCoderWhenDone } from './useVerifyCoderWhenDone'
+import { useAttachments } from './useAttachments'
 import { createSessionStore, runIsLive, sessionReadOnly, type SessionState } from '../../state/session'
 import { saveChatDraft, takeChatDraft } from '../../state/chatDrafts'
 import { ProviderDialog } from '../settings/ProviderDialog'
@@ -178,6 +179,12 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
   const [running, setRunning] = useState<RunningSession[]>([])
   const watchedCoders = useRef(new Map<string, string>())
   const runningTap = useRef<(event: AgentEvent) => void>()
+  // Files attached to the next message, and messages queued behind the answer in progress, per conversation.
+  const attachments = useAttachments(backend, state.workspace?.id, state.session?.id)
+  const clearAttachments = attachments.clear
+  useEffect(() => { clearAttachments() }, [state.session?.id, clearAttachments])
+  const [queues, setQueues] = useState<Record<string, string[]>>({})
+  const focusedQueue = state.session ? queues[state.session.id] ?? [] : []
   const runningWorkspace = state.workspace?.id
   useEffect(() => {
     if (!runningWorkspace) { setRunning([]); return }
@@ -524,11 +531,36 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     }
   }
 
-  async function sendPrompt(text: string) {
+  // Cmd+Enter while the AI answers: the message waits and goes out by itself when this conversation's answer ends.
+  function queueMessage() {
+    const current = store.getState()
+    if (!current.session || !current.draft.trim()) return
+    const text = `${current.draft.trimEnd()}${attachments.block()}`
+    const sessionId = current.session.id
+    attachments.clear()
+    setQueues(all => ({ ...all, [sessionId]: [...(all[sessionId] ?? []), text] }))
+    updateDraft('')
+  }
+  function unqueueMessage(index: number) {
+    const sessionId = store.getState().session?.id
+    if (!sessionId) return
+    setQueues(all => ({ ...all, [sessionId]: (all[sessionId] ?? []).filter((_, position) => position !== index) }))
+  }
+  useEffect(() => {
+    const sessionId = state.session?.id
+    const queue = sessionId ? queues[sessionId] : undefined
+    if (!sessionId || !queue?.length || state.calling || runIsLive(state) || loadingHistory || state.readOnly || state.connectionState !== 'ready') return
+    const [next, ...rest] = queue
+    setQueues(all => ({ ...all, [sessionId]: rest }))
+    void sendPrompt(next)
+  }, [state.session?.id, state.calling, state.activeRun, state.readOnly, state.connectionState, loadingHistory, queues])
+
+  async function sendPrompt(text: string, attached = '') {
     const signal = lifetime.current?.signal
     const current = store.getState()
     const carried = continuationContext.current?.sessionId === current.session?.id ? continuationContext.current : undefined
-    const sent = carried ? `${text.trimEnd()}${carried.context}` : text
+    const withFiles = attached ? `${text.trimEnd()}${attached}` : text
+    const sent = carried ? `${withFiles.trimEnd()}${carried.context}` : withFiles
     pendingDraft.current = { sessionId: current.session?.id ?? '', text: sent, draft: text, afterSequence: current.contiguousSequence, draftRevision: draftRevision.current }
     await run(id => backend.prompt(id, sent))
     if (signal?.aborted) return
@@ -582,7 +614,8 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
   const conversation = state.session?.purpose === 'preparation'
     ? <section className="setup-step"><h2>{t('Preparação do trabalho')}</h2><p className="muted">{t('A conversa de Discovery, SPEC e Plan está na área do trabalho.')}</p><button type="button" className="touch-target primary-button" onClick={() => onNavigate('Pipelines')}>{t('Abrir documentos e atividade')}</button></section>
     : state.session
-    ? <ConversationPane sessionKey={state.session?.id} commands={commands} state={state} loadingHistory={loadingHistory} cancelPending={cancelPending} permissionControl={state.workspace ? <PermissionPicker backend={backend} workspace={state.workspace} onWorkspaceUpdated={workspace => store.setState({ workspace })} /> : undefined} viewMode={viewMode} backendLabel={backendLabel(state)} modelBar={modelBar} projectControl={viewMode === 'casual' && state.workspace ? <ChatProjectPicker backend={backend} workspace={state.workspace} disabled={loadingHistory} onPick={path => void switchProject(path)} /> : undefined} switchModel={chatChoice.changed ? { usable: chatChoice.usable, onReset: chatChoice.reset } : undefined} delegationParentId={delegation?.parentSessionId} delegation={delegation} queuedTask={queuedTask} onPrepareDelegatedTask={() => { if (!store.getState().draft && queuedTask) store.getState().setDraft(queuedTask) }} onOpenParent={() => { if (delegation) void openDelegatedSession(delegation.parentSessionId).catch(failure => store.setState({ error: errorMessage(failure) })) }} onDraft={updateDraft} onPrompt={sendPrompt} onResolve={(approvalId, allow) => { void run(id => backend.approve(id, approvalId, allow)) }} onCancel={cancel} onRetry={retryReplay} onContinue={text => continueInNewChat(text, chatChoice.changed ? chatChoice.choice : undefined)} onPipelineChoice={choosePipeline} onNewWork={recoveryPrompt => {
+    ? <ConversationPane sessionKey={state.session?.id} commands={commands} state={state} loadingHistory={loadingHistory} cancelPending={cancelPending} permissionControl={state.workspace ? <PermissionPicker backend={backend} workspace={state.workspace} onWorkspaceUpdated={workspace => store.setState({ workspace })} /> : undefined} viewMode={viewMode} backendLabel={backendLabel(state)} modelBar={modelBar} projectControl={viewMode === 'casual' && state.workspace ? <ChatProjectPicker backend={backend} workspace={state.workspace} disabled={loadingHistory} onPick={path => void switchProject(path)} /> : undefined} switchModel={chatChoice.changed ? { usable: chatChoice.usable, onReset: chatChoice.reset } : undefined} delegationParentId={delegation?.parentSessionId} delegation={delegation} queuedTask={queuedTask} onPrepareDelegatedTask={() => { if (!store.getState().draft && queuedTask) store.getState().setDraft(queuedTask) }} onOpenParent={() => { if (delegation) void openDelegatedSession(delegation.parentSessionId).catch(failure => store.setState({ error: errorMessage(failure) })) }} onDraft={updateDraft} onPrompt={text => { const attached = attachments.block(); attachments.clear(); void sendPrompt(text, attached) }}
+      queued={focusedQueue} onQueue={queueMessage} onUnqueue={unqueueMessage} attachments={attachments.items} onAttach={files => void attachments.attach(files)} onRemoveAttachment={attachments.remove} attachError={attachments.error} onResolve={(approvalId, allow) => { void run(id => backend.approve(id, approvalId, allow)) }} onCancel={cancel} onRetry={retryReplay} onContinue={text => continueInNewChat(text, chatChoice.changed ? chatChoice.choice : undefined)} onPipelineChoice={choosePipeline} onNewWork={recoveryPrompt => {
       if (!state.workspace || state.readOnly && loadingHistory) return
       historyOpenOrder.current++
       setInitialChatPrompt(userChat ? recoveryPrompt ?? '' : '')

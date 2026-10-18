@@ -1,6 +1,7 @@
-import { useLayoutEffect, useMemo, useRef, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
-import { ChevronLeft, Info, Lock, Pause, RefreshCw, Send, Square } from 'lucide-react'
+import { useLayoutEffect, useMemo, useRef, type FormEvent, type ReactNode } from 'react'
+import { ChevronLeft, Info, Lock, Pause, RefreshCw } from 'lucide-react'
 import { runIsLive, type SessionState } from '../../state/session'
+import { ChatComposer, type ComposerAttachment } from '../../components/ChatComposer'
 import { ApprovalCard } from './ApprovalCard'
 import { ToolCallCard, toolTarget } from './ToolCallCard'
 import { Markdown } from '../../components/Markdown'
@@ -102,6 +103,14 @@ type Props = {
   loadingHistory: boolean
   /** The project's permission control, drawn above the message box. */
   permissionControl?: ReactNode
+  /** Messages waiting for the current answer to end, sent one by one after it. */
+  queued?: string[]
+  onQueue?: () => void
+  onUnqueue?: (index: number) => void
+  attachments?: ComposerAttachment[]
+  onAttach?: (files: File[]) => void
+  onRemoveAttachment?: (id: string) => void
+  attachError?: string
   /** Backend that runs this session, shown beside the session controls. */
   backendLabel?: string
   /** Provider, model and effort of the chat (Casual), in place of the backend label. */
@@ -114,9 +123,8 @@ type Props = {
   sessionKey?: string
 }
 
-const composerMaxHeight = 200
 
-export function ConversationPane({ sessionKey, state, loadingHistory, permissionControl, viewMode, cancelPending = false, delegationParentId, delegation, queuedTask, onPrepareDelegatedTask, onOpenParent, onDraft, onPrompt, onResolve, onCancel, onRetry, onNewWork, onContinue, onPipelineChoice, commands, backendLabel, modelBar, switchModel, projectControl }: Props) {
+export function ConversationPane({ sessionKey, state, loadingHistory, permissionControl, queued = [], onQueue, onUnqueue, attachments = [], onAttach, onRemoveAttachment, attachError, viewMode, cancelPending = false, delegationParentId, delegation, queuedTask, onPrepareDelegatedTask, onOpenParent, onDraft, onPrompt, onResolve, onCancel, onRetry, onNewWork, onContinue, onPipelineChoice, commands, backendLabel, modelBar, switchModel, projectControl }: Props) {
   const t = useT()
   const draft = state.draft
   const running = state.activeRun === 'running'
@@ -154,12 +162,6 @@ export function ConversationPane({ sessionKey, state, loadingHistory, permission
     if (state.messages.length === 0) following.current = true
     if (element && following.current) element.scrollTop = element.scrollHeight
   }, [state.messages, loadingHistory])
-  useLayoutEffect(() => {
-    const element = composer.current
-    if (!element) return
-    element.style.height = 'auto'
-    element.style.height = `${Math.min(element.scrollHeight, composerMaxHeight)}px`
-  }, [draft])
   function trackScroll() {
     const element = log.current
     if (element) following.current = element.scrollHeight - element.scrollTop - element.clientHeight < 64
@@ -170,9 +172,6 @@ export function ConversationPane({ sessionKey, state, loadingHistory, permission
     following.current = true
     if (continuing) onContinue(draft)
     else onPrompt(draft)
-  }
-  function composerKey(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) submit(event)
   }
   return <div className={`conversation${viewMode === 'casual' ? ' conversation-casual' : ''}`}>
     {(!emptyCasual || !!draft.trim() || !!modelBar) && <div className="conversation-actions"><button type="button" className="touch-target secondary-button" onClick={() => onNewWork(carriedRequest || undefined)} disabled={state.readOnly && loadingHistory}>{newWorkLabel === 'Sessões do projeto' && <ChevronLeft aria-hidden="true" />}{t(newWorkLabel)}</button>{delegationParentId && <button type="button" className="touch-target secondary-button" onClick={onOpenParent} disabled={loadingHistory}>{t('Voltar à sessão pai')}</button>}{!modelBar && backendLabel && <span className="conversation-backend muted">{backendLabel}</span>}</div>}
@@ -204,29 +203,24 @@ export function ConversationPane({ sessionKey, state, loadingHistory, permission
         <span>{displayedStatus}</span>
         {liveWork && <span className="run-status-motion" aria-hidden="true"><i /><i /><i /></span>}
       </div>}
-      {permissionControl && !modelBar && <div className="composer-toolbar">{permissionControl}</div>}
     </div>
     {state.connectionState === 'degraded' && <button type="button" className="touch-target secondary-button" disabled={state.calling} onClick={onRetry}>{t('Atualizar eventos')}</button>}
-    <form className={`composer${modelBar ? ' composer-card' : ''}`} onSubmit={submit}>
-      {/* What the box will do with the next message is said inside it, on one quiet line, never between the run and the box. */}
-      {state.readOnly ? <p className="composer-notice"><Lock aria-hidden="true" /><span>{continuing
-        ? t('Somente leitura: esta execução foi encerrada. O que você enviar abre um novo chat com o contexto desta conversa.')
-        : t('Somente leitura: esta execução foi encerrada. Inicie um novo chat para continuar.')}</span></p>
-        : state.activeRun === 'paused' && <p className="composer-notice"><Pause aria-hidden="true" /><span>{t('Envie uma mensagem para retomar o trabalho. Revise os resultados das ferramentas interrompidas.')}</span></p>}
-      {!state.readOnly && draft.trim() && viewMode !== 'casual' && <p className="composer-notice"><Info aria-hidden="true" /><span>{t('Se iniciar outro trabalho, este rascunho será levado para revisão e permanecerá sem envio automático.')}</span></p>}
-      {switchModel && <p className="composer-notice chat-model-note" role="status"><RefreshCw aria-hidden="true" /><span>{switchModel.usable ? t('A próxima mensagem abre um novo chat com esta escolha, levando o contexto desta conversa.') : t('Escolha um modelo disponível para continuar com este provedor.')}</span> <button type="button" className="text-button" onClick={switchModel.onReset}>{t('Manter o atual')}</button></p>}
-      <label className="visually-hidden" htmlFor="composer-input">{t('Mensagem')}</label>
-      <textarea ref={composer} id="composer-input" className="composer-input" rows={1} value={draft} disabled={state.readOnly && !continuing || continuing && state.calling || loadingHistory} placeholder={switching ? t('Enter envia e abre um novo chat com o modelo escolhido, levando o contexto') : continuing ? t('Continue de onde parou · Enter envia e abre um novo chat com o contexto') : t('Descreva o trabalho · Enter envia, Shift+Enter quebra a linha')} onChange={event => onDraft(event.target.value)} onKeyDown={composerKey} />
-      {modelBar ? <div className="composer-card-actions">
-        {modelBar}
-        {projectControl}
-        {permissionControl && <div className="composer-card-permission">{permissionControl}</div>}
-        {running || cancelPending
-          ? <button type="button" className="touch-target secondary-button composer-card-send" disabled={cancelPending} onClick={event => { event.preventDefault(); event.stopPropagation(); onCancel() }}><Square aria-hidden="true" />{cancelPending ? t('Cancelando…') : t('Cancelar execução')}</button>
-          : <button type="submit" className="touch-target primary-button composer-card-send" disabled={!canSend}><Send aria-hidden="true" />{t('Enviar')}</button>}
-      </div> : running || cancelPending
-        ? <button type="button" className="touch-target secondary-button" disabled={cancelPending} onClick={event => { event.preventDefault(); event.stopPropagation(); onCancel() }}><Square aria-hidden="true" />{cancelPending ? t('Cancelando…') : t('Cancelar execução')}</button>
-        : <button type="submit" className="touch-target primary-button" disabled={!canSend}><Send aria-hidden="true" />{t('Enviar')}</button>}
-    </form>
+    <ChatComposer id="composer-input" label={t('Mensagem')} value={draft} onChange={onDraft} onSend={() => submit()} canSend={canSend} inputRef={composer}
+      disabled={state.readOnly && !continuing || continuing && state.calling || loadingHistory}
+      placeholder={switching ? t('Enter envia e abre um novo chat com o modelo escolhido, levando o contexto') : continuing ? t('Continue de onde parou · Enter envia e abre um novo chat com o contexto') : undefined}
+      running={running || state.calling && !loadingHistory && !continuing} stopping={cancelPending} onStop={onCancel}
+      onQueue={!state.readOnly && onQueue ? onQueue : undefined} queued={queued} onUnqueue={onUnqueue}
+      attachments={attachments} onAttach={!state.readOnly ? onAttach : undefined} onRemoveAttachment={onRemoveAttachment}
+      notices={<>
+        {/* What the box will do with the next message is said inside it, on one quiet line, never between the run and the box. */}
+        {state.readOnly ? <p className="composer-notice"><Lock aria-hidden="true" /><span>{continuing
+          ? t('Somente leitura: esta execução foi encerrada. O que você enviar abre um novo chat com o contexto desta conversa.')
+          : t('Somente leitura: esta execução foi encerrada. Inicie um novo chat para continuar.')}</span></p>
+          : state.activeRun === 'paused' && <p className="composer-notice"><Pause aria-hidden="true" /><span>{t('Envie uma mensagem para retomar o trabalho. Revise os resultados das ferramentas interrompidas.')}</span></p>}
+        {!state.readOnly && draft.trim() && viewMode !== 'casual' && <p className="composer-notice"><Info aria-hidden="true" /><span>{t('Se iniciar outro trabalho, este rascunho será levado para revisão e permanecerá sem envio automático.')}</span></p>}
+        {switchModel && <p className="composer-notice chat-model-note" role="status"><RefreshCw aria-hidden="true" /><span>{switchModel.usable ? t('A próxima mensagem abre um novo chat com esta escolha, levando o contexto desta conversa.') : t('Escolha um modelo disponível para continuar com este provedor.')}</span> <button type="button" className="text-button" onClick={switchModel.onReset}>{t('Manter o atual')}</button></p>}
+        {attachError && <p className="composer-notice" role="alert"><Info aria-hidden="true" /><span>{attachError}</span></p>}
+      </>}
+      footerStart={permissionControl} footerEnd={<>{modelBar}{projectControl}</>} />
   </div>
 }

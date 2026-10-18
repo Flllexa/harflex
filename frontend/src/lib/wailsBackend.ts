@@ -247,6 +247,7 @@ export const wailsBackend: Backend = {
   createDirectSession: async input => parse.session(await Service.CreateDirectSession({ ...input, agentId: input.agentId ?? '', modelId: input.modelId ?? '', reasoningEffort: input.reasoningEffort ?? '', catalogRevision: input.catalogRevision ?? '' })),
   getSessionModelSelection: async sessionId => parse.sessionModelSelection(await Service.GetSessionModelSelection(sessionId)),
   listSessions: async workspaceId => parse.sessions(await Service.ListSessions({ workspaceId: parse.id(workspaceId) })),
+  saveChatAttachment: async input => { const saved = await Service.SaveChatAttachment(input); return { path: String(saved?.path ?? '') } },
   listRunningSessions: async workspaceId => parse.runningSessions(await Service.ListRunningSessions({ workspaceId: parse.id(workspaceId) })),
   openSession: async (sessionId, workspaceId) => parse.session(await Service.OpenSession({ sessionId: parse.id(sessionId), workspaceId: parse.id(workspaceId) })),
   exportAudit: async (sessionId, destination) => parse.auditPath(await Service.ExportAudit({ sessionId: parse.id(sessionId), destination: parse.auditPath(destination) })),

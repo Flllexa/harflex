@@ -682,6 +682,15 @@ export function SaveAuthoringStageModelPreference($in: $models.SaveAuthoringStag
     return $Call.ByID(1994367139, $in);
 }
 
+/**
+ * SaveChatAttachment keeps a file the person attached (an image the model reads with its tools) in the folder the
+ * conversation works in: the project, or the private copy of a Code or QA run. It lives under .harflex/attachments,
+ * which ignores itself in git, so it never reaches a commit, a patch or a pull request.
+ */
+export function SaveChatAttachment($in: $models.SaveChatAttachmentInput): $CancellablePromise<$models.ChatAttachmentDTO> {
+    return $Call.ByID(1686914163, $in);
+}
+
 export function SaveKnowledgeEmbeddingProfile($in: $models.SaveKnowledgeEmbeddingProfileInput): $CancellablePromise<$models.KnowledgeEmbeddingProfileDTO> {
     return $Call.ByID(3634686722, $in);
 }

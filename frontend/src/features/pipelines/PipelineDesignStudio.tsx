@@ -1,6 +1,7 @@
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
-import { ArrowRight, FileText, MessageSquare, RefreshCw, Send, Square } from 'lucide-react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { ArrowRight, FileText, MessageSquare, RefreshCw, Square } from 'lucide-react'
 import { errorMessage, type Backend, type Pipeline, type PipelineDesign, type PipelineDesignRef, type PipelineDesignStage, type PreparePipelineDesignInput, type SDDModelSelection, type StageExecutor } from '../../lib/backend'
+import { ChatComposer } from '../../components/ChatComposer'
 import { IonPicker } from '../../components/IonPicker'
 import { DesignMarkdown, PipelineDesignDocument, designLabels, designStageOrder, savedManualEditorStage } from './PipelineDesignDocument'
 import { PipelineDesignModel } from './PipelineDesignModel'
@@ -252,7 +253,6 @@ export function PipelineDesignStudio({ backend, pipeline, stageExecutors = [], o
     } catch (failure) { if (validScope(ticket)) setError(errorMessage(failure)) }
     finally { if (validScope(ticket)) setCommand(undefined) }
   }
-  function send(event: FormEvent) { event.preventDefault(); if (message.trim() && canSend) void prepare(message, target) }
   const required = design ? gateStages(design, pipeline) : [], flowGate = !required.includes('plan')
   const stale = required.filter(item => design?.documents[item]?.stale), incomplete = required.some(item => !design?.documents[item]?.content.trim()), latest = design && designStageOrder.map(item => design.documents[item]).filter(item => item.version).sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0]
   const conversation = design?.messages.filter((item, index) => !(index === 0 && item.role === 'user' && item.target === 'discovery' && !item.attemptId && item.content === design.versions.discovery[0]?.content)) ?? []
@@ -271,7 +271,10 @@ export function PipelineDesignStudio({ backend, pipeline, stageExecutors = [], o
       </div>
       <div className="design-progress" aria-live={phaseSession ? undefined : 'polite'}>{design.state === 'cancellation_pending' ? <p>{t('Aguardando a confirmação do cancelamento. Os documentos estão protegidos.')}</p> : design.state === 'running' || pending === 'prepare' ? <><SessionRunProgress key={phaseSession} backend={backend} sessionId={phaseSession} title={t('Preparando {phase}', { phase })} fallback={<p><RefreshCw className="design-preparing-icon" aria-hidden="true" />{design.state === 'running' ? t('Preparando {phase}…', { phase }) : t('Iniciando preparação…')}</p>} />{design.activeAttemptId && <button type="button" className="touch-target secondary-button" onClick={() => void cancel()} disabled={pending === 'cancel'}><Square aria-hidden="true" />{t('Cancelar preparação')}</button>}</> : latest ? <span className="muted">{t('Última atualização · {label} v{version} · {time}', { label: designLabels[latest.stage], version: latest.version, time: new Date(latest.updatedAt).toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' }) })}</span> : null}</div>
       {failedMessage && <div className="design-retry"><button type="button" className="touch-target secondary-button" onClick={() => void prepare(failedMessage.content, designStageOrder.includes(failedMessage.target as PipelineDesignStage) ? failedMessage.target as PipelineDesignStage : 'all', undefined, false)} disabled={!canGenerate || failedMessage.target === 'plan' && design.documents.spec.stale}>{t('Tentar preparação novamente')}</button></div>}
-      {!design.needsDerivation && <form className="design-composer" onSubmit={send}><label className="field">{t('Pedido para a IA')}<textarea value={message} onChange={event => setMessage(event.target.value)} placeholder={t('O que você quer ajustar nos documentos?')} rows={3} maxLength={20000} /></label>{target === 'plan' && design.documents.spec.stale && <p className="design-stale" role="status">{staleSpecMessage}</p>}<div className="design-composer-actions"><IonPicker id="design-target" label={t('Alterar')} value={target} onChange={value => setTarget(value as PipelineDesignStage | 'all')} disabled={fenced || editing} options={[{ value: 'all', label: t('Todos') }, ...designStageOrder.map(item => ({ value: item, label: designLabels[item] }))]} /><button type="submit" className="touch-target primary-button" disabled={!message.trim() || !canSend}><Send aria-hidden="true" />{t('Enviar pedido')}</button></div></form>}
+      {!design.needsDerivation && <div className="design-composer"><ChatComposer id="design-request" label={t('Pedido para a IA')} value={message} onChange={setMessage} maxLength={20000}
+        placeholder={t('O que você quer ajustar nos documentos? ↵ envia, ⇧↵ quebra a linha')} canSend={!!message.trim() && canSend} onSend={() => void prepare(message, target)} sendLabel={t('Enviar pedido')}
+        notices={target === 'plan' && design.documents.spec.stale ? <p className="design-stale" role="status">{staleSpecMessage}</p> : undefined}
+        footerEnd={<IonPicker id="design-target" label={t('Alterar')} value={target} onChange={value => setTarget(value as PipelineDesignStage | 'all')} disabled={fenced || editing} options={[{ value: 'all', label: t('Todos') }, ...designStageOrder.map(item => ({ value: item, label: designLabels[item] }))]} />} /></div>}
       {!design.needsDerivation && <DesignQuestions backend={backend} design={design} disabled={!canGenerate} onSend={(text, destination) => void prepare(text, destination, undefined, false)} />}
       </section></>
   const brainstormRunning = !!design && (design.state === 'running' || pending === 'prepare') && (design.phase === 'brainstorm' || !design.documents.brainstorm.content)
