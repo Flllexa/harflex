@@ -30,15 +30,15 @@ function statusTextFor(translate: Translate): Record<ActionStatus, string> {
   return { waiting: translate('Na fila'), running: translate('Rodando'), approval: translate('Aguardando'), done: translate('Concluiu'), failed: translate('Falhou') }
 }
 
-const inspection = /^(cd|pwd|ls|cat|nl|head|tail|find|grep|rg|sed -n|wc|tree|command -v|which|type|echo|printf|true|stat|file|ps|node (-v|--version)|npm (-v|--version)|git (status|log|diff|show)|mkdir)\b/
+const inspection = /^(cd|pwd|ls|export|cat|nl|head|tail|find|grep|rg|sed -n|wc|tree|command -v|which|type|echo|printf|true|stat|file|ps|node (-v|--version)|npm (-v|--version)|git (status|log|diff|show)|mkdir)\b/
 
 // What one part of a command does. Reading around (listing, printing, checking what is installed) is inspection,
 // whatever names it mentions; otherwise the first match wins, so E2E comes before unit tests.
 function partKind(part: string): Kind {
   if (inspection.test(part)) return 'inspect'
-  if (/\b(npm|pnpm|yarn|bun)\s+(i|install|ci|add)\b|pip3? install|go mod download|bundle install|playwright install/.test(part)) return 'install'
+  if (/\b(npm|pnpm|yarn|bun)\s+(i|install|ci|add)\b|pip3? install|uv (sync|pip install)|poetry install|go mod download|bundle install|playwright install/.test(part)) return 'install'
   if (/playwright|cypress|puppeteer|e2e|chromium|webdriver/.test(part)) return 'e2e'
-  if (/\b(lint|eslint|golangci-lint|go vet|ruff|flake8|stylelint)\b|prettier --check|tsc --noemit|node --check/.test(part)) return 'lint'
+  if (/\b(lint|eslint|golangci-lint|go vet|ruff|flake8|stylelint|mypy|lint-imports|tsgo|type-check)\b|prettier --check|tsc --noemit|node --check/.test(part)) return 'lint'
   if (/\b(test|tests|vitest|jest|pytest|mocha|go test|cargo test)\b|node --test/.test(part)) return 'unit'
   if (/serve\b|http-server|http\.server|createserver|\bcurl\b|\bwget\b|localhost|127\.0\.0\.1|npm (run )?(start|dev)|\bvite\b/.test(part)) return 'run'
   if (/\b(build|go build|cargo build|webpack|tsc)\b|^make\b/.test(part)) return 'build'
@@ -93,6 +93,18 @@ export function QALiveRun({ backend, sessionId }: { backend: Backend; sessionId?
   const journal = useRunJournal(backend, sessionId)
   const progress = useMemo(() => buildRunProgress(journal), [journal])
   const commands = useMemo(() => buildActivityFlow(journal).actions.filter(action => action.kind === 'shell').map(action => ({ ...action, kinds: commandKinds(action.detail ?? '') })), [journal])
+  // One line per kind of check: a long QA runs dozens of commands, most of the same kinds, and a line for each read as a
+  // loop. The line shows how many ran, the latest one and how it went (running while any of them runs).
+  const groups = useMemo(() => {
+    const byKind = new Map<string, { id: string; kinds: Kind[]; latest: typeof commands[number]; count: number; running: boolean }>()
+    for (const item of commands) {
+      const key = item.kinds.join('+')
+      const group = byKind.get(key)
+      if (group) { group.latest = item; group.count++; group.running ||= item.status === 'running' }
+      else byKind.set(key, { id: key, kinds: item.kinds, latest: item, count: 1, running: item.status === 'running' })
+    }
+    return [...byKind.values()]
+  }, [commands])
   const seen = new Set(commands.flatMap(item => item.kinds))
   const upcoming = expected.filter(kind => !seen.has(kind))
   const current = commands.find(item => item.status === 'running')
@@ -104,12 +116,12 @@ export function QALiveRun({ backend, sessionId }: { backend: Backend; sessionId?
       {commands.length > 0 && <span className="muted"> · {t(commands.length === 1 ? '{count} comando' : '{count} comandos', { count: commands.length })}</span>}</p>
     <RunProgress progress={progress} metricsOnly />
     <ol className="qa-run qa-live-run">
-      {commands.map(item => { const { Icon } = kinds[item.kinds[0]]; const label = item.kinds.map(kind => kinds[kind].label).join(' · '); return <li key={item.id} className={`qa-run-row is-live is-${item.status}`}>
+      {groups.map(group => { const item = group.latest; const status = group.running ? 'running' : item.status; const { Icon } = kinds[group.kinds[0]]; const label = group.kinds.map(kind => kinds[kind].label).join(' · '); return <li key={group.id} className={`qa-run-row is-live is-${status}`}>
         <div className="qa-run-head">
-          <span className="qa-run-status" aria-hidden="true">{item.status === 'running' ? <LoaderCircle className="qa-spin" /> : item.status === 'done' ? <Check /> : item.status === 'failed' ? <CircleAlert /> : <CircleDashed />}</span>
+          <span className="qa-run-status" aria-hidden="true">{status === 'running' ? <LoaderCircle className="qa-spin" /> : status === 'done' ? <Check /> : status === 'failed' ? <CircleAlert /> : <CircleDashed />}</span>
           <span className="qa-live-name"><strong>{label}</strong>{item.detail && <code className="mono">{item.detail}</code>}</span>
-          <span className="qa-run-kind"><Icon aria-hidden="true" />{item.kinds[0] === 'other' ? 'Terminal' : kinds[item.kinds[0]].label}</span>
-          <span className="qa-run-result">{statusText[item.status]}</span>
+          <span className="qa-run-kind"><Icon aria-hidden="true" />{group.count > 1 ? t('{count} comandos', { count: group.count }) : group.kinds[0] === 'other' ? 'Terminal' : kinds[group.kinds[0]].label}</span>
+          <span className="qa-run-result">{statusText[status]}</span>
         </div>
       </li> })}
       {upcoming.map(kind => { const { label, Icon } = kinds[kind]; return <li key={kind} className="qa-run-row is-live is-upcoming">

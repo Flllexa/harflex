@@ -63,3 +63,36 @@ it('shows the model choosing its next step between commands, with no check prete
   expect(screen.queryByText(/Preparando/)).not.toBeInTheDocument()
   expect(screen.getAllByText('Ainda não começou')).toHaveLength(5)
 })
+
+// A long QA runs dozens of commands, most of the same kinds; one line per kind keeps the list from growing like a
+// loop: how many ran, the latest one and how it went.
+it('groups the commands by the check they run, with the latest one and how many ran', async () => {
+  const { backend } = createFakeBackend()
+  let sequence = 0
+  const event = (type: string, data: unknown): AgentEvent => ({ id: `e${++sequence}`, streamId: 'qa-3', sequence, type, data, createdAt: '2026-10-18T21:00:00Z' })
+  const call = (id: string, command: string) => ({ id, name: 'bash', arguments: { command } })
+  const ran = (id: string, command: string, outcome = 'tool.completed') => [
+    event('message.assistant', { content: '', toolCalls: [call(id, command)] }),
+    event('tool.called', { toolCallId: id, name: 'bash' }),
+    event(outcome, { toolCallId: id, name: 'bash' }),
+  ]
+  backend.listEvents = async () => [
+    event('message.user', { content: 'Você é o QA desta entrega' }),
+    ...ran('i1', 'ls api; cat Makefile'),
+    ...ran('u1', 'export UV_CACHE_DIR=$PWD/.qa/uv; cd api && uv run pytest tests/unit_tests/a', 'tool.failed'),
+    ...ran('i2', 'grep -rn dump_response api/controllers'),
+    ...ran('u2', 'export UV_CACHE_DIR=$PWD/.qa/uv; cd api && uv run pytest tests/unit_tests/b'),
+    ...ran('u3', 'cd web && pnpm vitest run'),
+  ]
+  render(<QALiveRun backend={backend} sessionId="qa-3" />)
+  await screen.findByText('pnpm vitest run', { exact: false })
+  const rows = screen.getAllByRole('listitem').filter(row => !row.classList.contains('is-upcoming'))
+  expect(rows).toHaveLength(2)
+  expect(within(rows[0]).getByText('Inspecionando o projeto', { selector: 'strong' })).toBeInTheDocument()
+  expect(within(rows[0]).getByText('2 comandos')).toBeInTheDocument()
+  expect(within(rows[0]).getByText('grep -rn dump_response', { exact: false })).toBeInTheDocument()
+  expect(within(rows[1]).getByText('Testes unitários', { selector: 'strong' })).toBeInTheDocument()
+  expect(within(rows[1]).getByText('3 comandos')).toBeInTheDocument()
+  expect(within(rows[1]).getByText('Concluiu')).toBeInTheDocument()
+  expect(screen.getByText(/· 5 comandos/)).toBeInTheDocument()
+})
