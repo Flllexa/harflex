@@ -512,6 +512,13 @@ func (s *Service) restoreHistory(ctx context.Context, id string, allowPending bo
 				return ErrSessionCorrupt
 			}
 			result.externalID = data.SessionID
+		case "context.compacted":
+			// From a compaction on, the model works from the history it kept, not from every turn before it.
+			var compacted agentcore.Compacted
+			if json.Unmarshal(event.Data, &compacted) != nil || len(compacted.Messages) == 0 || len(result.pending) > 0 {
+				return ErrSessionCorrupt
+			}
+			result.messages = append([]agentcore.Message(nil), compacted.Messages...)
 		case "message.user", "message.assistant":
 			var message agentcore.Message
 			if json.Unmarshal(event.Data, &message) != nil || (event.Type == "message.user" && message.Role != agentcore.RoleUser) || (event.Type == "message.assistant" && message.Role != agentcore.RoleAssistant) || len(result.pending) > 0 {
