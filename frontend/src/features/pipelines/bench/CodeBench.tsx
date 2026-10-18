@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Check, FileMinus2, FilePlus2, FileCode2, MessageSquareWarning, Undo2 } from 'lucide-react'
-import { errorMessage, type Backend, type Pipeline } from '../../../lib/backend'
+import { errorCode, errorMessage, type Backend, type Pipeline } from '../../../lib/backend'
+import { LocalTestCard, type LocalTestCardProps } from './LocalTestCard'
 import { parseUnifiedDiff, type DiffFile } from './diff'
 import { localeTag, useT } from '../../../i18n'
 
@@ -16,6 +17,8 @@ type Props = {
   talk?: ReactNode
   /** The Coder said it finished this version: only then can it be approved. */
   approvable?: boolean
+  /** "Testar localmente": what the local test card needs besides the pipeline. Without it the card is not shown. */
+  localTest?: Omit<LocalTestCardProps, 'backend' | 'run' | 'refreshKey' | 'onUndone'>
 }
 
 const fileIcon = { added: FilePlus2, removed: FileMinus2, modified: FileCode2 }
@@ -29,7 +32,7 @@ function ChangeBar({ file }: { file: DiffFile }) {
 }
 
 /** Code's own bench: the change spotlighted file by file, and the decision that sends it to QA. */
-export function CodeBench({ backend, run, onPipelineChange, runControls, live, talk, approvable = true }: Props) {
+export function CodeBench({ backend, run, onPipelineChange, runControls, live, talk, approvable = true, localTest }: Props) {
   const t = useT()
   const artifact = run.artifacts.code
   const files = useMemo(() => artifact ? parseUnifiedDiff(artifact.content) : [], [artifact?.content])
@@ -38,6 +41,9 @@ export function CodeBench({ backend, run, onPipelineChange, runControls, live, t
   const [asking, setAsking] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
+  // A decision the local test's undo stopped (the person changed files during the test): sent again after a discard.
+  const [heldDecision, setHeldDecision] = useState<'approve' | 'request_revision'>()
+  const [conflictKey, setConflictKey] = useState(0)
   const waiting = run.currentStage === 'code' && run.stageStatus.code === 'waiting_user' && !!artifact?.contentDigest
   const active = run.currentStage === 'code' && run.stageStatus.code === 'active'
   const reviews = (run.executionReviews ?? []).filter(item => item.stage === 'code')
@@ -51,7 +57,11 @@ export function CodeBench({ backend, run, onPipelineChange, runControls, live, t
     setPending(true); setError('')
     try {
       onPipelineChange(await backend.decidePipelineExecutionArtifact({ pipelineId: run.id, requestId: crypto.randomUUID(), stage: 'code', artifactVersion: artifact.version, artifactDigest: artifact.contentDigest, decision, feedback: decision === 'approve' ? '' : feedback.trim(), pipelineRevision: run.revision }))
-    } catch (failure) { setError(errorMessage(failure)) } finally { setPending(false) }
+      setHeldDecision(undefined)
+    } catch (failure) {
+      if (errorCode(failure) === 'local_test_conflict') { setHeldDecision(decision); setConflictKey(key => key + 1) }
+      setError(errorMessage(failure))
+    } finally { setPending(false) }
   }
 
   return <div className="code-bench">
@@ -79,6 +89,7 @@ export function CodeBench({ backend, run, onPipelineChange, runControls, live, t
       </div>}
     </section>}
     {artifact && files.length === 0 && <pre className="mono diff-body" aria-label={t('Diff de Code')}>{artifact.content}</pre>}
+    {waiting && localTest && <LocalTestCard backend={backend} run={run} {...localTest} refreshKey={conflictKey} onUndone={() => { setError(''); if (heldDecision) void decide(heldDecision) }} />}
     {waiting && <div className="bench-actions" role="group" aria-label={t('Decisão sobre o Code')}>
       <div className="bench-actions-text"><strong>{t('Revise a mudança')}</strong><span className="muted">{t('Aprovar leva esta versão ao laboratório da QA. A decisão fica ligada a esta versão.')}</span></div>
       {asking ? <div className="bench-ask"><label className="field">{t('O que deve mudar no Code')}<textarea value={feedback} onChange={event => setFeedback(event.target.value)} rows={2} maxLength={8192} autoFocus /></label>

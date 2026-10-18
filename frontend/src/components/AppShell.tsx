@@ -76,6 +76,9 @@ export function AppShell({ initialActivityOpen, workState = 'empty', backend, re
 
   // On a wide window the panel opens beside the work; on a narrow one it would cover it, so it stays closed there.
   function showActivity() { setSidePanel('activity'); if (desktop) setActivityOpen(true) }
+  // A service the local test started, or the project's shell: the Terminal panel opens on that tab.
+  const [focusTerminal, setFocusTerminal] = useState<{ id?: string; request: number }>({ request: 0 })
+  function showTerminal(terminalId?: string) { setSidePanel('terminal'); setTerminalUsed(true); setActivityOpen(true); setFocusTerminal(current => ({ id: terminalId, request: current.request + 1 })) }
   function closeActivity() { restoreFocus.current = activityTrigger.current; setActivityOpen(false) }
   function closeSidebar() { restoreFocus.current = sidebarTrigger.current; setSidebarOpen(false) }
   const changeMode = useCallback((next: AppMode) => {
@@ -224,7 +227,7 @@ export function AppShell({ initialActivityOpen, workState = 'empty', backend, re
         </div>
         {viewMode === 'professional' && <PipelineBar pipeline={currentPipeline} activity={stageActivity} coder={coderStatus} viewStage={selected === 'Pipelines' && shownStage ? shownStage : stageViewRequest?.pipelineId===currentPipeline?.id ? stageViewRequest?.stage : undefined} onViewStage={stage => { if (!workbenchContext.startingSession && currentPipeline) { setStageViewRequest({requestId:++stageViewSequence.current,pipelineId:currentPipeline.id,workspaceId:currentPipeline.workspaceId,stage}); setSelected('Pipelines') } }} />}
       </header>
-      {backend ? <Workbench backend={backend} restoreProject={restoreProject} selected={selected} newWorkRequest={newWorkRequest} newChatPrompt={newChatPrompt} viewMode={viewMode} historyOpenRequest={historyRequest} projectOpenRequest={projectRequest} stageViewRequest={stageViewRequest} onNavigate={selectDestination} onActivity={setActivityEvents} onPipeline={setCurrentPipeline} onShownStage={setShownStage} onOpenPipeline={openPipeline} onRequestMode={changeMode} onShowActivity={showActivity} onContextChange={reportWorkbenchContext} /> : <WorkArea selected={selected} workState={workState} />}
+      {backend ? <Workbench backend={backend} restoreProject={restoreProject} selected={selected} newWorkRequest={newWorkRequest} newChatPrompt={newChatPrompt} viewMode={viewMode} historyOpenRequest={historyRequest} projectOpenRequest={projectRequest} stageViewRequest={stageViewRequest} onNavigate={selectDestination} onActivity={setActivityEvents} onPipeline={setCurrentPipeline} onShownStage={setShownStage} onOpenPipeline={openPipeline} onRequestMode={changeMode} onShowActivity={showActivity} onShowTerminal={showTerminal} onContextChange={reportWorkbenchContext} /> : <WorkArea selected={selected} workState={workState} />}
     </div>
     {activityOpen && <div ref={activityContainer} className={`activity-container${!desktop ? ' is-overlay' : ''}`} role={!desktop ? 'dialog' : undefined} aria-modal={!desktop || undefined} aria-labelledby={!desktop ? 'activity-title' : undefined}>
       {desktop && <div className="side-panel-resizer" role="separator" aria-orientation="vertical" aria-label={t('Redimensionar painel lateral')} aria-controls="side-panel" tabIndex={0}
@@ -237,7 +240,7 @@ export function AppShell({ initialActivityOpen, workState = 'empty', backend, re
         </div>
         <div className="side-panel-body">
           <div className="side-panel-activity" hidden={sidePanel !== 'activity'}><ActivityPanel onClose={closeActivity} events={activityEvents} busy={workbenchContext.busy} running={workbenchContext.running} focusedId={workbenchContext.session?.id} onOpenRunning={item => item.role ? openPipeline(item.pipelineId, item.session.workspaceId) : openHistorySession(item.session.id, item.session.workspaceId)} /></div>
-          {backend && terminalUsed && <TerminalPanel backend={backend} workspace={workbenchContext.workspace} onClose={closeActivity} visible={sidePanel === 'terminal'} />}
+          {backend && terminalUsed && <TerminalPanel backend={backend} workspace={workbenchContext.workspace} onClose={closeActivity} visible={sidePanel === 'terminal'} focusTerminalId={focusTerminal.id} focusRequest={focusTerminal.request} />}
         </div>
       </div>
     </div>}

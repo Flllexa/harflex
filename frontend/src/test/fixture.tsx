@@ -9,7 +9,7 @@ import { installAuthoringStageFixture } from './authoringStageFixture'
 import { installPipelineDesignFixture } from './pipelineDesignFixture'
 import { installWorktrees } from './worktreeFixture'
 import { installShowcase, showcaseDocuments, type ShowcaseView } from './showcaseFixture'
-import type { Agent, AgentEvent, Brainstorm, ChannelMessage, ChatCommandEvent, Delegation, KnowledgeDocument, KnowledgeEmbeddingProfile, LocalChannel, MCPServer, Pipeline, PipelineRole, PipelineStage, ProviderProfile, Schedule, ScheduleJob, Skill, Workflow, WorkflowRun } from '../lib/backend'
+import type { Agent, AgentEvent, Brainstorm, ChannelMessage, ChatCommandEvent, Delegation, KnowledgeDocument, KnowledgeEmbeddingProfile, LocalChannel, MCPServer, Pipeline, PipelineLocalTest, PipelineRole, PipelineStage, ProviderProfile, Schedule, ScheduleJob, Skill, Workflow, WorkflowRun } from '../lib/backend'
 import { stageOrder } from '../lib/pipelineStages'
 
 const scenario = new URLSearchParams(window.location.search).get('scenario')
@@ -330,10 +330,20 @@ if (scenario === 'phase-executors') {
   }
 }
 if (scenario === 'pipeline-code' || scenario === 'pipeline-code-cli' || scenario === 'pipeline-code-no-api' || scenario === 'pipeline-code-nested') {
-  const requestedStage = new URLSearchParams(window.location.search).get('stage') === 'eval' ? 'eval' : 'code'
+  const stageParam = new URLSearchParams(window.location.search).get('stage')
+  const requestedStage = stageParam === 'eval' ? 'eval' : 'code'
+  // `?stage=code-review`: the Coder already finished, and its change waits for the person's review.
+  const inReview = stageParam === 'code-review'
+  const reviewDiff = 'diff --git a/export.go b/export.go\n--- a/export.go\n+++ b/export.go\n@@ -1 +1,2 @@\n package faturas\n+func ExportCSV() {}'
   let pipeline: Pipeline = { id: 'pipeline-code', workspaceId: 'workspace-1', title: 'Exportar faturas', objective: 'Adicionar exportação CSV', currentStage: requestedStage,
-    stageStatus: { discovery: 'completed', spec: 'completed', plan: 'completed', code: requestedStage === 'code' ? 'active' : 'completed', eval: requestedStage === 'eval' ? 'active' : 'pending' }, revision: 4,
-    artifacts: { spec: { stage: 'spec', version: 1, content: 'Critério: CSV correto', updatedAt: '2026-09-25T10:00:00Z' }, plan: { stage: 'plan', version: 1, content: 'Implementar endpoint e testes', updatedAt: '2026-09-25T10:00:00Z' } }, createdAt: '2026-09-25T10:00:00Z', updatedAt: '2026-09-25T10:00:00Z' }
+    stageStatus: { discovery: 'completed', spec: 'completed', plan: 'completed', code: inReview ? 'waiting_user' : requestedStage === 'code' ? 'active' : 'completed', eval: requestedStage === 'eval' ? 'active' : 'pending' }, revision: 4,
+    artifacts: { spec: { stage: 'spec', version: 1, content: 'Critério: CSV correto', updatedAt: '2026-09-25T10:00:00Z' }, plan: { stage: 'plan', version: 1, content: 'Implementar endpoint e testes', updatedAt: '2026-09-25T10:00:00Z' },
+      ...(inReview ? { code: { stage: 'code' as const, version: 1, content: reviewDiff, contentDigest: 'c'.repeat(64), author: 'ai', sourceSessionId: 'session-1', updatedAt: '2026-09-25T10:00:00Z' } } : {}) }, createdAt: '2026-09-25T10:00:00Z', updatedAt: '2026-09-25T10:00:00Z' }
+  // The local test: applied when the tester starts, back to nothing on undo.
+  const noLocalTest: PipelineLocalTest = { pipelineId: 'pipeline-code', status: 'none', artifactVersion: 0, sessionId: '', testerStatus: '', services: [], servicesLost: false, backupMissing: false }
+  let localTest = noLocalTest
+  backend.getPipelineLocalTest = async () => localTest
+  backend.undoPipelineLocalTest = async () => { localTest = noLocalTest; return localTest }
   backend.listPipelines = async () => [pipeline]
   backend.getPipeline = async () => pipeline
   backend.getPipelineForSession = async () => pipeline
@@ -373,8 +383,13 @@ if (scenario === 'pipeline-code' || scenario === 'pipeline-code-cli' || scenario
   })
   backend.openSession = async () => stageConversation('local')
   backend.createPipelineSession = async (_pipelineId, _backendId, role, selection) => {
-    if (!selection && role !== 'publisher') throw new Error('Selecione um modelo para esta fase')
+    if (!selection && role !== 'publisher' && role !== 'tester') throw new Error('Selecione um modelo para esta fase')
     activeRole = role
+    if (role === 'tester') {
+      localTest = { ...noLocalTest, status: 'applied', artifactVersion: pipeline.artifacts.code?.version ?? 1, sessionId: 'session-1', testerStatus: 'completed', services: [{ name: 'web', terminalId: 'term-web', running: true }],
+        report: { urls: [{ label: 'App', url: 'http://localhost:5173' }], stop: 'Ctrl-C no terminal web', notes: '' } }
+      return { session: stageConversation(_backendId), prompt: 'Prepare este projeto para a pessoa testar manualmente', role }
+    }
     if (role === 'publisher' && pipeline.codePatchPending) throw { cause: { code: 'pipeline_code_not_applied' } }
     stageSession = { stage: role === 'coder' ? 'code' : role === 'evaluator' ? 'eval' : 'prs', id: 'session-1' }
     return { session: stageConversation(_backendId), prompt: role === 'coder' ? 'Implementar CSV com testes' : role === 'evaluator' ? 'Avaliar a SPEC e o diff aprovado' : 'Abrir o pull request deste trabalho', role }
@@ -382,7 +397,8 @@ if (scenario === 'pipeline-code' || scenario === 'pipeline-code-cli' || scenario
   const prReport = '## Pull requests\n- https://github.com/acme/api-faturas/pull/12 · harflex/exportar-csv → main · Exporta faturas em CSV.'
   backend.prompt = async (sessionId, text) => activeRole === 'evaluator'
     ? fake.respondReadOnly(text, JSON.stringify({ passed: true, findings: [], criteria: [{ criterion: 'CSV correto', evidence: 'olá' }] }))
-    : activeRole === 'publisher' ? fake.respondReadOnly(text, prReport) : codePrompt(sessionId, text)
+    : activeRole === 'publisher' ? fake.respondReadOnly(text, prReport)
+    : activeRole === 'tester' ? fake.respondReadOnly(text, 'Projeto no ar em http://localhost:5173.') : codePrompt(sessionId, text)
   backend.completePipelineCode = async pipelineId => {
     if (pipelineId !== pipeline.id || pipeline.currentStage !== 'code') throw new Error('Pipeline Code indisponível')
     const events = await backend.listEvents('session-1', 0)

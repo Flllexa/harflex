@@ -1,10 +1,11 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
-import { errorMessage, type Backend, type Pipeline } from '../../lib/backend'
+import { errorCode, errorMessage, type Backend, type Pipeline } from '../../lib/backend'
+import { LocalTestCard, type LocalTestCardProps } from './bench/LocalTestCard'
 import { localeTag, useT } from '../../i18n'
 import { stageNames } from '../../lib/pipelineStages'
 
 type ReviewStage = 'code' | 'eval'
-type Props = { backend: Backend; run: Pipeline; stage: ReviewStage; onPipelineChange: (run: Pipeline) => void }
+type Props = { backend: Backend; run: Pipeline; stage: ReviewStage; onPipelineChange: (run: Pipeline) => void; /** "Testar localmente" for the Code review; without it the card is not shown. */ localTest?: Omit<LocalTestCardProps, 'backend' | 'run' | 'refreshKey' | 'onUndone'> }
 type EvaluationEvidence = {
   passed?: boolean
   findings?: string[]
@@ -21,7 +22,7 @@ function evaluationEvidence(content: string): EvaluationEvidence | undefined {
   } catch { return undefined }
 }
 
-export function PipelineExecutionReview({ backend, run, stage, onPipelineChange }: Props) {
+export function PipelineExecutionReview({ backend, run, stage, onPipelineChange, localTest }: Props) {
   const t = useT()
   const reviewLabel = (decision: string) => decision === 'approve' ? t('Aprovado') : t('Revisão solicitada')
   const artifact = run.artifacts[stage]
@@ -29,6 +30,9 @@ export function PipelineExecutionReview({ backend, run, stage, onPipelineChange 
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
   const intent = useRef<{ key: string; requestId: string }>()
+  // A decision the local test's undo stopped (files changed during the test): sent again after a discard.
+  const [heldDecision, setHeldDecision] = useState<'approve' | 'request_revision'>()
+  const [conflictKey, setConflictKey] = useState(0)
   const evidence = stage === 'eval' && artifact ? evaluationEvidence(artifact.content) : undefined
   const currentReviewReady = !!artifact && artifact.author === 'ai' && !!artifact.sourceSessionId && !!artifact.contentDigest && run.stageStatus[stage] === 'waiting_user'
   const canApprove = currentReviewReady && (stage === 'code' || evidence?.passed === true)
@@ -59,14 +63,17 @@ export function PipelineExecutionReview({ backend, run, stage, onPipelineChange 
         pipelineRevision: run.revision,
       })
       intent.current = undefined
+      setHeldDecision(undefined)
       onPipelineChange(updated)
     } catch (failure) {
+      if (errorCode(failure) === 'local_test_conflict') { intent.current = undefined; setHeldDecision(decision); setConflictKey(key => key + 1) }
       setError(errorMessage(failure))
     } finally { setPending(false) }
   }
 
   return <section className="pipeline-review" aria-label={t('Revisão de {stage}', { stage: stageLabel[stage] })}>
     <div className="pipeline-review-heading"><div><h3>{t('Revise {stage} antes de continuar', { stage: stageLabel[stage] })}</h3><p className="muted">{t('A decisão fica registrada nesta versão e vinculada ao conteúdo exibido.')}</p></div><span className="status-chip">{t('Versão {version}', { version: artifact?.version ?? '—' })}</span></div>
+    {stage === 'code' && currentReviewReady && localTest && <LocalTestCard backend={backend} run={run} {...localTest} refreshKey={conflictKey} onUndone={() => { setError(''); if (heldDecision) void decide(heldDecision) }} />}
     {!currentReviewReady && <p className="project-warning" role="alert">{t('A evidência ou o hash desta versão não está disponível. Atualize o pipeline antes de decidir.')}</p>}
     {artifact && <>
       {stage === 'code' ? <pre className="mono diff-body" aria-label={t('Diff de Code')}>{artifact.content}</pre> : <EvaluationSummary evidence={evidence} />}

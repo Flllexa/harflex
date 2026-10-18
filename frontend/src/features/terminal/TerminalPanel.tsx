@@ -7,7 +7,7 @@ import { errorMessage, type Backend, type TerminalOutput, type Workspace } from 
 import { useT } from '../../i18n'
 import './terminal.css'
 
-type Props = { backend: Backend; workspace?: Workspace; onClose: () => void; visible: boolean }
+type Props = { backend: Backend; workspace?: Workspace; onClose: () => void; visible: boolean; /** A service's terminal to show, with a request number so asking again shows it again. */ focusTerminalId?: string; focusRequest?: number }
 
 /** A project's shell lives on while the panel is closed; its recent output is kept to draw it again. */
 type Session = { id: string; shell: string; chunks: Uint8Array[]; bytes: number; exitCode?: number }

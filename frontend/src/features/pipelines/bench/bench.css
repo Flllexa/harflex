@@ -86,3 +86,23 @@ b.is-remove { color: var(--danger); font-weight: 650; }
 }
 /* Inside a bench, the stage's own heading would repeat the bench header. */
 .bench-surface .pipeline-prs-heading { display: none; }
+
+/* The local test: try the Code in the project's own folder before approving it. */
+.local-test { display: flex; flex-direction: column; gap: var(--space-3); }
+.local-test-start, .local-test-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.local-test-start .touch-target, .local-test-row .touch-target, .local-test .pipeline-actions .touch-target { display: inline-flex; align-items: center; gap: 6px; }
+.local-test .touch-target svg { width: 16px; height: 16px; }
+.local-test-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 13px; }
+.local-test-text .muted { font-size: 12px; }
+.local-test-applied { display: flex; flex-direction: column; gap: var(--space-3); }
+.local-test-urls, .local-test-services { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.local-test-urls li, .local-test-services li { display: flex; align-items: center; gap: var(--space-2); min-width: 0; flex-wrap: wrap; }
+.local-test-urls svg { width: 14px; height: 14px; flex: none; }
+.local-test-urls .mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; font-size: 12px; }
+.local-test-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted, #7a8a90); flex: none; }
+.local-test-dot.is-running { background: var(--success, #7ef0b0); }
+.local-test-conflict, .local-test-error { display: flex; flex-direction: column; gap: var(--space-2); }
+.local-test-conflict strong { display: inline-flex; align-items: center; gap: 6px; }
+.local-test-conflict strong svg { width: 16px; height: 16px; }
+.local-test-conflict ul, .local-test-error ul { margin: 0; padding-left: var(--space-4); font-size: 12px; overflow-wrap: anywhere; }
+.local-test-services .text-button { display: inline-flex; align-items: center; gap: 4px; }

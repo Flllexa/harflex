@@ -767,6 +767,12 @@ const errorMessages: Record<string, string> = {
   pipeline_qa_busy: 'O QA já está rodando para este pipeline.',
   pipeline_code_not_finished: 'O Coder ainda não disse que terminou. Responda às perguntas dele ou peça para continuar; a revisão abre quando ele concluir.',
   pipeline_code_not_applied: 'Aplique o patch aprovado ao projeto antes de abrir os PRs: o agente trabalha na pasta do projeto.',
+  local_test_busy: 'Outro teste local está aplicado neste projeto. Desfaça aquele teste antes de começar este.',
+  local_test_source_dirty: 'Sua pasta tem mudanças não salvas',
+  local_test_backup_missing: 'O backup deste teste não foi encontrado: o desfazer não pode restaurar a pasta.',
+  local_test_conflict: 'Você mexeu em arquivos durante o teste. Escolha no cartão do teste local se mantém ou descarta essas mudanças.',
+  local_test_finished: 'Este teste local foi desfeito. Comece um novo teste para continuar.',
+  local_test_backend_unsupported: 'O teste local precisa de um perfil de API ou do Claude Code.',
   pipeline_design_phase_executor_unusable: 'O provedor ou o modelo escolhido para uma das fases não está disponível agora. Abra "Provedor e modelo por fase", no alto desta página, e escolha outro ou volte ao padrão.',
   stage_executor_unsupported: 'Esta fase não pode usar esse executor. Escolha um perfil de API ou o Claude Code; o Codex serve às fases de documento, Code e QA, não aos PRs.',
   pipeline_prs_backend_unsupported: 'Os PRs precisam de um provedor API ou do Claude Code, porque as ferramentas MCP e o terminal rodam no Harflex e a conversa dos PRs é retomada. Escolha um perfil de API ou o Claude Code.',
@@ -821,6 +827,14 @@ const errorMessages: Record<string, string> = {
 }
 
 /** What an error says beyond its code, when the backend adds it (the phase a failure belongs to). */
+/** The paths a failure lists, such as the changes that keep a folder from taking a local test. */
+export function errorPaths(error: unknown): string[] {
+  const cause = (error as { cause?: unknown } | null)?.cause
+  const parsed = typeof cause === 'string' ? safeJSON(cause) : cause
+  const paths = (parsed as { paths?: unknown } | null)?.paths
+  return Array.isArray(paths) ? paths.filter((item): item is string => typeof item === 'string') : []
+}
+
 function errorStage(error: unknown): string {
   const cause = (error as { cause?: unknown } | null)?.cause
   const parsed = typeof cause === 'string' ? safeJSON(cause) : cause
