@@ -169,3 +169,20 @@ it('closes the choice once the person has answered, while a reply is being writt
   render(<ConversationPane {...busy} state={{ ...busy.state, activeRun: 'running' }} onPipelineChoice={vi.fn()} />)
   for (const button of within(screen.getByRole('group', { name: 'Como você quer tocar isso?' })).getAllByRole('button')) expect(button).toBeDisabled()
 })
+
+it('marks where the context was compacted, with the summary at hand', async () => {
+  const value = props()
+  render(<ConversationPane {...value} state={{ ...value.state, messages: [{ kind: 'user', id: 'u1', text: 'Pedido' }, { kind: 'compaction', id: 'c1', beforeTokens: 182000, afterTokens: 27000, summary: '## Estado atual\nPronto' }] }} />)
+  expect(screen.getByText(/Contexto compactado · 182.000 → 27.000 tokens/)).toBeInTheDocument()
+  expect(screen.getByText('Pedido')).toBeVisible()
+  await userEvent.click(screen.getByText('Ver resumo'))
+  expect(screen.getByText(/Estado atual/)).toBeVisible()
+})
+
+it('shows the context gauge beside the model and compacts from it', async () => {
+  const value = props(), onCompact = vi.fn()
+  render(<ConversationPane {...value} contextUse={{ used: 170000, window: 200000 }} onCompact={onCompact} modelBar={<span>Opus</span>} state={{ ...value.state, messages: [{ kind: 'user', id: 'u1', text: 'Pedido' }] }} />)
+  await userEvent.click(screen.getByRole('button', { name: /Contexto: 85%/ }))
+  await userEvent.click(screen.getByRole('menuitem', { name: 'Compactar agora' }))
+  expect(onCompact).toHaveBeenCalledTimes(1)
+})

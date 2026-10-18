@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { parse, type AgentEvent } from '../lib/backend'
 import codexEvents from '../../../internal/externalagent/testdata/codex-events.json'
 import opencodeEvents from '../../../internal/externalagent/testdata/opencode-events.json'
-import { createSessionStore, project } from './session'
+import { contextInUse, createSessionStore, project } from './session'
 import { sessionMetadata } from '../test/fakeBackend'
 
 const event = (sequence: number, delta: string): AgentEvent => ({
@@ -76,7 +76,7 @@ describe('session event ingestion', () => {
     })))
     expect(events.some(item => item.type === 'diagnostic.invalid_event')).toBe(false)
     const view = project(events)
-    expect(view.messages.map(message => message.kind !== 'tool' && message.text)).toEqual(['Pergunta', ...(answers as string[]), 'Pergunta', ...(answers as string[])])
+    expect(view.messages.map(message => (message.kind === 'user' || message.kind === 'assistant') && message.text)).toEqual(['Pergunta', ...(answers as string[]), 'Pergunta', ...(answers as string[])])
     expect(view.messages.filter(message => message.kind === 'assistant').every(message => !message.streaming)).toBe(true)
     expect(JSON.stringify(view)).not.toContain('RAW_ONLY')
   })
@@ -113,7 +113,7 @@ describe('session event ingestion', () => {
       ['run.interrupted', { reason: 'app_restart' }],
     ].map(([type, data], i) => ({ ...event(i + 1, ''), type: type as string, data }))
     const view = project(entries)
-    expect(view.messages.map(message => message.kind !== 'tool' && message.text)).toEqual(['Pergunta', 'Olá mundo', 'Segunda'])
+    expect(view.messages.map(message => (message.kind === 'user' || message.kind === 'assistant') && message.text)).toEqual(['Pergunta', 'Olá mundo', 'Segunda'])
     expect(JSON.stringify(view)).not.toContain('RAW_ONLY')
   })
   it('closes legacy tool cards when interruption has no explicit tool closure', () => {
@@ -175,5 +175,25 @@ describe('session event ingestion', () => {
     expect(store.getState().messages).toEqual([{ kind: 'assistant', id: first.id, text: 'Olá, mundo!', streaming: true }])
     expect(previous).toEqual([first])
     expect(batch.map(item => item.id)).toEqual(['event-3', 'event-2', 'event-3', 'event-1', 'foreign'])
+  })
+})
+
+describe('context compaction', () => {
+  it('turns a compaction into a divider and keeps the earlier messages on screen', () => {
+    const at = '2026-10-18T10:00:00Z'
+    const projection = project([
+      { id: 'e1', streamId: 's', sequence: 1, type: 'message.user', data: { role: 'user', content: 'Pedido' }, createdAt: at },
+      { id: 'e2', streamId: 's', sequence: 2, type: 'message.assistant', data: { role: 'assistant', content: 'Resposta' }, createdAt: at },
+      { id: 'e3', streamId: 's', sequence: 3, type: 'context.compacted', data: { summary: '## Estado atual\nPronto', messages: [], beforeTokens: 182000, afterTokens: 27000 }, createdAt: at },
+    ])
+    expect(projection.messages.map(item => item.kind)).toEqual(['user', 'assistant', 'compaction'])
+    expect(projection.messages[2]).toMatchObject({ kind: 'compaction', beforeTokens: 182000, afterTokens: 27000, summary: '## Estado atual\nPronto' })
+  })
+
+  it('reads the context in use from the latest usage or compaction', () => {
+    const at = '2026-10-18T10:00:00Z'
+    const usage = { id: 'u', streamId: 's', sequence: 1, type: 'usage.recorded', data: { inputTokens: 90000, outputTokens: 2000 }, createdAt: at }
+    expect(contextInUse([usage])).toBe(92000)
+    expect(contextInUse([usage, { id: 'c', streamId: 's', sequence: 2, type: 'context.compacted', data: { afterTokens: 27000 }, createdAt: at }])).toBe(27000)
   })
 })

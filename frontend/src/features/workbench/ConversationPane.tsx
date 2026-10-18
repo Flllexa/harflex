@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef, type FormEvent, type ReactNode } from
 import { ChevronLeft, Info, Lock, Pause, RefreshCw } from 'lucide-react'
 import { runIsLive, type SessionState } from '../../state/session'
 import { ChatComposer, type ComposerAttachment } from '../../components/ChatComposer'
+import { ContextGauge } from '../../components/ContextGauge'
 import { ApprovalCard } from './ApprovalCard'
 import { ToolCallCard, toolTarget } from './ToolCallCard'
 import { Markdown } from '../../components/Markdown'
@@ -12,7 +13,7 @@ import { requestOf, splitContinuation } from './continuation'
 import { splitPipelineChoice, type PipelineChoice } from './pipelineChoice'
 import { PipelineChoiceCard } from './PipelineChoiceCard'
 import { CommandRunnerContext, type CommandRunner } from '../../components/commandRunner'
-import { t, useT } from '../../i18n'
+import { localeTag, t, useT } from '../../i18n'
 import { RunProgress as RunProgressView } from '../../components/activity/RunProgressView'
 import { buildRunProgress, type RunProgress } from '../../components/activity/runProgress'
 
@@ -104,6 +105,9 @@ type Props = {
   loadingHistory: boolean
   /** The project's permission control, drawn above the message box. */
   permissionControl?: ReactNode
+  /** How full the conversation's context is, for the gauge beside the model. */
+  contextUse?: { used: number; window: number }
+  onCompact?: () => void
   /** Messages waiting for the current answer to end, sent one by one after it. */
   queued?: string[]
   onQueue?: () => void
@@ -125,7 +129,7 @@ type Props = {
 }
 
 
-export function ConversationPane({ sessionKey, state, loadingHistory, permissionControl, queued = [], onQueue, onUnqueue, attachments = [], onAttach, onRemoveAttachment, attachError, viewMode, cancelPending = false, delegationParentId, delegation, queuedTask, onPrepareDelegatedTask, onOpenParent, onDraft, onPrompt, onResolve, onCancel, onRetry, onNewWork, onContinue, onPipelineChoice, commands, backendLabel, modelBar, switchModel, projectControl }: Props) {
+export function ConversationPane({ sessionKey, state, loadingHistory, permissionControl, contextUse, onCompact, queued = [], onQueue, onUnqueue, attachments = [], onAttach, onRemoveAttachment, attachError, viewMode, cancelPending = false, delegationParentId, delegation, queuedTask, onPrepareDelegatedTask, onOpenParent, onDraft, onPrompt, onResolve, onCancel, onRetry, onNewWork, onContinue, onPipelineChoice, commands, backendLabel, modelBar, switchModel, projectControl }: Props) {
   const t = useT()
   const draft = state.draft
   const running = state.activeRun === 'running'
@@ -186,7 +190,10 @@ export function ConversationPane({ sessionKey, state, loadingHistory, permission
           // The choice is open only while nothing came after it: once the person answers, the answer is in the conversation.
           const asking = !!reply?.ask && !!onPipelineChoice && index === messages.length - 1 && !(item.kind === 'assistant' && item.streaming) && !state.readOnly
           return <li key={item.id} className={`turn turn-${item.kind}`}>
-            {item.kind === 'tool' ? <ToolCallCard call={item.call} /> : <>
+            {item.kind === 'tool' ? <ToolCallCard call={item.call} /> : item.kind === 'compaction' ? <div className="compaction-divider" role="note">
+              <span className="compaction-divider-line">{t('Contexto compactado · {before} → {after} tokens', { before: item.beforeTokens.toLocaleString(localeTag()), after: item.afterTokens.toLocaleString(localeTag()) })}</span>
+              <details><summary>{t('Ver resumo')}</summary><pre>{item.summary}</pre></details>
+            </div> : <>
               <span className="turn-author">{item.kind === 'user' ? t('Você') : t('Agente')}</span>
               {item.kind === 'assistant'
                 ? <div className="turn-text turn-markdown"><Markdown text={reply?.text ?? item.text} />{item.streaming && <span className="assistant-streaming-dots" aria-hidden="true"><i /><i /><i /></span>}</div>
@@ -222,6 +229,6 @@ export function ConversationPane({ sessionKey, state, loadingHistory, permission
         {switchModel && <p className="composer-notice chat-model-note" role="status"><RefreshCw aria-hidden="true" /><span>{switchModel.usable ? t('A próxima mensagem abre um novo chat com esta escolha, levando o contexto desta conversa.') : t('Escolha um modelo disponível para continuar com este provedor.')}</span> <button type="button" className="text-button" onClick={switchModel.onReset}>{t('Manter o atual')}</button></p>}
         {attachError && <p className="composer-notice" role="alert"><Info aria-hidden="true" /><span>{attachError}</span></p>}
       </>}
-      footerStart={permissionControl} footerEnd={<>{modelBar}{projectControl}</>} />
+      footerStart={permissionControl} footerEnd={<>{modelBar}{projectControl}{contextUse && contextUse.window > 0 && onCompact && <ContextGauge used={contextUse.used} window={contextUse.window} onCompact={onCompact} disabled={running || state.calling} />}</>} />
   </div>
 }

@@ -9,7 +9,7 @@ import { checkReplayOutcome, replayErrorMessage, replaySession, type ReplayExpec
 import { useRecentWork, workProgress } from '../pipelines/RecentWork'
 import { useVerifyCoderWhenDone } from './useVerifyCoderWhenDone'
 import { useAttachments } from './useAttachments'
-import { createSessionStore, runIsLive, sessionReadOnly, type SessionState } from '../../state/session'
+import { contextInUse, createSessionStore, runIsLive, sessionReadOnly, type SessionState } from '../../state/session'
 import { saveChatDraft, takeChatDraft } from '../../state/chatDrafts'
 import { ProviderDialog } from '../settings/ProviderDialog'
 import { ArtifactPane } from './ArtifactPane'
@@ -539,6 +539,17 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     }
   }
 
+  // "Compactar agora" from the context gauge: the summary is journaled, and the divider shows once it is read back.
+  async function compactNow() {
+    const session = store.getState().session
+    if (!session) return
+    try {
+      const updated = await backend.compactSession(session.id)
+      if (store.getState().session?.id !== session.id) return
+      store.getState().updateSession(updated)
+      await catchUp()
+    } catch (failure) { if (store.getState().session?.id === session.id) store.setState({ error: errorMessage(failure) }) }
+  }
   // Cmd+Enter while the AI answers: the message waits and goes out by itself when this conversation's answer ends.
   function queueMessage() {
     const current = store.getState()
@@ -629,6 +640,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     ? <section className="setup-step"><h2>{t('Preparação do trabalho')}</h2><p className="muted">{t('A conversa de Discovery, SPEC e Plan está na área do trabalho.')}</p><button type="button" className="touch-target primary-button" onClick={() => onNavigate('Pipelines')}>{t('Abrir documentos e atividade')}</button></section>
     : state.session
     ? <ConversationPane sessionKey={state.session?.id} commands={commands} state={state} loadingHistory={loadingHistory} cancelPending={cancelPending} permissionControl={state.workspace ? <PermissionPicker backend={backend} workspace={state.workspace} onWorkspaceUpdated={workspace => store.setState({ workspace })} /> : undefined} viewMode={viewMode} backendLabel={backendLabel(state)} modelBar={modelBar} projectControl={viewMode === 'casual' && state.workspace ? <ChatProjectPicker backend={backend} workspace={state.workspace} disabled={loadingHistory} onPick={path => void switchProject(path)} /> : undefined} switchModel={chatChoice.changed ? { usable: chatChoice.usable, onReset: chatChoice.reset } : undefined} delegationParentId={delegation?.parentSessionId} delegation={delegation} queuedTask={queuedTask} onPrepareDelegatedTask={() => { if (!store.getState().draft && queuedTask) store.getState().setDraft(queuedTask) }} onOpenParent={() => { if (delegation) void openDelegatedSession(delegation.parentSessionId).catch(failure => store.setState({ error: errorMessage(failure) })) }} onDraft={updateDraft} onPrompt={text => { const attached = attachments.block(); attachments.clear(); void sendPrompt(text, attached) }}
+      contextUse={state.session?.contextWindow ? { used: contextInUse(state.events), window: state.session.contextWindow } : undefined} onCompact={() => void compactNow()}
       queued={focusedQueue} onQueue={queueMessage} onUnqueue={unqueueMessage} attachments={attachments.items} onAttach={files => void attachments.attach(files)} onRemoveAttachment={attachments.remove} attachError={attachments.error} onResolve={(approvalId, allow) => { void run(id => backend.approve(id, approvalId, allow)) }} onCancel={cancel} onRetry={retryReplay} onContinue={text => continueInNewChat(text, chatChoice.changed ? chatChoice.choice : undefined)} onPipelineChoice={choosePipeline} onNewWork={recoveryPrompt => {
       if (!state.workspace || state.readOnly && loadingHistory) return
       historyOpenOrder.current++

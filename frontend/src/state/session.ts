@@ -20,6 +20,8 @@ export type ConversationItem =
   | { kind: 'user'; id: string; text: string }
   | { kind: 'assistant'; id: string; text: string; streaming: boolean }
   | { kind: 'tool'; id: string; call: ToolCallView }
+  /** The context was compacted here: what came before stays on screen, the model works from the summary. */
+  | { kind: 'compaction'; id: string; beforeTokens: number; afterTokens: number; summary: string }
 export type ActiveRun = 'idle' | 'running' | 'awaiting_approval' | 'paused'
 export type RunOutcome = { status: RunResult['status'] | 'interrupted'; reason?: string; code?: string }
 export type ConnectionState = 'connecting' | 'ready' | 'unavailable' | 'degraded'
@@ -116,6 +118,12 @@ export function project(events: AgentEvent[]): Projection {
         }
         break
       }
+      case 'context.compacted':
+        closeExternalMessages()
+        if (streaming) streaming.streaming = false
+        streaming = null
+        messages.push({ kind: 'compaction', id: event.id, beforeTokens: Number(data.beforeTokens) || 0, afterTokens: Number(data.afterTokens) || 0, summary: text(data.summary) })
+        break
       case 'approval.requested':
         pending.set(text(data.approvalId), { approvalId: text(data.approvalId), toolCallId: text(data.toolCallId), name: text(data.name), risk: text(data.risk), arguments: data.arguments })
         if (tool) tool.status = 'awaiting_approval'
@@ -212,6 +220,16 @@ const emptyProjection: Projection = { messages: [], pendingApprovals: [], active
  */
 export function runIsLive(state: Pick<SessionState, 'activeRun' | 'readOnly'>): boolean {
   return state.activeRun === 'running' || (state.activeRun === 'awaiting_approval' && !state.readOnly)
+}
+
+/** What the conversation weighs now: the latest count the provider gave, or what a compaction brought it down to. */
+export function contextInUse(events: AgentEvent[]): number {
+  for (let index = events.length - 1; index >= 0; index--) {
+    const data = record(events[index].data)
+    if (events[index].type === 'context.compacted') return Number(data.afterTokens) || 0
+    if (events[index].type === 'usage.recorded' && Number(data.inputTokens) > 0) return (Number(data.inputTokens) || 0) + (Number(data.outputTokens) || 0)
+  }
+  return 0
 }
 
 export function sessionReadOnly(session: Session, backends: BackendOption[]) {

@@ -40,3 +40,21 @@
   .chat-composer { width: calc(100% - 2 * var(--space-2)); }
   .chat-composer-footer { flex-wrap: wrap; padding-inline: var(--space-2); }
 }
+/* The context gauge, a ring beside the model, like Claude Code's. */
+.context-gauge-wrap { position: relative; display: inline-flex; }
+.context-gauge { display: inline-grid; place-items: center; width: 28px; height: 28px; min-height: 28px; padding: 0 !important; border: 0; border-radius: 50%; background: transparent; cursor: pointer; }
+.context-gauge svg { width: 20px; height: 20px; transform: rotate(-90deg); }
+.context-gauge-track { fill: none; stroke: color-mix(in srgb, var(--paper) 16%, transparent); stroke-width: 2.4; }
+.context-gauge-fill { fill: none; stroke: #4f7cff; stroke-width: 2.4; stroke-linecap: round; transition: stroke-dashoffset 320ms ease, stroke 160ms ease; }
+.context-gauge.is-warning .context-gauge-fill { stroke: #e0a200; }
+.context-gauge.is-danger .context-gauge-fill { stroke: #e5484d; }
+.context-gauge-menu { position: absolute; right: 0; bottom: calc(100% + 6px); z-index: 20; min-width: 220px; display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--hairline); border-radius: 12px; background: var(--surface-1); box-shadow: var(--shadow-float); font-size: 13px; }
+.context-gauge-menu p { margin: 0; }
+.context-gauge-menu button { text-align: left; padding: 6px 8px !important; border-radius: 8px; color: var(--paper) !important; }
+.context-gauge-menu button:hover:not(:disabled) { background: color-mix(in srgb, var(--paper) 8%, transparent) !important; }
+/* Where the context was compacted, in the chat. */
+.compaction-divider { display: grid; gap: var(--space-1); margin: var(--space-3) 0; color: var(--muted); font-size: 12px; }
+.compaction-divider-line { display: flex; align-items: center; gap: var(--space-2); }
+.compaction-divider-line::before, .compaction-divider-line::after { content: ''; flex: 1; height: 1px; background: var(--hairline); }
+.compaction-divider details { align-self: center; max-width: 680px; }
+.compaction-divider pre { white-space: pre-wrap; font: inherit; color: var(--paper); }
