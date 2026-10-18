@@ -326,3 +326,18 @@ func TestDocumentProviderRetriesAFailedTurn(t *testing.T) {
 		t.Fatalf("a CLI that keeps failing must still say so: %v", err)
 	}
 }
+
+// A CLI that says the prompt no longer fits is not asked again as is: the session compacts and retries.
+func TestDocumentProviderReportsAFullContextWithoutRetrying(t *testing.T) {
+	base, request := documentProviderRequestFixture(t)
+	attempts := 0
+	provider := NewDocumentProvider(documentGeneratorFunc(func(context.Context, DocumentRequest, func(Event)) (DocumentResult, error) {
+		attempts++
+		return DocumentResult{}, errors.New("claude: API Error: 400 prompt is too long: 230000 tokens > 200000 maximum")
+	}), base)
+	_, err := collectDocumentProvider(t, t.Context(), provider, request)
+	var full agentcore.ContextLengthError
+	if !errors.As(err, &full) || !full.ContextLengthExceeded() || attempts != 1 {
+		t.Fatalf("err=%v attempts=%d", err, attempts)
+	}
+}

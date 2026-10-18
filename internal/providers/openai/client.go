@@ -228,6 +228,9 @@ func (c *Client) stream(ctx context.Context, request agentcore.ChatRequest, even
 		if transientStatus(resp.StatusCode) {
 			return transientError{failure}
 		}
+		if (resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusRequestEntityTooLarge) && saysContextIsFull(detail) {
+			return contextFullError{failure}
+		}
 		return failure
 	}
 	mediaType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
@@ -272,6 +275,21 @@ func (c *Client) streamWithRetries(ctx context.Context, request agentcore.ChatRe
 		case <-timer.C:
 		}
 	}
+}
+
+// contextFullError is a refusal because the request does not fit the model's window: the session compacts and retries.
+type contextFullError struct{ error }
+
+func (e contextFullError) Unwrap() error             { return e.error }
+func (contextFullError) ContextLengthExceeded() bool { return true }
+
+// saysContextIsFull reads the provider's own words: OpenAI, Anthropic-compatible and local servers each phrase it.
+func saysContextIsFull(detail string) bool {
+	text := strings.ToLower(detail)
+	if strings.Contains(text, "too many tokens") || strings.Contains(text, "prompt is too long") {
+		return true
+	}
+	return strings.Contains(text, "context") && (strings.Contains(text, "length") || strings.Contains(text, "window") || strings.Contains(text, "maximum") || strings.Contains(text, "too long"))
 }
 
 // transientError marks a failure that happened before any part of the answer arrived and may pass on its own.

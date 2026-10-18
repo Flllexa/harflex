@@ -27,6 +27,7 @@ const failureCopy: Record<string, string> = {
   policy_denied: 'a política de segurança negou uma ferramenta',
   tool_limit_exceeded: 'limite de chamadas de ferramenta atingido',
   output_limit_exceeded: 'o modelo ultrapassou o limite de saída',
+  context_length_exceeded: 'a conversa não coube no contexto do modelo nem depois de compactada; reduza o pedido ou a leitura',
   provider_failed: 'o provedor de IA falhou',
   timeout: 'tempo esgotado',
 }

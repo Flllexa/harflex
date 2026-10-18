@@ -586,3 +586,24 @@ func TestTransientStatusesAreRetried(t *testing.T) {
 		t.Fatalf("a refusal was retried: err=%v requests=%d", err, requests.Load())
 	}
 }
+
+func TestContextLengthStatusIsClassified(t *testing.T) {
+	for _, tc := range []struct {
+		body string
+		full bool
+	}{
+		{`{"error":{"message":"This model's maximum context length is 128000 tokens. However, your messages resulted in 130000 tokens."}}`, true},
+		{`{"error":{"message":"prompt is too long: 210000 tokens > 200000 maximum"}}`, true},
+		{`{"error":{"message":"invalid tool schema"}}`, false},
+	} {
+		c := serverClient(t, func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprint(w, tc.body)
+		})
+		_, err := collect(t, context.Background(), c, agentcore.ChatRequest{Model: "m", Messages: []agentcore.Message{{Role: agentcore.RoleUser, Content: "oi"}}})
+		var full agentcore.ContextLengthError
+		if got := errors.As(err, &full) && full.ContextLengthExceeded(); got != tc.full {
+			t.Fatalf("%s: classified as full context = %v (%v)", tc.body, got, err)
+		}
+	}
+}

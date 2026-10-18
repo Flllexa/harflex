@@ -49,6 +49,10 @@ func (p *documentProvider) generate(ctx context.Context, document DocumentReques
 	instructions := document.SystemPrompt
 	for attempt := 0; ; attempt++ {
 		result, err := p.generator.GenerateDocument(ctx, document, nil)
+		// A prompt that does not fit is not asked again as it is: the session compacts the conversation and retries.
+		if err != nil && cliSaysContextIsFull(err.Error()) {
+			return nil, contextFullError{err}
+		}
 		if err == nil {
 			if err := ctx.Err(); err != nil {
 				return nil, err
@@ -465,3 +469,15 @@ func convertDocumentProviderResult(result DocumentResult, tools map[string]agent
 // hostPromptBudget is how much of a long run's conversation one CLI turn carries. It keeps the turn inside the model's
 // context window, so it does not follow the answer limit: past it, the oldest tool results are shortened first.
 const hostPromptBudget = 512 * 1024
+
+// contextFullError is a CLI's refusal of a prompt larger than the model's window.
+type contextFullError struct{ error }
+
+func (e contextFullError) Unwrap() error             { return e.error }
+func (contextFullError) ContextLengthExceeded() bool { return true }
+
+func cliSaysContextIsFull(message string) bool {
+	text := strings.ToLower(message)
+	return strings.Contains(text, "prompt is too long") || strings.Contains(text, "context window") || strings.Contains(text, "context length") ||
+		strings.Contains(text, "context_length_exceeded") || strings.Contains(text, "too many tokens")
+}

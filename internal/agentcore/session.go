@@ -127,6 +127,13 @@ type Session struct {
 	runToolCalls       int
 	// unknownStreak counts calls in a row to tools that do not exist; a listed tool in between resets it.
 	unknownStreak int
+	// contextWindow is the window this conversation keeps within (0: the default); usageTokens is what the provider
+	// counted for the last turn and usageBytes the size of the conversation right after it.
+	contextWindow int
+	usageTokens   int
+	usageBytes    int
+	// streamed says the last turn wrote something, so a failure after it cannot be retried as if nothing happened.
+	streamed bool
 }
 
 // AddInstructions puts a note at the head of the system instructions, for the next turns of a conversation that is
@@ -541,6 +548,7 @@ func (s *Session) knownTool(name string) bool {
 }
 
 func (s *Session) drive(ctx context.Context) error {
+	retriedFull := false
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -603,10 +611,25 @@ func (s *Session) drive(ctx context.Context) error {
 			}
 			continue
 		}
+		if err := s.maybeCompact(ctx); err != nil {
+			return err
+		}
 		if s.turns++; s.maxTurns > 0 && s.turns > s.maxTurns {
 			return errTurnLimit
 		}
 		calls, err := s.respond(ctx)
+		// A request that no longer fits the window is compacted once and asked again; a second refusal ends the run.
+		if err != nil && contextLengthExceeded(err) && !s.streamed && !retriedFull {
+			retriedFull = true
+			if compactErr := s.compact(ctx); compactErr != nil {
+				return &executionError{"context_length_exceeded", errors.Join(err, compactErr)}
+			}
+			s.turns--
+			continue
+		}
+		if err != nil && contextLengthExceeded(err) {
+			return &executionError{"context_length_exceeded", err}
+		}
 		if err != nil {
 			return err
 		}
@@ -631,6 +654,7 @@ func textChunk(text string) (string, string) {
 }
 
 func (s *Session) respond(ctx context.Context) (result []ToolCall, resultErr error) {
+	s.streamed = false
 	var providerErr error
 	defer func() {
 		if providerErr != nil {
@@ -728,6 +752,11 @@ func (s *Session) respond(ctx context.Context) (result []ToolCall, resultErr err
 					if err := s.persist(ctx, "usage.recorded", *item.Usage); err != nil {
 						return nil, err
 					}
+					if item.Usage.InputTokens > 0 {
+						s.mu.Lock()
+						s.usageTokens, s.usageBytes = int(item.Usage.InputTokens+item.Usage.OutputTokens), messagesBytes(messages)+full.Len()
+						s.mu.Unlock()
+					}
 					if s.maxRunOutputTokens > 0 && maxOutputTokens > 0 && item.Usage.OutputTokens > int64(maxOutputTokens) {
 						return nil, &executionError{"output_limit_exceeded", errors.New("response output exceeded its token limit")}
 					}
@@ -773,6 +802,7 @@ func (s *Session) respond(ctx context.Context) (result []ToolCall, resultErr err
 		return nil, nil
 	}
 	message := Message{Role: RoleAssistant, Content: full.String(), ToolCalls: calls}
+	s.streamed = true
 	if err := s.persist(ctx, "message.assistant", message); err != nil {
 		return nil, err
 	}

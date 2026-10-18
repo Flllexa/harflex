@@ -207,7 +207,7 @@ func safeLiveEnum(typ, key, value string) bool {
 		if !slices.Contains([]string{"tool.failed", "tool.denied", "tool.skipped", "run.completed", "run.failed", "run.cancelled", "run.interrupted"}, typ) {
 			return false
 		}
-		return slices.Contains([]string{"", "approval_denied", "tool_failed", "execution_failed", "unknown_tool", "policy_denied", "cancelled", "turn_limit", "skipped_after_failure", "invalid_tool_result", "app_restart",
+		return slices.Contains([]string{"", "approval_denied", "tool_failed", "execution_failed", "unknown_tool", "policy_denied", "cancelled", "turn_limit", "skipped_after_failure", "invalid_tool_result", "app_restart", "context_length_exceeded",
 			// Failures a tool reports so the model can adjust.
 			"not_found", "invalid_arguments", "not_a_file", "not_a_directory", "no_match", "ambiguous_match", "binary_file", "range_required", "permission_denied", "exit_status", "timeout", "mcp_error"}, value)
 	}

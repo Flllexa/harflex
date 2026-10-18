@@ -1015,7 +1015,10 @@ func TestSessionValidatesToolResultJSONAndSupportsLargeReads(t *testing.T) {
 				return ToolExecutionResult{Content: tc.content, Details: tc.details}, nil
 			}}
 			j := &sessionJournal{}
-			err := NewSession("session-1", p, tools, j, security.Ask).Prompt(context.Background(), "hello")
+			// A window wide enough for the 14 MiB read: this test is about the result's JSON, not about compaction.
+			session := NewSession("session-1", p, tools, j, security.Ask)
+			session.SetContextWindow(50_000_000)
+			err := session.Prompt(context.Background(), "hello")
 			if tc.valid {
 				if err != nil || rounds != 2 {
 					t.Fatalf("valid result: error=%v rounds=%d", err, rounds)
