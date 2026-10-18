@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com/persioflexa/harflex/internal/agentcore"
+	"github.com/persioflexa/harflex/internal/catalog"
 	"github.com/persioflexa/harflex/internal/events"
 	"github.com/persioflexa/harflex/internal/externalagent"
 	"github.com/persioflexa/harflex/internal/repositories"
@@ -89,6 +90,12 @@ var errorCodes = []struct {
 	{ErrPipelineCodeSnapshotUnavailable, "pipeline_code_snapshot_unavailable"},
 	{ErrPipelineCodeSessionClosed, "pipeline_code_session_closed"},
 	{ErrPipelineCodeNotApplied, "pipeline_code_not_applied"},
+	{catalog.ErrLocalTestBusy, "local_test_busy"},
+	{repositories.ErrLocalTestSourceDirty, "local_test_source_dirty"},
+	{repositories.ErrLocalTestBackupMissing, "local_test_backup_missing"},
+	{ErrLocalTestConflict, "local_test_conflict"},
+	{ErrLocalTestFinished, "local_test_finished"},
+	{ErrLocalTestBackendUnsupported, "local_test_backend_unsupported"},
 	{ErrPipelineCodeNotFinished, "pipeline_code_not_finished"},
 	{ErrPullRequestWatchNeedsFullAccess, "pull_request_watch_needs_full_access"},
 	{ErrPullRequestNotFound, "pull_request_not_found"},
@@ -180,11 +187,24 @@ func ErrorCode(err error) string {
 // serializes the outer error message; callers must still sanitize that message
 // with safe before returning adapter diagnostics across the bridge.
 func MarshalError(err error) []byte {
-	payload := map[string]string{"code": ErrorCode(err)}
+	payload := map[string]any{"code": ErrorCode(err)}
 	// A document phase that could not start on the executor chosen for it says which phase it was.
 	var phase phaseExecutorError
 	if errors.As(err, &phase) {
 		payload["stage"] = string(phase.stage)
+	}
+	// A local test refused on a folder with changes lists them, so the card can show what to resolve.
+	var dirty *repositories.LocalTestDirtyError
+	if errors.As(err, &dirty) {
+		paths := dirty.Paths
+		if len(paths) > 50 {
+			paths = paths[:50]
+		}
+		payload["paths"] = paths
+	}
+	var busy *catalog.LocalTestBusyError
+	if errors.As(err, &busy) {
+		payload["pipelineId"] = busy.PipelineID
 	}
 	data, _ := json.Marshal(payload)
 	return data

@@ -86,6 +86,10 @@ func (s *Service) DecidePipelineExecutionArtifact(in DecidePipelineExecutionArti
 	}
 	role := "coder"
 	if stage == sdd.Code {
+		// The decision reads the folder as it was: a local test of this Code is undone first.
+		if err := s.releaseLocalTest(run.ID); err != nil {
+			return PipelineDTO{}, err
+		}
 		link, err := s.latestPipelineSession(run.ID, role)
 		if err != nil || link.SessionID != artifact.SourceSessionID {
 			return PipelineDTO{}, ErrPipelineCodeSnapshotUnavailable

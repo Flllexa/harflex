@@ -201,7 +201,7 @@ func harflexGetPipeline(s *Service, workspaceID, _ string, args json.RawMessage)
 
 // platformMCPEndpoint returns the Harflex MCP server's URL and this session's token, starting the server the first
 // time a CLI chat needs it. A session keeps its token, bound to its project's tools, until the app quits.
-func (s *Service) platformMCPEndpoint(sessionID, workspaceID string) (string, string, error) {
+func (s *Service) platformMCPEndpoint(sessionID, workspaceID string, extra ...tools.Tool) (string, string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.platformMCP == nil {
@@ -214,7 +214,7 @@ func (s *Service) platformMCPEndpoint(sessionID, workspaceID string) (string, st
 	}
 	token, ok := s.platformMCPTokens[sessionID]
 	if !ok {
-		token, _ = s.platformMCP.Register(append(s.harflexTools(workspaceID, sessionID), s.platformPullRequestTools(sessionID, workspaceID)...))
+		token, _ = s.platformMCP.Register(append(append(s.harflexTools(workspaceID, sessionID), s.platformPullRequestTools(sessionID, workspaceID)...), extra...))
 		s.platformMCPTokens[sessionID] = token
 	}
 	return s.platformMCP.URL(), token, nil

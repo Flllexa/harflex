@@ -183,33 +183,9 @@ func (s *Service) createPipelinePRSession(in CreatePipelineSessionInput) (Pipeli
 	if len(prompt) > maxPromptBytes {
 		return PipelineSessionDTO{}, ErrHistoryTooLarge
 	}
-	// The conversation uses the profile's own model, like any chat, unless the person picked another one from the
-	// catalog. The pick is bound to the conversation, which keeps it however long the person's approvals take.
-	var modelSelection *catalog.ModelSelection
-	if in.Selection != nil && external {
-		// The CLI's own model, confirmed against its catalog like in any chat.
-		if in.Selection.Executor != "cli" || in.Selection.BackendID != in.BackendID {
-			return PipelineSessionDTO{}, ErrInvalidInput
-		}
-		workspace, err := s.store.GetWorkspace(s.ctx, run.WorkspaceID)
-		if err != nil {
-			return PipelineSessionDTO{}, ErrWorkspaceNotFound
-		}
-		modelSelection, err = s.prepareCLIModelSelectionContext(s.ctx, CreateSessionInput{BackendID: in.BackendID, ModelID: in.Selection.ModelID, ReasoningEffort: in.Selection.ReasoningEffort, CatalogRevision: in.Selection.CatalogRevision}, workspace)
-		if err != nil {
-			return PipelineSessionDTO{}, err
-		}
-	} else if in.Selection != nil {
-		if in.Selection.Executor != "api" {
-			return PipelineSessionDTO{}, ErrInvalidInput
-		}
-		modelSelection, err = s.preparePipelineRoleModelSelection(s.ctx, run.WorkspaceID, in.BackendID, *in.Selection)
-		if err != nil {
-			return PipelineSessionDTO{}, err
-		}
-		// Code and QA answer in bounded turns; this is a conversation with a terminal, where a reasoning model spends part
-		// of the cap thinking and a cut tool call becomes an invalid one, so it gets the room an unbound chat has.
-		modelSelection.MaxOutputTokens = pullRequestOutputTokens
+	modelSelection, err := s.pipelineChatModelSelection(run, in, external)
+	if err != nil {
+		return PipelineSessionDTO{}, err
 	}
 	// The conversation is composed before it is linked, so its pull request tools come from this hint.
 	s.prWatch.mu.Lock()
@@ -299,4 +275,35 @@ func (s *Service) FinishPipelinePRs(in FinishPipelinePRsInput) (PipelineDTO, err
 		return PipelineDTO{}, err
 	}
 	return s.pipelineDTOWithCodeApplyStatus(updated)
+}
+
+// pipelineChatModelSelection is the model of a pipeline conversation that works like a chat in the project's folder
+// (the PRs agent, the local test): the profile's own, unless the person picked another one from the catalog. The
+// pick is bound to the conversation, which keeps it however long the person's approvals take.
+func (s *Service) pipelineChatModelSelection(run catalog.PipelineRun, in CreatePipelineSessionInput, external bool) (*catalog.ModelSelection, error) {
+	if in.Selection == nil {
+		return nil, nil
+	}
+	if external {
+		// The CLI's own model, confirmed against its catalog like in any chat.
+		if in.Selection.Executor != "cli" || in.Selection.BackendID != in.BackendID {
+			return nil, ErrInvalidInput
+		}
+		workspace, err := s.store.GetWorkspace(s.ctx, run.WorkspaceID)
+		if err != nil {
+			return nil, ErrWorkspaceNotFound
+		}
+		return s.prepareCLIModelSelectionContext(s.ctx, CreateSessionInput{BackendID: in.BackendID, ModelID: in.Selection.ModelID, ReasoningEffort: in.Selection.ReasoningEffort, CatalogRevision: in.Selection.CatalogRevision}, workspace)
+	}
+	if in.Selection.Executor != "api" {
+		return nil, ErrInvalidInput
+	}
+	modelSelection, err := s.preparePipelineRoleModelSelection(s.ctx, run.WorkspaceID, in.BackendID, *in.Selection)
+	if err != nil {
+		return nil, err
+	}
+	// Code and QA answer in bounded turns; this is a conversation with a terminal, where a reasoning model spends part
+	// of the cap thinking and a cut tool call becomes an invalid one, so it gets the room an unbound chat has.
+	modelSelection.MaxOutputTokens = pullRequestOutputTokens
+	return modelSelection, nil
 }

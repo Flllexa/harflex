@@ -226,7 +226,7 @@ func (s *Service) createSessionWithExecutionRoot(in CreateSessionInput, delegati
 	defer s.endCall()
 	s.recoveryGate.RLock()
 	defer s.recoveryGate.RUnlock()
-	validMode := in.Mode == "" || in.Mode == "evaluation" || in.Mode == "sdd_code"
+	validMode := in.Mode == "" || in.Mode == "evaluation" || in.Mode == "sdd_code" || in.Mode == localTestMode
 	validExecutionRoot := executionRoot == "" && in.Mode != "sdd_code" || executionRoot != "" && (in.Mode == "sdd_code" || in.Mode == "evaluation")
 	if strings.TrimSpace(in.WorkspaceID) == "" || (strings.TrimSpace(in.BackendID) == "" && strings.TrimSpace(in.AgentID) == "") || !validMode || !validExecutionRoot || len(in.BypassReason) > 1000 || !utf8.ValidString(in.BypassReason) || strings.ContainsAny(in.BypassReason, "\x00\r\n") || (in.Mode != "" && in.BypassReason != "") || (delegation != nil && (in.Mode != "" || in.BypassReason != "" || executionRoot != "")) {
 		return SessionDTO{}, ErrInvalidInput
@@ -502,12 +502,20 @@ func (s *Service) makeRunnerAt(record *catalog.SessionRecord, workspace catalog.
 		}
 		request := externalagent.Request{CWD: requestCWD, SessionID: history.externalID, SystemPrompt: instructions}
 		// An ordinary chat follows the project's profile: on Full access the CLI is not held to what it may do without asking.
-		request.FullAccess = record.Mode == "" && security.Profile(workspace.Profile) == security.FullAccess
+		request.FullAccess = followsWorkspaceProfile(record.Mode) && security.Profile(workspace.Profile) == security.FullAccess
 		if record.Mode == "" && (record.BackendID == "codex" || record.BackendID == "claude") {
 			// Without the platform tools the chat still works; the agent just cannot reach Harflex.
 			if url, token, err := s.platformMCPEndpoint(record.ID, workspace.ID); err == nil {
 				request.HarflexMCPURL, request.HarflexMCPToken = url, token
 			}
+		}
+		if record.Mode == localTestMode {
+			// The tester starts services through Harflex's terminals; without them it cannot do its job.
+			url, token, err := s.platformMCPEndpoint(record.ID, workspace.ID, s.localTestTools(workspace.ID, record.ID)...)
+			if err != nil {
+				return nil, nil, safe("open the local test tools", err)
+			}
+			request.HarflexMCPURL, request.HarflexMCPToken = url, token
 		}
 		if record.Mode == "sdd_code" {
 			request.Sandbox = "workspace-write"
@@ -670,6 +678,10 @@ func (s *Service) makeRunnerAt(record *catalog.SessionRecord, workspace catalog.
 				toolItems = append(toolItems, tools.NewWriteTool(guard), tools.NewEditTool(guard), tools.NewPlanTool())
 			} else if record.Mode == "evaluation" && isQALabRoot(toolRoot) {
 				toolItems = append(toolItems, tools.NewShellTool(tools.ShellConfig{CWD: toolRoot, DefaultTimeout: shellCommandTimeout}), tools.NewPlanTool())
+			} else if record.Mode == localTestMode {
+				toolItems = append(toolItems, ignoredOnlyTool(tools.NewWriteTool(guard), workspace.Path), ignoredOnlyTool(tools.NewEditTool(guard), workspace.Path),
+					tools.NewShellTool(tools.ShellConfig{CWD: workspace.Path}), tools.NewPlanTool())
+				toolItems = append(toolItems, s.localTestTools(workspace.ID, record.ID)...)
 			} else if record.Mode == "" {
 				toolItems = append(toolItems, tools.NewWriteTool(guard), tools.NewEditTool(guard), tools.NewShellTool(tools.ShellConfig{CWD: workspace.Path}), tools.NewPlanTool())
 				toolItems = append(toolItems, s.harflexTools(workspace.ID, record.ID)...)
@@ -796,6 +808,9 @@ func (s *Service) Prompt(in PromptInput) (RunResultDTO, error) {
 	}
 	if record.Mode == "sdd_readonly" || record.Mode == catalog.AuthoringCodeSessionMode {
 		return RunResultDTO{}, ErrInvalidInput
+	}
+	if record.Mode == localTestMode && !s.localTestStillApplied(record) {
+		return RunResultDTO{}, ErrLocalTestFinished
 	}
 	s.followWorkspaceProfile(runner, record)
 	s.linkNewChatToWork(record, runner, in.Text)
@@ -1215,7 +1230,7 @@ type fullAccessFollower interface{ SetFullAccess(bool) }
 // followWorkspaceProfile gives an ordinary CLI chat the project's current permission profile before it runs, so a change
 // made between two messages (to or from Full access) applies to the next one and not only to chats opened afterwards.
 func (s *Service) followWorkspaceProfile(runner sessionRunner, record catalog.SessionRecord) {
-	if record.Mode != "" {
+	if !followsWorkspaceProfile(record.Mode) {
 		return
 	}
 	follower, ok := runner.(fullAccessFollower)

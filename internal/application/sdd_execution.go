@@ -308,6 +308,9 @@ func (s *Service) CreatePipelineSession(in CreatePipelineSessionInput) (Pipeline
 	if in.Role == publisherRole {
 		return s.createPipelinePRSession(in)
 	}
+	if in.Role == testerRole {
+		return s.createPipelineLocalTestSession(in)
+	}
 	if in.Role != "coder" && in.Role != "evaluator" {
 		return PipelineSessionDTO{}, ErrInvalidInput
 	}
@@ -640,6 +643,10 @@ func (s *Service) completePipelineCode(pipelineID string, requireDone bool) (Pip
 	}
 	if run.Current != sdd.Code || run.Status[sdd.Code] != sdd.Active {
 		return PipelineDTO{}, sdd.ErrInvalidTransition
+	}
+	// A new version is read against the folder as it was; an older version under test goes first.
+	if err := s.releaseLocalTest(run.ID); err != nil {
+		return PipelineDTO{}, err
 	}
 	if !authoringPlanAllowsCode(run) {
 		return PipelineDTO{}, sdd.ErrInvalidTransition
