@@ -1,5 +1,6 @@
 import { cleanup, render, screen, within } from '@testing-library/react'
-import { afterEach, expect, it, vi } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AgentEvent } from '../lib/backend'
 import { ActivityPanel } from './ActivityPanel'
 
@@ -46,4 +47,21 @@ it('chains actions under the request when the agent has no plan, and says when n
   expect(document.querySelector('.flow-request')).toHaveTextContent('oi')
   expect(document.querySelector('.flow-action.is-done')).toHaveTextContent('Buscando “TODO”')
   expect(document.querySelector('.flow-outcome.is-completed')).toHaveTextContent('Concluído')
+})
+
+describe('running activities', () => {
+  const session = (id: string, title: string) => ({ id, workspaceId: 'workspace-1', backendId: 'local', status: 'running', resumable: true, createdAt: '2026-10-18T10:00:00Z', updatedAt: '2026-10-18T10:00:00Z', title, purpose: 'chat' as const })
+  it('lists two running activities and opens the other one', async () => {
+    const onOpenRunning = vi.fn()
+    const running = [{ session: session('chat-a', 'Chat A'), pipelineId: '', role: '' as const }, { session: session('coder-b', 'Coder B'), pipelineId: 'pipeline-1', role: 'coder' as const }]
+    render(<ActivityPanel onClose={() => undefined} events={[]} running={running} focusedId="chat-a" onOpenRunning={onOpenRunning} />)
+    const list = screen.getByRole('list', { name: 'Em execução · 2' })
+    expect(within(list).getByRole('button', { name: /Chat A/ })).toHaveAttribute('aria-current', 'true')
+    await userEvent.setup().click(within(list).getByRole('button', { name: /Coder B/ }))
+    expect(onOpenRunning).toHaveBeenCalledWith(running[1])
+  })
+  it('shows no list when only the focused activity runs', () => {
+    render(<ActivityPanel onClose={() => undefined} events={[]} running={[{ session: session('chat-a', 'Chat A'), pipelineId: '', role: '' }]} focusedId="chat-a" onOpenRunning={() => undefined} />)
+    expect(screen.queryByRole('list', { name: /Em execução/ })).not.toBeInTheDocument()
+  })
 })

@@ -1,9 +1,10 @@
 import { useMemo } from 'react'
 import { X } from 'lucide-react'
 import { currentLocale, useT } from '../i18n'
-import type { AgentEvent } from '../lib/backend'
+import type { AgentEvent, RunningSession } from '../lib/backend'
 import { ActivityFlowView } from './activity/ActivityFlowView'
 import { beforePlan, buildActivityFlow, type Action } from './activity/activityFlow'
+import { RunningList } from './activity/RunningList'
 
 function waitingForApproval(events: AgentEvent[]) {
   for (let index = events.length - 1; index >= 0; index--) {
@@ -21,7 +22,7 @@ function current(actions: Action[]) {
 }
 
 /** The latest request as a live flow: the agent's plan, what it is doing under each step and how it ended. */
-export function ActivityPanel({ onClose, events = [], busy = false }: { onClose: () => void; events?: AgentEvent[]; busy?: boolean }) {
+export function ActivityPanel({ onClose, events = [], busy = false, running = [], focusedId, onOpenRunning }: { onClose: () => void; events?: AgentEvent[]; busy?: boolean; running?: RunningSession[]; focusedId?: string; onOpenRunning?: (item: RunningSession) => void }) {
   const t = useT()
   const journal = useMemo(() => events.filter(item => item.sequence > 0), [events])
   // The flow's labels are written in the language on screen, so a change of language builds it again.
@@ -42,6 +43,7 @@ export function ActivityPanel({ onClose, events = [], busy = false }: { onClose:
       {awaitingApproval ? t('Aguardando aprovação') : live ? t('Em execução · ações atualizadas ao vivo') : empty ? t('Nenhuma atividade nesta sessão') : t('Último pedido desta sessão')}
     </p>
     <p className="visually-hidden" aria-live="polite" aria-atomic="true">{announcement}</p>
+    {onOpenRunning && (running.length > 1 || running.length === 1 && running[0].session.id !== focusedId) && <RunningList items={running} focusedId={focusedId} onOpen={onOpenRunning} />}
     {flow.plan.length > 0 && <div className="activity-progress">
       <div className="activity-progress-row"><strong>{t('{done} de {total} etapas', { done, total: flow.plan.length })}</strong><span>{flow.planSource ? t(sources[flow.planSource]) : ''}</span></div>
       <div className="activity-progress-bar" role="progressbar" aria-label={t('Progresso do plano')} aria-valuemin={0} aria-valuemax={flow.plan.length} aria-valuenow={done}><i style={{ width: `${Math.round(done / flow.plan.length * 100)}%` }} /></div>

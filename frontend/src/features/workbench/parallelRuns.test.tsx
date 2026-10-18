@@ -121,3 +121,32 @@ describe('parallel activities', () => {
     for (const button of screen.getAllByRole('button', { name: 'Novo chat' })) expect(button).toBeEnabled()
   })
 })
+
+describe('running Coders', () => {
+  afterEach(() => { cleanup(); localStorage.clear() })
+
+  it('a Coder that finishes while another chat is focused still has its code checked for review', async () => {
+    const user = userEvent.setup()
+    const { backend, finish } = twoChats()
+    // The backend says chat A works as a pipeline's Coder while it runs.
+    const [coder] = await backend.listSessions('workspace-1')
+    let codeRunning = false
+    let seenRunning = 0
+    backend.listRunningSessions = async () => { if (codeRunning) seenRunning++; return codeRunning ? [{ session: coder, pipelineId: 'pipeline-1', role: 'coder' as const }] : [] }
+    const verified: string[] = []
+    backend.completePipelineCode = async pipelineId => { verified.push(pipelineId); throw new Error('no evidence in this fake') }
+    localStorage.setItem('harflex:view-mode', 'casual')
+    render(<App backend={backend} />)
+    await openProject(user)
+    await user.click(await screen.findByRole('button', { name: /Pedido do chat A/ }))
+    codeRunning = true
+    await user.type(await screen.findByLabelText('Mensagem'), 'Continue o código{Enter}')
+    await screen.findByText('Continue o código')
+    await user.click(screen.getByRole('button', { name: /Pedido do chat B/ }))
+    await screen.findByText('Pronto chat-b')
+    await waitFor(() => expect(seenRunning).toBeGreaterThan(0))
+    codeRunning = false
+    finish('chat-a', 'Código pronto')
+    await waitFor(() => expect(verified).toEqual(['pipeline-1']))
+  })
+})

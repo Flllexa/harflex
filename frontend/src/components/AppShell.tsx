@@ -100,6 +100,7 @@ export function AppShell({ initialActivityOpen, workState = 'empty', backend, re
       && current.session?.resumable === next.session?.resumable
       && current.session?.updatedAt === next.session?.updatedAt
       && current.busy === next.busy
+      && current.running === next.running
       && current.startingSession === next.startingSession
       && current.loadingHistory === next.loadingHistory
       && current.hasDraft === next.hasDraft
@@ -235,7 +236,7 @@ export function AppShell({ initialActivityOpen, workState = 'empty', backend, re
           <button type="button" role="tab" className="side-panel-tab" aria-selected={sidePanel === 'terminal'} onClick={() => { setSidePanel('terminal'); setTerminalUsed(true) }}><SquareTerminal aria-hidden="true" />Terminal</button>
         </div>
         <div className="side-panel-body">
-          <div className="side-panel-activity" hidden={sidePanel !== 'activity'}><ActivityPanel onClose={closeActivity} events={activityEvents} busy={workbenchContext.busy} /></div>
+          <div className="side-panel-activity" hidden={sidePanel !== 'activity'}><ActivityPanel onClose={closeActivity} events={activityEvents} busy={workbenchContext.busy} running={workbenchContext.running} focusedId={workbenchContext.session?.id} onOpenRunning={item => item.role ? openPipeline(item.pipelineId, item.session.workspaceId) : openHistorySession(item.session.id, item.session.workspaceId)} /></div>
           {backend && terminalUsed && <TerminalPanel backend={backend} workspace={workbenchContext.workspace} onClose={closeActivity} visible={sidePanel === 'terminal'} />}
         </div>
       </div>

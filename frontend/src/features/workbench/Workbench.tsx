@@ -4,7 +4,7 @@ import { FolderOpen, Settings2, Workflow, X } from 'lucide-react'
 import { WorkArea, shortPath } from '../../components/WorkArea'
 import { IonPicker } from '../../components/IonPicker'
 import { preferredFirst } from '../../lib/backendOrder'
-import { cliCatalogProblem, codedError, errorCode, errorMessage, type Agent, type AgentEvent, type Backend, type BackendOption, type Delegation, type ModelCatalogResult, type Pipeline, type PipelineRole, type PipelineStage, type PipelineRoleModelSelection, type RunResult, type Session, type Workspace, type WorkspaceSummary, type WorktreeList, type WorktreeSavePlan } from '../../lib/backend'
+import { cliCatalogProblem, codedError, errorCode, errorMessage, type Agent, type AgentEvent, type Backend, type BackendOption, type Delegation, type ModelCatalogResult, type Pipeline, type PipelineRole, type PipelineStage, type PipelineRoleModelSelection, type RunResult, type RunningSession, type Session, type Workspace, type WorkspaceSummary, type WorktreeList, type WorktreeSavePlan } from '../../lib/backend'
 import { checkReplayOutcome, replayErrorMessage, replaySession, type ReplayExpectation } from '../../lib/replay'
 import { useRecentWork, workProgress } from '../pipelines/RecentWork'
 import { useVerifyCoderWhenDone } from './useVerifyCoderWhenDone'
@@ -65,7 +65,9 @@ function rememberBackend(id: string) { try { localStorage.setItem(backendMemory,
 
 export type HistoryOpenRequest = { requestId: string; sessionId: string; workspaceId: string; /** Set when the chat belongs to another project, which is opened first. */ workspacePath?: string }
 export type ProjectOpenRequest = { requestId: string; path: string }
-export type WorkbenchContext = { workspace?: Workspace; session?: Session; busy: boolean; startingSession?: boolean; loadingHistory: boolean; hasDraft: boolean; historyHasUserMessage: boolean; readOnly: boolean; recoveryPrompt: string }
+const terminalRunEvents = new Set(['run.completed', 'run.failed', 'run.cancelled', 'run.interrupted', 'external.run.completed', 'external.run.failed', 'external.run.cancelled', 'external.run.interrupted'])
+
+export type WorkbenchContext = { workspace?: Workspace; session?: Session; busy: boolean; running?: RunningSession[]; startingSession?: boolean; loadingHistory: boolean; hasDraft: boolean; historyHasUserMessage: boolean; readOnly: boolean; recoveryPrompt: string }
 type WorkbenchProps = {
   backend: Backend
   /** Reopen the most recently used project at startup (default). */
@@ -171,6 +173,40 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
   const historyOpenOrder = useRef(0)
   // Conversations with a call still in flight (a run answering): each call belongs to its own conversation.
   const inFlight = useRef(new Set<string>())
+  // Everything running in the project, for the Activity panel; a Coder seen running is checked for review when it ends,
+  // even if another conversation is on screen by then.
+  const [running, setRunning] = useState<RunningSession[]>([])
+  const watchedCoders = useRef(new Map<string, string>())
+  const runningTap = useRef<(event: AgentEvent) => void>()
+  const runningWorkspace = state.workspace?.id
+  useEffect(() => {
+    if (!runningWorkspace) { setRunning([]); return }
+    let live = true
+    let timer: number | undefined
+    const refresh = () => {
+      void backend.listRunningSessions(runningWorkspace).then(items => {
+        if (!live) return
+        for (const item of items) if (item.role === 'coder' && item.pipelineId) watchedCoders.current.set(item.session.id, item.pipelineId)
+        setRunning(items)
+      }, () => undefined)
+    }
+    refresh()
+    // Rides the screen's one event subscription: some backends deliver events to a single listener.
+    runningTap.current = event => {
+      if (!live) return
+      if (event.type === 'run.started' || event.type === 'external.run.started' || terminalRunEvents.has(event.type)) {
+        window.clearTimeout(timer)
+        timer = window.setTimeout(refresh, 300)
+      }
+      const pipelineId = watchedCoders.current.get(event.streamId)
+      if (!pipelineId || !terminalRunEvents.has(event.type)) return
+      watchedCoders.current.delete(event.streamId)
+      // The Coder on screen is checked by useVerifyCoderWhenDone, which also opens its review.
+      if (event.type !== 'run.completed' && event.type !== 'external.run.completed' || store.getState().session?.id === event.streamId) return
+      void backend.completePipelineCode(pipelineId).then(updated => setCurrentPipeline(current => current?.id === updated.id ? updated : current), () => undefined)
+    }
+    return () => { live = false; window.clearTimeout(timer); runningTap.current = undefined }
+  }, [backend, store, runningWorkspace])
   const handledNewWorkRequest = useRef(0)
   // Pages that default to the first usable backend should agree with the setup screen's choice.
   const orderedBackends = useMemo(() => preferredFirst(state.backends, defaultBackendId, lastBackendId), [state.backends, defaultBackendId, lastBackendId])
@@ -236,8 +272,8 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     return () => { live = false }
   },[backend,stageViewRequest?.requestId,state.workspace?.id])
   useEffect(() => {
-    onContextChange?.({ workspace: state.workspace, session: state.session, busy: executionBusy || startingSession, startingSession, loadingHistory, hasDraft: !!state.draft.trim(), historyHasUserMessage, readOnly: state.readOnly, recoveryPrompt })
-  }, [onContextChange, state.workspace?.id, state.workspace?.path, state.session?.id, state.session?.status, state.session?.resumable, state.session?.updatedAt, state.draft, executionBusy, startingSession, loadingHistory, historyHasUserMessage, state.readOnly, recoveryPrompt])
+    onContextChange?.({ workspace: state.workspace, session: state.session, running, busy: executionBusy || startingSession, startingSession, loadingHistory, hasDraft: !!state.draft.trim(), historyHasUserMessage, readOnly: state.readOnly, recoveryPrompt })
+  }, [onContextChange, running, state.workspace?.id, state.workspace?.path, state.session?.id, state.session?.status, state.session?.resumable, state.session?.updatedAt, state.draft, executionBusy, startingSession, loadingHistory, historyHasUserMessage, state.readOnly, recoveryPrompt])
   useEffect(() => {
     const sessionId = state.session?.id
     if (!sessionId) { delegationReadOrder.current++; setDelegation(undefined); return }
@@ -314,7 +350,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     let live = true
     const controller = new AbortController()
     lifetime.current = controller
-    const unsubscribe = backend.onEvent(event => { if (live) store.getState().receive([event]) })
+    const unsubscribe = backend.onEvent(event => { if (live) { store.getState().receive([event]); runningTap.current?.(event) } })
     setDefaultBackendId('')
     setDefaultModelBackendId('')
     setDefaultModelId('')
