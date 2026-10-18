@@ -188,7 +188,23 @@ const sessionModelSelection = z.strictObject({ sessionId: z.string().min(1), bac
   status: z.enum(['', 'listed', 'listed_unfiltered', 'unverified_manual']),
   confirmUnverifiedManual: z.boolean(), confirmUnfiltered: z.boolean(), confirmJitLoad: z.boolean(),
   maxOutputTokens: z.number().int().min(0).max(32768), contextLength: z.number().int().min(0), checkedAt: z.iso.datetime({ offset: true }) })
-const pipelineSession = z.object({ session, prompt: z.string().min(1), role: z.enum(['coder', 'evaluator', 'publisher']) })
+const pipelineSession = z.object({ session, prompt: z.string().min(1), role: z.enum(['coder', 'evaluator', 'publisher', 'tester']) })
+const localTestService = z.object({ name: z.string(), terminalId: z.string(), running: z.boolean() })
+const pipelineLocalTest = z.object({
+  pipelineId: z.string(),
+  status: z.enum(['applied', 'none']),
+  artifactVersion: z.number().int(),
+  sessionId: z.string(),
+  testerStatus: z.string(),
+  services: z.array(localTestService).nullish().transform(items => items ?? []),
+  servicesLost: z.boolean(),
+  backupMissing: z.boolean(),
+  report: z.object({ urls: z.array(z.object({ label: z.string(), url: z.string() })).nullish().transform(items => items ?? []), stop: z.string(), notes: z.string() }).nullish().transform(value => value ?? undefined),
+  conflict: z.object({ edited: z.array(z.string()).nullish().transform(items => items ?? []), created: z.array(z.string()).nullish().transform(items => items ?? []) }).nullish().transform(value => value ?? undefined),
+  heldBy: z.string().optional(),
+  heldById: z.string().optional(),
+})
+const terminalInfo = z.object({ id: z.string().min(1), shell: z.string(), path: z.string(), name: z.string().optional().transform(value => value ?? ''), running: z.boolean() })
 const pipelineCodeCopyPreview = z.object({ isGit: z.boolean(), fileCount: z.number().int().nonnegative(), totalBytes: z.number().int().nonnegative(), excludedPaths: z.array(z.string()), unsafePaths: z.array(z.string()),
   repositories: z.array(z.object({ path: z.string(), branch: z.string() })).nullish().transform(value => value ?? []),
   skippedRepositories: z.array(z.object({ path: z.string(), reason: z.string() })).nullish().transform(value => value ?? []) })
@@ -283,7 +299,8 @@ export type ProjectMemory = z.infer<typeof projectMemory>
 export type ChatProject = z.infer<typeof chatProject>
 /** One chunk of a chat command's output, or its end (with the whole output). */
 export type ChatCommandEvent = { id: string; sessionId: string; text?: string; done: boolean; exitCode: number; cancelled: boolean; timedOut: boolean; truncated: boolean; durationMs: number; output?: string }
-export type TerminalInfo = { id: string; shell: string; path: string }
+/** A terminal of a project: the person's own shell, or a named service a local test started. */
+export type TerminalInfo = { id: string; shell: string; path: string; name?: string; running?: boolean }
 /** One chunk of a terminal's output (base64), or its end. */
 export type TerminalOutput = { id: string; data?: string; exited?: boolean; code?: number }
 export type DeleteWorktreeResult = z.infer<typeof deleteWorktreeResult>
@@ -296,7 +313,10 @@ export type PipelineStage = z.infer<typeof pipelineStage>
 export type StageExecutor = z.infer<typeof stageExecutor>
 export type SaveStageExecutorInput = { workspaceId: string; stage: PipelineStage; backendId: string; modelId: string }
 /** The agent that runs a stage: the Coder writes, the Evaluator is QA, the Publisher opens the pull requests. */
-export type PipelineRole = 'coder' | 'evaluator' | 'publisher'
+export type PipelineRole = 'coder' | 'evaluator' | 'publisher' | 'tester'
+/** The Code under review applied to the project's own folder for the person to try, and what the tester brought up. */
+type ParsedLocalTest = z.infer<typeof pipelineLocalTest>
+export type PipelineLocalTest = Omit<ParsedLocalTest, 'report' | 'conflict'> & Partial<Pick<ParsedLocalTest, 'report' | 'conflict'>>
 export type RunningSession = { session: Session; pipelineId: string; role: '' | PipelineRole }
 export type PipelineSession = z.infer<typeof pipelineSession>
 export type PipelineCodeCopyPreview = z.infer<typeof pipelineCodeCopyPreview>
@@ -417,6 +437,12 @@ export interface Backend {
   resizeTerminal(id: string, cols: number, rows: number): Promise<void>
   closeTerminal(id: string): Promise<void>
   onTerminalOutput(listener: (output: TerminalOutput) => void): () => void
+  /** The project's terminals, the services a local test started among them. */
+  listTerminals(workspaceId: string): Promise<TerminalInfo[]>
+  /** A terminal's latest output (base64), to draw a tab opened after it started. */
+  recentTerminalOutput(id: string): Promise<string>
+  /** A terminal started or ended: the panel lists them again. */
+  onTerminalsChanged(listener: () => void): () => void
   /** Runs a command the agent suggested in a chat, in its project; resolves with the run's id. The output follows on onChatCommand. */
   runChatCommand(sessionId: string, command: string): Promise<string>
   cancelChatCommand(runId: string): Promise<void>
@@ -498,6 +524,10 @@ export interface Backend {
   completePipelineCode(pipelineId: string): Promise<Pipeline>
   completePipelineEvaluation(pipelineId: string): Promise<Pipeline>
   decidePipelineExecutionArtifact(input: PipelineExecutionReviewInput): Promise<Pipeline>
+  /** The Code review's local test: started with createPipelineSession(…, 'tester'). */
+  getPipelineLocalTest(pipelineId: string): Promise<PipelineLocalTest>
+  /** Puts the folder back; with changes made during the test it reports them unless discard is set. */
+  undoPipelineLocalTest(pipelineId: string, discard?: boolean): Promise<PipelineLocalTest>
   /** Runs QA in its lab in the background; follow it with getPipelineQALoop. */
   startPipelineQA(pipelineId: string, evaluator: PipelineRoleChoice): Promise<QALoop>
   /** Sends the chosen findings and improvements back to Code and loops Code → QA in the background. */
@@ -624,6 +654,8 @@ export const parse = {
   workCoordinators: (value: unknown) => z.array(workCoordinator).parse(value ?? []),
   ensureWorkChats: (value: unknown) => z.object({ coordinators: z.array(workCoordinator).nullish().transform(items => items ?? []), created: z.number().int().nonnegative() }).parse(value),
   pipelineSession: (value: unknown) => pipelineSession.parse(value),
+  pipelineLocalTest: (value: unknown) => pipelineLocalTest.parse(value),
+  terminals: (value: unknown) => z.array(terminalInfo).nullish().transform(items => items ?? []).parse(value),
   pipelineCodeCopyPreview: (value: unknown) => pipelineCodeCopyPreview.parse(value),
   agent: (value: unknown) => agent.parse(value),
   agents: (value: unknown) => z.array(agent).parse(value ?? []),
@@ -657,7 +689,7 @@ export const parse = {
   session: (value: unknown) => session.parse(value),
   sessionModelSelection: (value: unknown) => sessionModelSelection.parse(value),
   sessions: (value: unknown) => z.array(session).parse(value ?? []),
-  runningSessions: (value: unknown) => z.array(z.object({ session, pipelineId: z.string(), role: z.enum(['', 'coder', 'evaluator', 'publisher']) })).parse(value ?? []),
+  runningSessions: (value: unknown) => z.array(z.object({ session, pipelineId: z.string(), role: z.enum(['', 'coder', 'evaluator', 'publisher', 'tester']) })).parse(value ?? []),
   chatProjects: (value: unknown) => z.array(chatProject).parse(value ?? []),
   id: (value: unknown) => id.parse(value),
   auditPath: (value: unknown) => auditPath.parse(value),

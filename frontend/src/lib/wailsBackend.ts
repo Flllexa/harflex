@@ -43,6 +43,9 @@ export const wailsBackend: Backend = {
     const value = event.data as Partial<TerminalOutput> | undefined
     if (value && typeof value.id === 'string') listener({ id: value.id, data: typeof value.data === 'string' ? value.data : undefined, exited: value.exited === true, code: typeof value.code === 'number' ? value.code : undefined })
   }),
+  listTerminals: async workspaceId => parse.terminals(await Service.ListTerminals({ workspaceId })),
+  recentTerminalOutput: async id => String(await Service.RecentTerminalOutput(id) ?? ''),
+  onTerminalsChanged: listener => Events.On('harflex:terminals', () => listener()),
   runChatCommand: async (sessionId, command) => { const id = await Service.RunChatCommand({ sessionId, command }); if (typeof id !== 'string' || !id) throw new Error('invalid_command_run'); return id },
   cancelChatCommand: async runId => { await Service.CancelChatCommand(runId) },
   onChatCommand: listener => Events.On('harflex:command', event => {
@@ -164,6 +167,8 @@ export const wailsBackend: Backend = {
   completePipelineCode: async pipelineId => parse.pipeline(await Service.CompletePipelineCode(pipelineId)),
   completePipelineEvaluation: async pipelineId => parse.pipeline(await Service.CompletePipelineEvaluation(pipelineId)),
   decidePipelineExecutionArtifact: async input => parse.pipeline(await Service.DecidePipelineExecutionArtifact(input)),
+  getPipelineLocalTest: async pipelineId => parse.pipelineLocalTest(await Service.GetPipelineLocalTest(pipelineId)),
+  undoPipelineLocalTest: async (pipelineId, discard) => parse.pipelineLocalTest(await Service.UndoPipelineLocalTest({ pipelineId, discard: discard === true })),
   startPipelineQA: async (pipelineId, evaluator) => parse.qaLoop(await Service.StartPipelineQA({ pipelineId, evaluator: { backendId: evaluator.backendId, ...(evaluator.selection ? { selection: evaluator.selection } : {}) } })),
   resumePipelineFixes: async input => parse.qaLoop(await Service.ResumePipelineFixes({ pipelineId: input.pipelineId, coder: { backendId: input.coder.backendId, ...(input.coder.selection ? { selection: input.coder.selection } : {}) }, evaluator: { backendId: input.evaluator.backendId, ...(input.evaluator.selection ? { selection: input.evaluator.selection } : {}) } })),
   fixPipelineFindings: async input => parse.qaLoop(await Service.FixPipelineFindings({ ...input, coder: { backendId: input.coder.backendId, ...(input.coder.selection ? { selection: input.coder.selection } : {}) }, evaluator: { backendId: input.evaluator.backendId, ...(input.evaluator.selection ? { selection: input.evaluator.selection } : {}) } })),

@@ -334,3 +334,23 @@ describe('the flow and design approval', () => {
     expect(errorMessage({ cause: { code: 'brainstorm_model_too_small' } })).toBe('O modelo escolhido para o Brainstorm não comporta um documento deste tamanho. Escolha outro modelo para a fase.')
   })
 })
+
+describe('local test', () => {
+  it('parses a local test with services and a conflict', () => {
+    const test = parse.pipelineLocalTest({
+      pipelineId: 'p1', status: 'applied', artifactVersion: 3, sessionId: 's1', testerStatus: 'completed',
+      services: [{ name: 'web', terminalId: 'term-1', running: true }], servicesLost: false, backupMissing: false,
+      report: { urls: [{ label: 'App', url: 'http://localhost:5173' }], stop: 'Ctrl-C', notes: '' },
+      conflict: { edited: ['README.md'], created: [] },
+    })
+    expect(test.services[0]).toEqual({ name: 'web', terminalId: 'term-1', running: true })
+    expect(test.report?.urls[0].url).toBe('http://localhost:5173')
+    expect(test.conflict?.edited).toEqual(['README.md'])
+    expect(parse.pipelineLocalTest({ pipelineId: 'p1', status: 'none', artifactVersion: 0, sessionId: '', testerStatus: '', services: null, servicesLost: false, backupMissing: false, heldBy: 'Outro', heldById: 'p2' }).heldBy).toBe('Outro')
+  })
+  it('parses the terminals of a project, services named', () => {
+    expect(parse.terminals([{ id: 'term-1', shell: '/bin/zsh', path: '/p', name: 'web', running: false }, { id: 'term-2', shell: '/bin/zsh', path: '/p', running: true }])).toEqual([
+      { id: 'term-1', shell: '/bin/zsh', path: '/p', name: 'web', running: false }, { id: 'term-2', shell: '/bin/zsh', path: '/p', name: '', running: true }])
+    expect(parse.terminals(null)).toEqual([])
+  })
+})

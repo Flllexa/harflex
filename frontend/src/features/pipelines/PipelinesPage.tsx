@@ -25,6 +25,7 @@ function unfinishedRunText(translate: ReturnType<typeof useT>): Record<PipelineR
     coder: translate('O Code ainda não tem uma execução concluída com mudanças nos arquivos. Na conversa do Code, envie uma mensagem e deixe a execução terminar antes de verificar.'),
     evaluator: translate('O QA ainda não deu um veredito concluído. Deixe a execução do QA terminar antes de registrar.'),
     publisher: translate('A IA ainda não terminou os PRs. Deixe a execução terminar antes de concluir.'),
+    tester: translate('A IA ainda está preparando o projeto para o teste local.'),
   }
 }
 

@@ -9,7 +9,7 @@ import { installAuthoringStageFixture } from './authoringStageFixture'
 import { installPipelineDesignFixture } from './pipelineDesignFixture'
 import { installWorktrees } from './worktreeFixture'
 import { installShowcase, showcaseDocuments, type ShowcaseView } from './showcaseFixture'
-import type { Agent, AgentEvent, Brainstorm, ChannelMessage, ChatCommandEvent, Delegation, KnowledgeDocument, KnowledgeEmbeddingProfile, LocalChannel, MCPServer, Pipeline, PipelineStage, ProviderProfile, Schedule, ScheduleJob, Skill, Workflow, WorkflowRun } from '../lib/backend'
+import type { Agent, AgentEvent, Brainstorm, ChannelMessage, ChatCommandEvent, Delegation, KnowledgeDocument, KnowledgeEmbeddingProfile, LocalChannel, MCPServer, Pipeline, PipelineRole, PipelineStage, ProviderProfile, Schedule, ScheduleJob, Skill, Workflow, WorkflowRun } from '../lib/backend'
 import { stageOrder } from '../lib/pipelineStages'
 
 const scenario = new URLSearchParams(window.location.search).get('scenario')
@@ -350,7 +350,7 @@ if (scenario === 'pipeline-code' || scenario === 'pipeline-code-cli' || scenario
     models: [{ id: 'api-model', displayName: 'Modelo API', backendId: 'local', source: 'openai_models', availability: 'available' }], nextCursor: '', checkedAt, status: 'complete', complete: true, accountFiltered: true })
   backend.queryCLIModelCatalog = async query => ({ backendId: query.backendId, source: 'codex_app_server', destination: 'Codex CLI', profileRevision: 'codex-revision', searchTerm: '',
     models: [{ id: 'codex-model', displayName: 'Modelo Codex', backendId: 'codex', source: 'codex_app_server', availability: 'listed' }], nextCursor: '', checkedAt, status: 'complete', complete: true, accountFiltered: true })
-  let activeRole: 'coder' | 'evaluator' | 'publisher' = 'coder'
+  let activeRole: PipelineRole = 'coder'
   const codePrompt = backend.prompt
   let stageSession: { stage: PipelineStage; id: string } | undefined
   // What the pipeline reports about the session of a stage, read from the very events the conversation shows.

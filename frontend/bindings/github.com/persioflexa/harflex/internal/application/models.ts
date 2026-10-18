@@ -845,6 +845,10 @@ export interface ListSessionsInput {
     "workspaceId": string;
 }
 
+export interface ListTerminalsInput {
+    "workspaceId": string;
+}
+
 export interface LocalChannelDTO {
     "id": string;
     "workspaceId": string;
@@ -854,6 +858,31 @@ export interface LocalChannelDTO {
     "lastError": string;
     "createdAt": string;
     "updatedAt": string;
+}
+
+export interface LocalTestConflictDTO {
+    "edited": string[] | null;
+    "created": string[] | null;
+}
+
+/**
+ * LocalTestReportDTO is what the tester says at the end: where to open the project and how to stop it.
+ */
+export interface LocalTestReportDTO {
+    "urls": LocalTestURLDTO[] | null;
+    "stop": string;
+    "notes": string;
+}
+
+export interface LocalTestServiceDTO {
+    "name": string;
+    "terminalId": string;
+    "running": boolean;
+}
+
+export interface LocalTestURLDTO {
+    "label": string;
+    "url": string;
 }
 
 export interface LogEntryDTO {
@@ -1064,6 +1093,36 @@ export interface PipelineExecutionReviewDTO {
     "actor": string;
     "feedback": string;
     "createdAt": string;
+}
+
+/**
+ * PipelineLocalTestDTO is the Code review card's view of a local test.
+ */
+export interface PipelineLocalTestDTO {
+    "pipelineId": string;
+
+    /**
+     * Status is "applied" or "none".
+     */
+    "status": string;
+    "artifactVersion": number;
+    "sessionId": string;
+    "testerStatus": string;
+    "services": LocalTestServiceDTO[] | null;
+
+    /**
+     * ServicesLost: the services were started, and none of their terminals is open (the app restarted).
+     */
+    "servicesLost": boolean;
+    "backupMissing": boolean;
+    "report"?: LocalTestReportDTO | null;
+    "conflict"?: LocalTestConflictDTO | null;
+
+    /**
+     * HeldBy names the other pipeline whose test holds the project, when this one has none.
+     */
+    "heldBy"?: string;
+    "heldById"?: string;
 }
 
 export interface PipelineRoleChoice {
@@ -1637,6 +1696,17 @@ export interface TerminalDTO {
     "id": string;
     "shell": string;
     "path": string;
+
+    /**
+     * Name is set for a service the AI started (a local test); the person's own shell has none.
+     */
+    "name"?: string;
+    "running": boolean;
+}
+
+export interface UndoPipelineLocalTestInput {
+    "pipelineId": string;
+    "discard": boolean;
 }
 
 /**

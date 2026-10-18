@@ -313,6 +313,13 @@ export function GetPipelineForSession($in: $models.GetPipelineForSessionInput): 
 }
 
 /**
+ * GetPipelineLocalTest is what the Code review card shows about the pipeline's local test.
+ */
+export function GetPipelineLocalTest(pipelineID: string): $CancellablePromise<$models.PipelineLocalTestDTO> {
+    return $Call.ByID(4125803752, pipelineID);
+}
+
+/**
  * GetPipelineQALoop returns the background QA state of a pipeline; Phase is empty when nothing ran since the app opened.
  */
 export function GetPipelineQALoop(pipelineID: string): $CancellablePromise<$models.QALoopDTO> {
@@ -484,6 +491,13 @@ export function ListStageExecutors(workspaceID: string): $CancellablePromise<$mo
 }
 
 /**
+ * ListTerminals lists the terminals open in a project's folder, the services a local test started among them.
+ */
+export function ListTerminals($in: $models.ListTerminalsInput): $CancellablePromise<$models.TerminalDTO[] | null> {
+    return $Call.ByID(964452154, $in);
+}
+
+/**
  * ListWorkCoordinators returns the works of a project that have a chat coordinating them, newest first.
  */
 export function ListWorkCoordinators(workspaceID: string): $CancellablePromise<$models.WorkCoordinatorDTO[] | null> {
@@ -582,6 +596,13 @@ export function QueryHTTPModelCatalog($in: $models.HTTPModelCatalogQuery): $Canc
 
 export function QuestionsSufficient($in: $models.GenerateBrainstormInput): $CancellablePromise<$models.BrainstormDTO> {
     return $Call.ByID(4217471246, $in);
+}
+
+/**
+ * RecentTerminalOutput is a terminal's latest output (base64, up to 64 KiB), to draw a tab opened after it started.
+ */
+export function RecentTerminalOutput(id: string): $CancellablePromise<string> {
+    return $Call.ByID(1099057455, id);
 }
 
 /**
@@ -830,6 +851,14 @@ export function StartTerminal($in: $models.StartTerminalInput): $CancellableProm
 
 export function StartWorkflow($in: $models.StartWorkflowInput): $CancellablePromise<$models.WorkflowRunDTO> {
     return $Call.ByID(4216349358, $in);
+}
+
+/**
+ * UndoPipelineLocalTest stops the test's services and conversation and puts the folder back as it was. Changes made
+ * during the test stop it and come back as the card's conflict, unless the person chose to discard them.
+ */
+export function UndoPipelineLocalTest($in: $models.UndoPipelineLocalTestInput): $CancellablePromise<$models.PipelineLocalTestDTO> {
+    return $Call.ByID(3172212304, $in);
 }
 
 /**
