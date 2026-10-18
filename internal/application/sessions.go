@@ -102,6 +102,15 @@ func (r *selectedAPIRunner) Approve(parent context.Context, approvalID string, a
 	return r.execute(parent, func(ctx context.Context) error { return base.Approve(ctx, approvalID, allow) })
 }
 
+// Compact summarizes the conversation now; it waits for no run and refuses while one is going.
+func (r *selectedAPIRunner) Compact(parent context.Context) error {
+	keeper, ok := r.base.(contextKeeper)
+	if !ok {
+		return ErrInvalidInput
+	}
+	return r.execute(parent, keeper.Compact)
+}
+
 func (r *selectedAPIRunner) execute(parent context.Context, action func(context.Context) error) error {
 	r.mu.Lock()
 	if r.sealed {
@@ -134,6 +143,7 @@ func (r *selectedAPIRunner) execute(parent context.Context, action func(context.
 		}
 		return err
 	}
+	r.service.keepWithinWindow(ctx, r.base, r.selection)
 	r.mu.Lock()
 	stopped := r.cancelled || r.sealed
 	r.mu.Unlock()

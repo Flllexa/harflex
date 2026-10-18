@@ -126,6 +126,13 @@ export function CloseTerminal(id: string): $CancellablePromise<void> {
 }
 
 /**
+ * CompactSession summarizes a conversation now, between its runs, as the person asked from the context gauge.
+ */
+export function CompactSession($in: $models.CompactSessionInput): $CancellablePromise<$models.SessionDTO> {
+    return $Call.ByID(3472864130, $in);
+}
+
+/**
  * CompletePipelineCode verifies the Coder's change and offers it for review, once the Coder said it finished.
  */
 export function CompletePipelineCode(pipelineID: string): $CancellablePromise<$models.PipelineDTO> {

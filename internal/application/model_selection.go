@@ -425,7 +425,17 @@ func (r *selectedCLIRunner) execute(parent context.Context, action func(context.
 			return err
 		}
 	}
+	r.service.keepWithinWindow(ctx, r.base, r.selection)
 	return action(ctx)
+}
+
+// Compact summarizes the conversation now, for the Harflex-mediated CLI conversations that keep their own history.
+func (r *selectedCLIRunner) Compact(parent context.Context) error {
+	keeper, ok := r.base.(contextKeeper)
+	if !ok {
+		return ErrInvalidInput
+	}
+	return r.execute(parent, keeper.Compact)
 }
 
 func (r *selectedCLIRunner) Cancel() bool {

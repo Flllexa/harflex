@@ -298,9 +298,14 @@ type SessionDTO struct {
 	Title   string `json:"title,omitempty"`
 	// Pinned keeps the conversation at the top of the Casual sidebar (filled by ListChatProjects).
 	Pinned bool `json:"pinned,omitempty"`
+	// ContextWindow is the window this conversation keeps within, in tokens (filled when one session is opened).
+	ContextWindow int `json:"contextWindow,omitempty"`
 }
 type ListSessionsInput struct {
 	WorkspaceID string `json:"workspaceId"`
+}
+type CompactSessionInput struct {
+	SessionID string `json:"sessionId"`
 }
 type ListRunningSessionsInput struct {
 	WorkspaceID string `json:"workspaceId"`

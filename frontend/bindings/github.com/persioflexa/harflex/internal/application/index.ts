@@ -48,6 +48,7 @@ export type {
     ChatCommandEventDTO,
     ChatProjectDTO,
     CoderStatusDTO,
+    CompactSessionInput,
     CreateAuthoringPipelineInput,
     CreateDirectSessionInput,
     CreatePipelineInput,

@@ -512,6 +512,10 @@ export interface CoderStatusDTO {
     "canReply": boolean;
 }
 
+export interface CompactSessionInput {
+    "sessionId": string;
+}
+
 export interface CreateAuthoringPipelineInput {
     "workspaceId": string;
     "requestId": string;
@@ -1497,6 +1501,11 @@ export interface SessionDTO {
      * Pinned keeps the conversation at the top of the Casual sidebar (filled by ListChatProjects).
      */
     "pinned"?: boolean;
+
+    /**
+     * ContextWindow is the window this conversation keeps within, in tokens (filled when one session is opened).
+     */
+    "contextWindow"?: number;
 }
 
 export interface SessionModelSelectionDTO {

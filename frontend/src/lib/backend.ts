@@ -179,7 +179,7 @@ const backend = z.object({ id: z.string().min(1), name: z.string(), kind: z.enum
 const credentialProbe = z.object({ status: z.enum(['ready', 'unconfigured', 'degraded', 'unavailable']), checked: z.number().int().nonnegative(), missing: z.number().int().nonnegative() })
 const session = z.object({ id: z.string().min(1), workspaceId: z.string().min(1), backendId: z.string().min(1), status: z.string().min(1),
   purpose: z.enum(['chat', 'preparation', 'code', 'evaluation']).optional(), title: z.string().max(400).optional(),
-  resumable: z.boolean(), pinned: z.boolean().optional(), createdAt: z.iso.datetime({ offset: true }), updatedAt: z.iso.datetime({ offset: true }) })
+  resumable: z.boolean(), pinned: z.boolean().optional(), contextWindow: z.number().int().nonnegative().optional(), createdAt: z.iso.datetime({ offset: true }), updatedAt: z.iso.datetime({ offset: true }) })
 const chatProject = z.object({ workspace: workspaceSummary, chats: z.array(session), total: z.number().int().nonnegative() })
 const pipelineStageActivity = z.object({ pipelineId: z.string().min(1), workspaceId: z.string().min(1), stage: pipelineStage, status: z.string(), phase: z.string(), sessionId: z.string(), modelId: z.string(), attemptStatus: z.string().optional(), errorCode: z.string().optional(), updatedAt: z.iso.datetime({ offset:true }) })
 const sessionModelSelection = z.strictObject({ sessionId: z.string().min(1), backendId: z.string().min(1), modelId: z.string().min(1).max(512),
@@ -569,6 +569,8 @@ export interface Backend {
   listSessions(workspaceId: string): Promise<Session[]>
   /** The project's conversations whose run is still going or waiting for an approval, newest first. */
   listRunningSessions(workspaceId: string): Promise<RunningSession[]>
+  /** Summarizes a conversation now, between its runs; returns it with its context window. */
+  compactSession(sessionId: string): Promise<Session>
   /** Saves a file attached to a chat message where the conversation's tools can read it; returns its relative path. */
   saveChatAttachment(input: { sessionId: string; workspaceId: string; name: string; data: string }): Promise<{ path: string }>
   openSession(sessionId: string, workspaceId: string): Promise<Session>

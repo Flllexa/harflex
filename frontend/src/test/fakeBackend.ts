@@ -227,6 +227,7 @@ export function createFakeBackend() {
     getSessionModelSelection: async sessionId => ({ sessionId, backendId: 'codex', modelId: 'runtime-model', reasoningEffort: '', source: 'codex_app_server', destination: '', status: '', confirmUnverifiedManual: false, confirmUnfiltered: false, confirmJitLoad: false, maxOutputTokens: 0, contextLength: 0, checkedAt: sessionMetadata.createdAt }),
     listSessions: async () => [],
     listRunningSessions: async () => [],
+    compactSession: async sessionId => ({ id: sessionId, workspaceId: 'workspace-1', backendId: 'local', status: 'completed', ...sessionMetadata, contextWindow: 200000 }),
     saveChatAttachment: async input => ({ path: `.harflex/attachments/test-${input.name}` }),
     openSession: async (id, workspaceId) => ({ id, workspaceId, backendId: 'local', status: 'completed', ...sessionMetadata }),
     exportAudit: async (_sessionId, destination) => destination,

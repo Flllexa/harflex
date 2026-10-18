@@ -22,7 +22,9 @@ var ErrSessionCorrupt = errors.New("session history is corrupt")
 var ErrHistoryTooLarge = errors.New("session history exceeds the safety limit")
 
 func (s *Service) sessionDTO(r catalog.SessionRecord) SessionDTO {
-	return s.sessionDTOCached(r, nil)
+	dto := s.sessionDTOCached(r, nil)
+	dto.ContextWindow = s.sessionContextWindow(s.ctx, r.ID)
+	return dto
 }
 
 func (s *Service) sessionDTOCached(r catalog.SessionRecord, cache map[string]cliContinuationSnapshot) SessionDTO {
