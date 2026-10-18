@@ -1,7 +1,9 @@
 package application
 
 import (
+	"encoding/base64"
 	"errors"
+	"path/filepath"
 	"strings"
 
 	"github.com/persioflexa/harflex/internal/terminal"
@@ -9,6 +11,9 @@ import (
 
 // TerminalEvent is the event that carries a terminal's output to the panel.
 const TerminalEvent = "harflex:terminal"
+
+// TerminalsEvent says a terminal started or ended, so the panel lists the services again.
+const TerminalsEvent = "harflex:terminals"
 
 type StartTerminalInput struct {
 	WorkspaceID string `json:"workspaceId"`
@@ -20,6 +25,13 @@ type TerminalDTO struct {
 	ID    string `json:"id"`
 	Shell string `json:"shell"`
 	Path  string `json:"path"`
+	// Name is set for a service the AI started (a local test); the person's own shell has none.
+	Name    string `json:"name,omitempty"`
+	Running bool   `json:"running"`
+}
+
+type ListTerminalsInput struct {
+	WorkspaceID string `json:"workspaceId"`
 }
 
 type WriteTerminalInput struct {
@@ -45,6 +57,14 @@ func (s *Service) terminalManager() *terminal.Manager {
 			s.mu.RUnlock()
 			if emit != nil {
 				emit(TerminalEvent, out)
+			}
+		})
+		s.terminals.OnChange(func() {
+			s.mu.RLock()
+			emit := s.emit
+			s.mu.RUnlock()
+			if emit != nil {
+				emit(TerminalsEvent, struct{}{})
 			}
 		})
 	}
@@ -108,4 +128,36 @@ func (s *Service) CloseTerminal(id string) error {
 	}
 	defer s.endCall()
 	return terminalError(s.terminalManager().Close(id))
+}
+
+// ListTerminals lists the terminals open in a project's folder, the services a local test started among them.
+func (s *Service) ListTerminals(in ListTerminalsInput) ([]TerminalDTO, error) {
+	if err := s.beginCall(); err != nil {
+		return nil, err
+	}
+	defer s.endCall()
+	workspace, err := s.knowledgeWorkspace(in.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	result := []TerminalDTO{}
+	for _, info := range s.terminalManager().List() {
+		if info.Dir == workspace.Path || strings.HasPrefix(info.Dir, workspace.Path+string(filepath.Separator)) {
+			result = append(result, TerminalDTO{ID: info.ID, Shell: info.Shell, Path: info.Dir, Name: info.Name, Running: info.Running})
+		}
+	}
+	return result, nil
+}
+
+// RecentTerminalOutput is a terminal's latest output (base64, up to 64 KiB), to draw a tab opened after it started.
+func (s *Service) RecentTerminalOutput(id string) (string, error) {
+	if err := s.beginCall(); err != nil {
+		return "", err
+	}
+	defer s.endCall()
+	recent, err := s.terminalManager().Recent(id)
+	if err != nil {
+		return "", terminalError(err)
+	}
+	return base64.StdEncoding.EncodeToString(recent), nil
 }
