@@ -129,7 +129,6 @@ export function ConversationPane({ sessionKey, state, loadingHistory, permission
   const exhausted = !!delegation && delegation.promptLimit > 0 && delegation.promptCount >= delegation.promptLimit
   const lastUserRequest = requestOf([...state.messages].reverse().find(message => message.kind === 'user')?.text ?? '')
   const carriedRequest = draft.trim() || (state.readOnly ? lastUserRequest : '')
-  const executionBusy = runIsLive(state) || state.calling && !loadingHistory
   const newWorkLabel = state.readOnly ? 'Continuar em novo chat'
     : draft.trim() ? viewMode === 'casual' ? 'Levar rascunho para novo chat' : 'Levar rascunho para novo trabalho'
       : viewMode === 'casual' ? 'Novo chat' : 'Sessões do projeto'
@@ -176,7 +175,7 @@ export function ConversationPane({ sessionKey, state, loadingHistory, permission
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) submit(event)
   }
   return <div className={`conversation${viewMode === 'casual' ? ' conversation-casual' : ''}`}>
-    {(!emptyCasual || !!draft.trim() || !!modelBar) && <div className="conversation-actions"><button type="button" className="touch-target secondary-button" onClick={() => onNewWork(carriedRequest || undefined)} disabled={state.readOnly && loadingHistory || executionBusy}>{newWorkLabel === 'Sessões do projeto' && <ChevronLeft aria-hidden="true" />}{t(newWorkLabel)}</button>{delegationParentId && <button type="button" className="touch-target secondary-button" onClick={onOpenParent} disabled={loadingHistory || state.calling || runIsLive(state)}>{t('Voltar à sessão pai')}</button>}{!modelBar && backendLabel && <span className="conversation-backend muted">{backendLabel}</span>}</div>}
+    {(!emptyCasual || !!draft.trim() || !!modelBar) && <div className="conversation-actions"><button type="button" className="touch-target secondary-button" onClick={() => onNewWork(carriedRequest || undefined)} disabled={state.readOnly && loadingHistory}>{newWorkLabel === 'Sessões do projeto' && <ChevronLeft aria-hidden="true" />}{t(newWorkLabel)}</button>{delegationParentId && <button type="button" className="touch-target secondary-button" onClick={onOpenParent} disabled={loadingHistory}>{t('Voltar à sessão pai')}</button>}{!modelBar && backendLabel && <span className="conversation-backend muted">{backendLabel}</span>}</div>}
     {queuedTask && <div className="continuity-note muted delegated-task-recovery"><p>{t('A tarefa delegada está salva no histórico. Prepare-a no rascunho e revise antes de enviar; nada é executado automaticamente.')}</p><button type="button" className="touch-target secondary-button" onClick={onPrepareDelegatedTask} disabled={loadingHistory || state.calling || state.readOnly || !!draft || state.activeRun !== 'idle'}>{t('Preparar tarefa delegada')}</button></div>}
     {delegation && <p className="continuity-note muted">{t('Subagente: {budget}. A espera por aprovação não conta; tentativas interrompidas contam. Não é limite de custo ou tokens.', { budget: delegationBudgetText(delegation) })}{exhausted ? t(' Limite atingido: revise o histórico antes de delegar novamente.') : ''}</p>}
     {messages.length === 0

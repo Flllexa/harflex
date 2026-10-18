@@ -665,7 +665,7 @@ describe('Harflex control room', () => {
     expect(await screen.findByRole('heading', { name: 'Pipelines SDD' })).toBeInTheDocument()
   })
 
-  it('keeps an unresolved approval visible when new work is requested', async () => {
+  it('starts new work while an approval waits in its own chat', async () => {
     const user = userEvent.setup()
     const { backend } = createFakeBackend()
     render(<App backend={backend} />)
@@ -675,8 +675,8 @@ describe('Harflex control room', () => {
     await user.type(await screen.findByLabelText('Mensagem'), 'Criar notas{Enter}')
     expect(await screen.findByRole('group', { name: 'Aprovação necessária' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Novo trabalho' }))
-    expect(screen.getByRole('group', { name: 'Aprovação necessária' })).toBeInTheDocument()
-    expect(screen.getByText('Cancele ou conclua a execução atual antes de iniciar outro trabalho.')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Pipelines SDD' })).toBeInTheDocument()
+    expect(screen.queryByText(/Cancele ou conclua a execução atual/)).not.toBeInTheDocument()
   })
 
   it('exposes all navigation destinations as keyboard controls and the new work action', () => {

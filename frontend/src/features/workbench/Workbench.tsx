@@ -169,6 +169,8 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
   const historyHasUserMessage = userChat && state.events.some(event => event.type === 'message.user')
   const recoveryPrompt = userChat && state.readOnly ? requestOf([...state.messages].reverse().find(message => message.kind === 'user')?.text ?? '') : ''
   const historyOpenOrder = useRef(0)
+  // Conversations with a call still in flight (a run answering): each call belongs to its own conversation.
+  const inFlight = useRef(new Set<string>())
   const handledNewWorkRequest = useRef(0)
   // Pages that default to the first usable backend should agree with the setup screen's choice.
   const orderedBackends = useMemo(() => preferredFirst(state.backends, defaultBackendId, lastBackendId), [state.backends, defaultBackendId, lastBackendId])
@@ -340,11 +342,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     if (newWorkRequest === 0 || handledNewWorkRequest.current === newWorkRequest) return
     handledNewWorkRequest.current = newWorkRequest
     const current = store.getState()
-    if (current.calling && !loadingHistory || runIsLive(current)) {
-      onNavigate('Conversas')
-      store.setState({ error: t('Cancele ou conclua a execução atual antes de iniciar outro trabalho.') })
-      return
-    }
+    // Work already running goes on in its own conversation: new work never waits for it.
     stashDraft()
     historyOpenOrder.current++
     selection.current?.abort()
@@ -376,14 +374,16 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
       && store.getState().workspace?.id === workspaceId && store.getState().session?.id === session.id
     expectedReplay.current = undefined
     pendingDraft.current = undefined
-    store.getState().setSession(session)
+    store.getState().setSession(session, inFlight.current.has(session.id))
     store.getState().startCall()
     setLoadingHistory(true)
     try {
       await replaySession(backend, store, controller.signal)
       if (!current()) return false
       store.getState().setConnection('ready')
-      store.getState().finishCall()
+      // A conversation still answering a call made before the person left it stays busy until that call ends.
+      if (inFlight.current.has(session.id)) store.setState({ calling: true, error: undefined })
+      else store.getState().finishCall()
       const saved = takeChatDraft(session.id)
       if (saved && !store.getState().draft.trim()) store.getState().setDraft(saved)
       return true
@@ -427,6 +427,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     let result: RunResult | undefined
     let callError: string | undefined
     let closed = false
+    inFlight.current.add(session.id)
     try {
       result = await action(session.id)
     } catch (failure) {
@@ -434,9 +435,14 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
       // The conversation was closed since it was opened (its Code was verified from the Pipelines page, the provider
       // changed): it is read-only now, and the box carries on in a new chat instead of failing on every message.
       closed = closesConversation.has(errorCode(failure))
-      if (closed) store.setState({ readOnly: true })
+    } finally {
+      inFlight.current.delete(session.id)
     }
     if (signal.aborted) return false
+    // The person moved to another conversation meanwhile: the outcome is in this one's journal and shows when it is
+    // opened again. Nothing of it may land on the conversation now on screen.
+    if (store.getState().session?.id !== session.id) return !callError && result?.status !== 'failed'
+    if (closed) store.setState({ readOnly: true })
     let delegationReadbackError: string | undefined
     try { await refreshDelegation(session.id) }
     catch { delegationReadbackError = t('Não foi possível reler o orçamento do subagente. Atualize a sessão antes de enviar outra mensagem.') }
@@ -540,8 +546,8 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
   const conversation = state.session?.purpose === 'preparation'
     ? <section className="setup-step"><h2>{t('Preparação do trabalho')}</h2><p className="muted">{t('A conversa de Discovery, SPEC e Plan está na área do trabalho.')}</p><button type="button" className="touch-target primary-button" onClick={() => onNavigate('Pipelines')}>{t('Abrir documentos e atividade')}</button></section>
     : state.session
-    ? <ConversationPane sessionKey={state.session?.id} commands={commands} state={state} loadingHistory={loadingHistory} cancelPending={cancelPending} permissionControl={state.workspace ? <PermissionPicker backend={backend} workspace={state.workspace} onWorkspaceUpdated={workspace => store.setState({ workspace })} /> : undefined} viewMode={viewMode} backendLabel={backendLabel(state)} modelBar={modelBar} projectControl={viewMode === 'casual' && state.workspace ? <ChatProjectPicker backend={backend} workspace={state.workspace} disabled={busy || loadingHistory} onPick={path => void switchProject(path)} /> : undefined} switchModel={chatChoice.changed ? { usable: chatChoice.usable, onReset: chatChoice.reset } : undefined} delegationParentId={delegation?.parentSessionId} delegation={delegation} queuedTask={queuedTask} onPrepareDelegatedTask={() => { if (!store.getState().draft && queuedTask) store.getState().setDraft(queuedTask) }} onOpenParent={() => { if (delegation) void openDelegatedSession(delegation.parentSessionId).catch(failure => store.setState({ error: errorMessage(failure) })) }} onDraft={updateDraft} onPrompt={sendPrompt} onResolve={(approvalId, allow) => { void run(id => backend.approve(id, approvalId, allow)) }} onCancel={cancel} onRetry={retryReplay} onContinue={text => continueInNewChat(text, chatChoice.changed ? chatChoice.choice : undefined)} onPipelineChoice={choosePipeline} onNewWork={recoveryPrompt => {
-      if (!state.workspace || executionBusy || state.readOnly && loadingHistory) return
+    ? <ConversationPane sessionKey={state.session?.id} commands={commands} state={state} loadingHistory={loadingHistory} cancelPending={cancelPending} permissionControl={state.workspace ? <PermissionPicker backend={backend} workspace={state.workspace} onWorkspaceUpdated={workspace => store.setState({ workspace })} /> : undefined} viewMode={viewMode} backendLabel={backendLabel(state)} modelBar={modelBar} projectControl={viewMode === 'casual' && state.workspace ? <ChatProjectPicker backend={backend} workspace={state.workspace} disabled={loadingHistory} onPick={path => void switchProject(path)} /> : undefined} switchModel={chatChoice.changed ? { usable: chatChoice.usable, onReset: chatChoice.reset } : undefined} delegationParentId={delegation?.parentSessionId} delegation={delegation} queuedTask={queuedTask} onPrepareDelegatedTask={() => { if (!store.getState().draft && queuedTask) store.getState().setDraft(queuedTask) }} onOpenParent={() => { if (delegation) void openDelegatedSession(delegation.parentSessionId).catch(failure => store.setState({ error: errorMessage(failure) })) }} onDraft={updateDraft} onPrompt={sendPrompt} onResolve={(approvalId, allow) => { void run(id => backend.approve(id, approvalId, allow)) }} onCancel={cancel} onRetry={retryReplay} onContinue={text => continueInNewChat(text, chatChoice.changed ? chatChoice.choice : undefined)} onPipelineChoice={choosePipeline} onNewWork={recoveryPrompt => {
+      if (!state.workspace || state.readOnly && loadingHistory) return
       historyOpenOrder.current++
       setInitialChatPrompt(userChat ? recoveryPrompt ?? '' : '')
       selection.current?.abort()
@@ -562,7 +568,6 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     } catch (failure) { store.setState({ error: errorMessage(failure) }) }
   }
   async function openProject(path: string) {
-    if (busy) throw new Error('session_busy')
     stashDraft()
     const previousWorkspace = store.getState().workspace
     const workspace = await backend.openWorkspace(path)
@@ -577,7 +582,8 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     onNavigate(destination)
   }
   async function startWorktreeSave(plan: WorktreeSavePlan, options: SaveWithAIOptions) {
-    if (busy) throw codedError('session_busy')
+    // One save with the AI is followed at a time (it deletes the worktree when it ends); chats and pipelines never wait.
+    if (worktreeCleanup && (worktreeCleanup.phase === 'saving' || worktreeCleanup.phase === 'attention')) throw codedError('session_busy')
     const option = state.backends.find(item => item.id === options.backendId)
     const model = option?.kind === 'cli' && defaultModelBackendId === option.id ? defaultModelId : ''
     if (!option || !option.available || (option.kind === 'cli' && (option.id === 'opencode' || !model))) throw codedError('worktree_backend_unusable')
@@ -645,7 +651,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
   async function continueInNewChat(text: string, override?: ChatChoice) {
     const { workspace, session: previous, messages } = store.getState()
     const request = text.trim()
-    if (!workspace || !previous || !request || busy || continuationPending.current) return
+    if (!workspace || !previous || !request || continuationPending.current) return
     const patchPending = sessionPipeline?.codePatchPending
     // A provider, model and effort the person chose in the bar is the only one tried: it is what they asked for.
     const modelOf = (option: BackendOption) => override ? override.modelId : option.kind === 'cli' && defaultModelBackendId === option.id ? defaultModelId : ''
@@ -692,19 +698,20 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
   }
   async function startPipelineRole(pipelineId: string, backendId: string, role: PipelineRole, selection: PipelineRoleModelSelection | undefined, confirmWorkspaceCopy: boolean) {
     const workspace = store.getState().workspace
-    if (!workspace || busy) throw new Error('session_busy')
+    if (!workspace) throw new Error('session_busy')
     const linked = await backend.createPipelineSession(pipelineId, backendId, role, selection, confirmWorkspaceCopy)
     await activateSession(linked.session, workspace.id)
     onNavigate('Conversas')
     // The Coder's plan and actions draw live in Activity: it opens so the person can follow the run from the start.
     if (role === 'coder') onShowActivity?.()
-    await sendPrompt(linked.prompt)
+    // The run goes on in its own conversation; the screen that started it is free at once.
+    void sendPrompt(linked.prompt)
   }
   // The person's answer to the Coder goes in its conversation (or a new round in the same copy); the run shows in the
   // Code bench and in Activity, without leaving the Pipelines screen.
   async function replyToCoder(pipelineId: string, text: string, coder?: { backendId: string }) {
     const workspace = store.getState().workspace
-    if (!workspace || busy) throw new Error('session_busy')
+    if (!workspace) throw new Error('session_busy')
     const linked = await backend.replyToPipelineCoder({ pipelineId, text, coder })
     await activateSession(linked.session, workspace.id)
     onShowActivity?.()
@@ -712,7 +719,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
   }
   async function startAgent(agent: Agent, reason: string) {
     const workspace = store.getState().workspace
-    if (!workspace || busy) throw new Error('session_busy')
+    if (!workspace) throw new Error('session_busy')
     const session = await backend.createDirectSession({ workspaceId: workspace.id, backendId: agent.backendId, agentId: agent.id, reason })
     await activateSession(session, workspace.id)
     onNavigate('Conversas')
@@ -720,7 +727,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
   async function delegateAgent(agent: Agent, prompt: string, requestId: string) {
     const parent = store.getState().session
     const workspace = store.getState().workspace
-    if (!parent || !workspace || busy) throw new Error('session_busy')
+    if (!parent || !workspace) throw new Error('session_busy')
     const delegated = await backend.delegateToAgent(parent.id, agent.id, prompt, requestId)
     const child = delegated.created ? delegated.session : await backend.openSession(delegated.session.id, workspace.id)
     if (!await activateSession(child, workspace.id)) throw new Error('session_replay_failed')
@@ -733,7 +740,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
   }
   async function openDelegatedSession(sessionId: string, draft?: string, keepTyped = false) {
     const current = store.getState()
-    if (!current.workspace || current.calling || runIsLive(current)) throw new Error('session_busy')
+    if (!current.workspace) throw new Error('session_busy')
     // Opening another conversation replaces this one's message box. From the pull request panel what was typed there is
     // not thrown away; the delegation flows have always taken the person to the parent or the child with the box emptied.
     if (keepTyped) stashDraft()
@@ -747,7 +754,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
   // without leaving the screen. It never takes over a conversation that is running or one the person is in.
   async function followPipelineSession(sessionId: string) {
     const current = store.getState()
-    if (selectedRef.current !== 'Pipelines' || !current.workspace || current.session?.id === sessionId || current.calling || runIsLive(current)) return
+    if (selectedRef.current !== 'Pipelines' || !current.workspace || current.session?.id === sessionId) return
     stashDraft()
     const session = await backend.openSession(sessionId, current.workspace.id).catch(() => undefined)
     if (!session || selectedRef.current !== 'Pipelines' || store.getState().session?.id !== current.session?.id) return
@@ -773,10 +780,6 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
 
   async function openSidebarSession(request: HistoryOpenRequest) {
     const current = store.getState()
-    if ((current.calling && !loadingHistory) || runIsLive(current)) {
-      store.setState({ error: t('Conclua ou cancele a execução atual antes de trocar de conversa.') })
-      return
-    }
     stashDraft()
     if (current.workspace?.id !== request.workspaceId) {
       if (!request.workspacePath) return
@@ -827,7 +830,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
   </div>
   return <>{memoryPrompt}{agentPipelineNotice}<WorkArea selected={selected} workState="empty" project={project} compact={viewMode==='casual' && selected==='Conversas'}
     panels={[conversation, <ArtifactPane messages={state.messages} events={state.events} backend={backend} sessionId={state.session?.id} pipeline={sessionPipeline} onPipelines={() => onNavigate('Pipelines')} />, <MetricsPane events={state.events} />]}
-    projectContent={<ProjectsPage backend={backend} currentWorkspaceId={state.workspace?.id} busy={busy} onOpen={openProject} />}
+    projectContent={<ProjectsPage backend={backend} currentWorkspaceId={state.workspace?.id} busy={startingSession} onOpen={openProject} />}
     settingsContent={<SettingsPage backend={backend} backends={state.backends} connectionState={state.connectionState} workspace={state.workspace} onWorkspaceUpdated={workspace => store.setState({ workspace })} onBackendSaved={saved => store.getState().addBackend(saved)} onDefaultSaved={() => {
       setDefaultBackendId('')
       setDefaultModelBackendId('')

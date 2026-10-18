@@ -195,7 +195,8 @@ export type SessionState = Projection & {
   setConnection(state: ConnectionState, backends?: BackendOption[]): void
   addBackend(backend: BackendOption): void
   setWorkspace(workspace: Workspace): void
-  setSession(session: Session): void
+  /** Focuses a conversation; `calling` says a call of this session is still in flight from before. */
+  setSession(session: Session, calling?: boolean): void
   updateSession(session: Session): void
   receive(events: AgentEvent[]): void
   setDraft(draft: string): void
@@ -231,7 +232,7 @@ export function createSessionStore() {
     setConnection: (connectionState, backends) => set(backends ? { connectionState, backends } : { connectionState }),
     addBackend: backend => set(state => ({ backends: [...state.backends.filter(item => item.id !== backend.id), backend].sort((a, b) => a.id.localeCompare(b.id)) })),
     setWorkspace: workspace => set({ workspace, session: undefined, events: [], contiguousSequence: 0, draft: '', calling: false, readOnly: false, ...emptyProjection, error: undefined }),
-    setSession: session => set({ session, readOnly: sessionReadOnly(session, get().backends), events: [], contiguousSequence: 0, draft: '', calling: false, ...emptyProjection, error: undefined }),
+    setSession: (session, calling = false) => set({ session, readOnly: sessionReadOnly(session, get().backends), events: [], contiguousSequence: 0, draft: '', calling, ...emptyProjection, error: undefined }),
     updateSession: session => { if (get().session?.id === session.id) set({ session, readOnly: sessionReadOnly(session, get().backends) }) },
     setDraft: draft => set({ draft }),
     receive: incoming => {

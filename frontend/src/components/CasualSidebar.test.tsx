@@ -185,8 +185,9 @@ describe('CasualSidebar', () => {
       backend.listEvents = vi.fn(async () => [])
     })
 
-    await waitFor(() => expect(screen.getByText(/Sessão em execução/)).toBeInTheDocument())
-    expect(screen.getByRole('button', { name: /session-1/ })).toBeDisabled()
+    // A chat being created holds only "Novo chat"; every existing chat stays open to the person.
+    await waitFor(() => expect(screen.getByRole('button', { name: /session-1/ })).toBeEnabled())
+    expect(screen.getByRole('button', { name: 'Novo chat' })).toBeDisabled()
 
     backend.listSessions = vi.fn(async () => [])
     await user.click(screen.getByRole('button', { name: 'Atualizar histórico' }))
@@ -204,16 +205,14 @@ describe('CasualSidebar', () => {
     expect(screen.queryByText(/Há um rascunho/)).not.toBeInTheDocument()
   })
 
-  it('leads back to the running chat from another screen, without opening others', async () => {
+  it('opens any other chat while one runs', async () => {
     const user = userEvent.setup()
-    const { props } = renderSidebar({ busy: true, selected: 'Projetos', activeSessionId: session.id }, backend => {
+    const { props } = renderSidebar({ busy: false, selected: 'Projetos', activeSessionId: session.id }, backend => {
       backend.listSessions = async () => [session, { ...session, id: 'session-2' }]
-      backend.listEvents = async id => [{ id: `${id}-e`, streamId: id, sequence: 1, type: 'message.user', data: { content: id === session.id ? 'Conversa com rascunho' : 'Outra conversa' }, createdAt: session.createdAt }]
+      backend.listEvents = async id => [{ id: `${id}-e`, streamId: id, sequence: 1, type: 'message.user', data: { content: id === session.id ? 'Conversa em execução' : 'Outra conversa' }, createdAt: session.createdAt }]
     })
-    expect(await screen.findByRole('button', { name: /Outra conversa/ })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: /Conversa com rascunho/ }))
-    expect(props.onSelectDestination).toHaveBeenLastCalledWith('Conversas')
-    expect(props.onOpenSession).not.toHaveBeenCalled()
+    await user.click(await screen.findByRole('button', { name: /Outra conversa/ }))
+    expect(props.onOpenSession).toHaveBeenCalledWith('session-2', session.workspaceId)
   })
 
   it('allows replacing an in-flight history open without starting a new chat', async () => {

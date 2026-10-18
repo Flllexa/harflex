@@ -17,6 +17,7 @@ type Props = {
   activeSessionUpdatedAt?: string
   historyHasUserMessage: boolean
   selected: Destination
+  /** A new chat is being created: starting another one waits for it. */
   busy: boolean
   loadingHistory: boolean
   /** Kept for callers; a draft no longer blocks anything here, since each chat keeps its own. */
@@ -231,7 +232,6 @@ export function CasualSidebar({ backend, workspace, activeSessionId, activeSessi
       <Plus aria-hidden="true" /><span>{t('Novo chat')}</span>
     </button>
     {workspace && <label className="casual-search"><Search aria-hidden="true" /><span className="visually-hidden">{t('Buscar conversas')}</span><input aria-label={t('Buscar conversas')} value={search} onChange={event => setSearch(event.target.value)} placeholder={t('Buscar conversas')} /></label>}
-    {busy && !loadingHistory && <p className="casual-history-notice" role="status">{t('Sessão em execução; conclua ou cancele antes de trocar de conversa.')}</p>}
     {/* Opening a chat shows as a thin bar over the list, so nothing below it moves. */}
     <div className={`casual-loading-bar${loadingHistory || refreshing ? ' is-active' : ''}`} aria-hidden="true" />
     {loadingHistory && <p className="visually-hidden" role="status">{t('Carregando conversa… escolha outro chat para cancelar esta abertura.')}</p>}
@@ -241,7 +241,7 @@ export function CasualSidebar({ backend, workspace, activeSessionId, activeSessi
       <h2 id="casual-pinned-title" className="casual-group-label"><Pin aria-hidden="true" />{t('Fixados')}</h2>
       <ul className="casual-chat-list" aria-label={t('Conversas fixadas')}>
         {pinned.filter(({ chat }) => (plainTitle(chat.title) ?? '').toLocaleLowerCase('pt-BR').includes(search.trim().toLocaleLowerCase('pt-BR'))).map(({ chat, project }) => <li key={chat.id} className="casual-chat-row">
-          <button type="button" className="touch-target casual-chat-item" aria-current={chat.id === currentChatId ? 'true' : undefined} disabled={busy}
+          <button type="button" className="touch-target casual-chat-item" aria-current={chat.id === currentChatId ? 'true' : undefined}
             onClick={() => { setOpenedChatId(chat.id); onOpenSession(chat.id, chat.workspaceId, project.workspace.path) }}>
             <span className="casual-chat-title">{plainTitle(chat.title) ?? t('Conversa {id}', { id: chat.id.slice(0, 12) })}</span>
             <span className="casual-chat-meta"><span>{basename(project.workspace.path)}</span><time dateTime={chat.updatedAt}>{new Date(chat.updatedAt).toLocaleDateString(localeTag())}</time></span>
@@ -259,14 +259,14 @@ export function CasualSidebar({ backend, workspace, activeSessionId, activeSessi
           <button type="button" className="touch-target icon-button" aria-label={t('Atualizar histórico')} onClick={() => { void loadHistory(); void loadProjects() }} disabled={loadState === 'loading' || !workspace}><RefreshCw aria-hidden="true" className={refreshing ? 'is-spinning' : undefined} /></button>
         </div>
       </div>
-      {!workspace ? <div className="casual-history-empty"><MessageSquare aria-hidden="true" /><p>{t('Abra um projeto para ver o histórico de chats.')}</p><button type="button" className="touch-target secondary-button" onClick={onProjects} disabled={busy || loadingHistory}>{t('Ver projetos')}</button></div>
+      {!workspace ? <div className="casual-history-empty"><MessageSquare aria-hidden="true" /><p>{t('Abra um projeto para ver o histórico de chats.')}</p><button type="button" className="touch-target secondary-button" onClick={onProjects} disabled={loadingHistory}>{t('Ver projetos')}</button></div>
         : loadState === 'loading' ? <p className="muted casual-history-state" role="status">{t('Carregando chats…')}</p>
           : loadState === 'error' ? <div className="casual-history-empty" role="alert"><p>{t('Não foi possível carregar o histórico.')}</p><button type="button" className="touch-target secondary-button" onClick={() => void loadHistory()}>{t('Tentar novamente')}</button></div>
             : chats.length === 0 ? <div className="casual-history-empty"><MessageSquare aria-hidden="true" /><p>{t('Nenhuma conversa neste projeto.')}</p></div>
               : <>{filtered.length === 0 ? <p className="muted casual-history-state">{t('Nenhum chat corresponde à busca.')}</p> : <ul className="casual-chat-list" aria-label={t('Histórico de chats')}>
                   {filtered.map(chat => <li key={chat.session.id} className="casual-chat-row">
                     {/* The open chat stays reachable while it runs: clicking it only goes back to it. */}
-                    <button type="button" className="touch-target casual-chat-item" aria-current={chat.session.id === currentChatId ? 'true' : undefined} disabled={chat.session.id !== activeSessionId && busy}
+                    <button type="button" className="touch-target casual-chat-item" aria-current={chat.session.id === currentChatId ? 'true' : undefined}
                       onClick={() => { if (chat.session.id === activeSessionId && busy) { onSelectDestination('Conversas'); if (mobileOpen) onClose(); return } setOpenedChatId(chat.session.id); onOpenSession(chat.session.id, chat.session.workspaceId) }}>
                       <span className="casual-chat-title">{coordinators[chat.session.id]?.title || chat.title}</span>
                       <span className="casual-chat-meta"><span>{coordinators[chat.session.id] ? workProgressOf(coordinators[chat.session.id].currentStage, coordinators[chat.session.id].stageStatus) : t(sessionState(chat.session))}</span><time dateTime={chat.session.updatedAt}>{new Date(chat.session.updatedAt).toLocaleDateString(localeTag())}</time></span>
@@ -275,14 +275,14 @@ export function CasualSidebar({ backend, workspace, activeSessionId, activeSessi
                       onClick={() => void togglePin(chat.session.id, !pinnedIds.has(chat.session.id))}>{pinnedIds.has(chat.session.id) ? <PinOff aria-hidden="true" /> : <Pin aria-hidden="true" />}</button>
                   </li>)}
                 </ul>}
-                {canLoadMore && <button type="button" className="touch-target text-button casual-load-more" disabled={moreState || busy || loadingHistory} onClick={() => void loadMore()}>{moreState ? t('Carregando…') : search.trim() ? t('Carregar mais para esta busca') : t('Carregar mais conversas')}</button>}
+                {canLoadMore && <button type="button" className="touch-target text-button casual-load-more" disabled={moreState || loadingHistory} onClick={() => void loadMore()}>{moreState ? t('Carregando…') : search.trim() ? t('Carregar mais para esta busca') : t('Carregar mais conversas')}</button>}
                 {loadError && <p className="form-error" role="alert">{t('Não foi possível carregar mais conversas.')}</p>}</>}
     </section>
 
     {(others.length > 0 || workspace) && <section className="casual-group" aria-labelledby="casual-others-title">
       <div className="casual-others-heading">
         <h2 id="casual-others-title" className="casual-group-label">{t('Outros projetos')}</h2>
-        <button type="button" className="touch-target icon-button" aria-label={t('Adicionar projeto')} title={t('Adicionar projeto')} onClick={onProjects} disabled={busy || loadingHistory}><Plus aria-hidden="true" /></button>
+        <button type="button" className="touch-target icon-button" aria-label={t('Adicionar projeto')} title={t('Adicionar projeto')} onClick={onProjects} disabled={loadingHistory}><Plus aria-hidden="true" /></button>
       </div>
       {others.map(project => {
         const name = basename(project.workspace.path)
@@ -295,20 +295,20 @@ export function CasualSidebar({ backend, workspace, activeSessionId, activeSessi
             </button>
             <div className="casual-group-actions">
               <button type="button" className="touch-target icon-button" aria-label={t('Abrir a pasta de {name}', { name })} title={t('Abrir a pasta')} onClick={() => reveal(project.workspace.id)}><FolderSearch aria-hidden="true" /></button>
-              {onOpenProject && <button type="button" className="touch-target icon-button" aria-label={t('Novo chat em {name}', { name })} title={t('Novo chat neste projeto')} disabled={busy} onClick={() => onOpenProject(project.workspace.path)}><Plus aria-hidden="true" /></button>}
+              {onOpenProject && <button type="button" className="touch-target icon-button" aria-label={t('Novo chat em {name}', { name })} title={t('Novo chat neste projeto')} onClick={() => onOpenProject(project.workspace.path)}><Plus aria-hidden="true" /></button>}
             </div>
           </div>
           {open && (visible.length === 0 ? <p className="muted casual-history-state">{project.total === 0 ? t('Nenhuma conversa.') : t('Nenhum chat corresponde à busca.')}</p>
             : <ul className="casual-chat-list" aria-label={t('Conversas de {name}', { name })}>
               {visible.map(chat => <li key={chat.id} className="casual-chat-row">
-                <button type="button" className="touch-target casual-chat-item" disabled={busy} onClick={() => { setOpenedChatId(chat.id); onOpenSession(chat.id, chat.workspaceId, project.workspace.path) }}>
+                <button type="button" className="touch-target casual-chat-item" onClick={() => { setOpenedChatId(chat.id); onOpenSession(chat.id, chat.workspaceId, project.workspace.path) }}>
                   <span className="casual-chat-title">{plainTitle(chat.title) ?? t('Conversa {id}', { id: chat.id.slice(0, 12) })}</span>
                   <span className="casual-chat-meta"><span>{t(sessionState(chat))}</span><time dateTime={chat.updatedAt}>{new Date(chat.updatedAt).toLocaleDateString(localeTag())}</time></span>
                 </button>
                 <button type="button" className="casual-pin" aria-label={t('Fixar conversa')} title={t('Fixar')} onClick={() => void togglePin(chat.id, true)}><Pin aria-hidden="true" /></button>
               </li>)}
             </ul>)}
-          {open && project.total > project.chats.length && onOpenProject && <button type="button" className="touch-target text-button casual-load-more" disabled={busy} onClick={() => onOpenProject(project.workspace.path)}>{t('Ver as {count} conversas', { count: project.total })}</button>}
+          {open && project.total > project.chats.length && onOpenProject && <button type="button" className="touch-target text-button casual-load-more" onClick={() => onOpenProject(project.workspace.path)}>{t('Ver as {count} conversas', { count: project.total })}</button>}
         </div>
       })}
     </section>}

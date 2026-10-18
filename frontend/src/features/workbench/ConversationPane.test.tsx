@@ -117,7 +117,8 @@ it('still holds a live conversation while it waits for its approval', () => {
   render(<ConversationPane {...value} viewMode="professional" onContinue={vi.fn()}
     state={{ ...value.state, activeRun: 'awaiting_approval', pendingApprovals: [approval], draft: 'Siga daqui' }} />)
   expect(screen.getByRole('button', { name: 'Enviar' })).toBeDisabled()
-  expect(screen.getByRole('button', { name: 'Levar rascunho para novo trabalho' })).toBeDisabled()
+  // The draft can still go to new work: the approval waits in this conversation meanwhile.
+  expect(screen.getByRole('button', { name: 'Levar rascunho para novo trabalho' })).toBeEnabled()
 })
 it('shows an ordinary message as it was written', () => {
   const value = props()
