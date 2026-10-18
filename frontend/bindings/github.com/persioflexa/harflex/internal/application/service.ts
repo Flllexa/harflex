@@ -854,6 +854,14 @@ export function StartWorkflow($in: $models.StartWorkflowInput): $CancellableProm
 }
 
 /**
+ * StopPipelineQA stops the pipeline's QA at the person's request: the round and the fix loop end where they are, and
+ * QA can be run again from the lab.
+ */
+export function StopPipelineQA(pipelineID: string): $CancellablePromise<$models.QALoopDTO> {
+    return $Call.ByID(3695328349, pipelineID);
+}
+
+/**
  * UndoPipelineLocalTest stops the test's services and conversation and puts the folder back as it was. Changes made
  * during the test stop it and come back as the card's conflict, unless the person chose to discard them.
  */

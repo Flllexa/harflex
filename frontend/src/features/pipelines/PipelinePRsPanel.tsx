@@ -7,6 +7,7 @@ import { errorMessage, type Backend, type BackendOption, type MCPServer, type Pi
 import { PipelineRoleModelPicker } from './PipelineRoleModelPicker'
 import { useStageActivity } from './useStageActivity'
 import { PullRequestCards, usePullRequests } from './PullRequestCards'
+import { StopRun } from './CodeLiveRun'
 
 /** QA approved and the stage not yet ended. Pipelines saved before the stage existed finished at QA with no status for it. */
 export function pullRequestsOpen(run: Pipeline): boolean {
@@ -146,6 +147,7 @@ export function PipelinePRsPanel({ backend, backends, run, workspaceId, defaultB
     {configured && !configuredId && eligible.length > 0 && <p className="project-warning" role="status">{t('O executor escolhido para PRs ({name}) não está disponível agora; a fase parte do padrão. Ajuste em "Provedor e modelo por fase".', { name: configuredName })}</p>}
     <div className="pipeline-actions">
       {hasAgentRun && onOpenSession && <button type="button" className="touch-target secondary-button" onClick={() => void openConversation()} disabled={pending}><MessageSquare aria-hidden="true" />{t('Abrir a conversa dos PRs')}</button>}
+      {working && activity?.sessionId && <StopRun backend={backend} sessionId={activity.sessionId} label={t('Parar a IA')} />}
       <button type="button" className="touch-target primary-button" onClick={() => void approveAndOpen()} disabled={pending || working || applying || !backendId || (!!configuredModel && !selection)}><GitPullRequest aria-hidden="true" />{applying ? t('Aplicando o patch…') : hasAgentRun ? t('Pedir outra rodada à IA') : applied ? t('Abrir PRs com a IA') : t('Aprovar e abrir os PRs')}</button>
       {finished && !reviewing && <button type="button" className="touch-target primary-button" onClick={() => onFinish('completed')} disabled={pending}><Check aria-hidden="true" />{t('Concluir PRs')}</button>}
     </div>

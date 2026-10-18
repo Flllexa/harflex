@@ -169,6 +169,7 @@ export function createFakeBackend() {
     getPipelineLocalTest: async pipelineId => ({ pipelineId, status: 'none', artifactVersion: 0, sessionId: '', testerStatus: '', services: [], servicesLost: false, backupMissing: false }),
     undoPipelineLocalTest: async pipelineId => ({ pipelineId, status: 'none', artifactVersion: 0, sessionId: '', testerStatus: '', services: [], servicesLost: false, backupMissing: false }),
     startPipelineQA: async () => { throw new Error('Synthetic QA unavailable') },
+    stopPipelineQA: async pipelineId => ({ pipelineId, phase: 'stopped', round: 0, message: 'QA parado por você.', updatedAt: new Date().toISOString(), running: false }),
     fixPipelineFindings: async () => { throw new Error('Synthetic QA unavailable') },
     resumePipelineFixes: async () => { throw new Error('Synthetic QA unavailable') },
     listPipelinePullRequests: async () => [],

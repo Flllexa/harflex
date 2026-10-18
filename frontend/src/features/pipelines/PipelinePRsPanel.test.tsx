@@ -121,6 +121,10 @@ describe('the pull request panel', () => {
     expect(await within(panel()).findByText('A IA está trabalhando nos PRs. Acompanhe na conversa.')).toBeInTheDocument()
     expect(within(panel()).getByRole('button', { name: 'Pedir outra rodada à IA' })).toBeDisabled()
     expect(within(panel()).queryByRole('button', { name: 'Concluir PRs' })).not.toBeInTheDocument()
+    // The person can stop the agent where it is.
+    const cancel = vi.spyOn(working, 'cancel').mockResolvedValue()
+    await user.click(within(panel()).getByRole('button', { name: 'Parar a IA' }))
+    expect(cancel).toHaveBeenCalledWith('session-prs')
     cleanup()
 
     const { onFinish, onOpenSession } = show(backendWith([github], 'completed'))

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bug, Check, ChevronDown, CircleAlert, CircleDashed, FlaskConical, Hammer, LoaderCircle, MessageSquare, MonitorPlay, Play, RefreshCw, ScanSearch, Sparkles, TestTube2, Wrench } from 'lucide-react'
+import { Bug, Check, ChevronDown, CircleAlert, CircleDashed, FlaskConical, Hammer, LoaderCircle, MessageSquare, MonitorPlay, Play, RefreshCw, ScanSearch, Sparkles, Square, TestTube2, Wrench } from 'lucide-react'
 import { errorMessage, isDocumentCLI, type Backend, type BackendOption, type Pipeline, type PipelineRoleModelSelection, type QALoop } from '../../lib/backend'
 import { IonPicker } from '../../components/IonPicker'
 import { useT } from '../../i18n'
@@ -139,6 +139,14 @@ export function PipelineQALab({ backend, backends, run, workspaceId, roleDefault
   }, [backend, run.id])
 
   const running = !!loop?.running
+  const [stopping, setStopping] = useState(false)
+  // The person can stop QA at any moment: the round and the fix loop end where they are, and QA can run again.
+  async function stop() {
+    setStopping(true)
+    try { const current = await backend.stopPipelineQA(run.id); setLoop(current); onLoopChange?.(current) }
+    catch { /* The next read of the loop shows where it is. */ }
+    finally { setStopping(false) }
+  }
   // While QA tests, the lab shows the run as it happens instead of the previous report.
   const testing = running && loop?.phase === 'qa'
   const findings = report?.findings ?? [], improvements = report?.improvements ?? []
@@ -209,10 +217,12 @@ export function PipelineQALab({ backend, backends, run, workspaceId, roleDefault
 
     {running && loop && <div className="qa-lab-live" aria-live="polite">
       <div className="qa-lab-live-row"><LoaderCircle className="qa-spin" aria-hidden="true" /><strong>{qaLoopText(loop.message)}</strong>
-        {loop.sessionId && onOpenSession && <button type="button" className="touch-target text-button" onClick={() => onOpenSession(loop.sessionId!)}><MessageSquare aria-hidden="true" />{t('Ver a conversa')}</button>}</div>
+        {loop.sessionId && onOpenSession && <button type="button" className="touch-target text-button" onClick={() => onOpenSession(loop.sessionId!)}><MessageSquare aria-hidden="true" />{t('Ver a conversa')}</button>}
+        <button type="button" className="touch-target secondary-button qa-lab-stop" onClick={() => void stop()} disabled={stopping}><Square aria-hidden="true" />{stopping ? t('Parando…') : t('Parar QA')}</button></div>
       {loop.phase === 'fixing' && <StageActivityPane key={`${run.id}:${loop.round}:${loop.sessionId ?? ''}`} backend={backend} pipeline={run} stage="code" />}
     </div>}
     {testing && <QALiveRun key={loop?.sessionId ?? 'starting'} backend={backend} sessionId={loop?.sessionId} />}
+    {!running && loop?.phase === 'stopped' && <p className="qa-lab-stopped muted" role="status">{qaLoopText(loop.message)}</p>}
     {!running && loop?.phase === 'failed' && run.stageStatus[run.currentStage] !== 'waiting_user' && <div className="qa-lab-alert" role="alert"><CircleAlert aria-hidden="true" /><p>{qaLoopText(loop.message)}</p>
       {loop.sessionId && run.currentStage === 'eval' && run.stageStatus.eval === 'active' && <button type="button" className="touch-target secondary-button" onClick={() => void readAgain()} disabled={pending}>{pending ? t('Lendo…') : t('Ler o relatório de novo')}</button>}
       {loop.sessionId && onOpenSession && <button type="button" className="touch-target secondary-button" onClick={() => onOpenSession(loop.sessionId!)}>{t('Ver a conversa')}</button>}</div>}

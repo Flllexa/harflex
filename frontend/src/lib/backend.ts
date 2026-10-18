@@ -49,7 +49,7 @@ const stageExecutors = z.array(stageExecutor).nullish().transform(value => value
 const pipelineArtifact = z.object({ stage: pipelineStage, version: z.number().int().positive(), content: z.string(), author: z.enum(['legacy/manual', 'user', 'ai']).optional(), sourceSessionId: z.string().optional(), contentDigest: z.string().optional(), reviewStatus: z.string().optional(), reviewActor: z.string().optional(), reviewFeedback: z.string().optional(), reviewedAt: z.iso.datetime({ offset: true }).optional(), updatedAt: z.iso.datetime({ offset: true }) })
 const pipelineArchivedArtifact = z.object({ stage: z.enum(['code', 'eval']), version: z.number().int().positive(), content: z.string(), author: z.string(), sourceSessionId: z.string(), contentDigest: z.string(), reason: z.string(), createdAt: z.iso.datetime({ offset: true }) })
 const pipelineExecutionReview = z.object({ stage: z.enum(['code', 'eval']), version: z.number().int().positive(), content: z.string(), contentDigest: z.string(), sourceSessionId: z.string(), decision: z.enum(['approve', 'request_revision']), actor: z.string(), feedback: z.string(), createdAt: z.iso.datetime({ offset: true }) })
-const qaLoop = z.object({ pipelineId: z.string(), phase: z.enum(['', 'qa', 'fixing', 'done', 'waiting', 'failed']), round: z.number().int().nonnegative(), message: z.string(), sessionId: z.string().optional(), updatedAt: z.string(), running: z.boolean() })
+const qaLoop = z.object({ pipelineId: z.string(), phase: z.enum(['', 'qa', 'fixing', 'done', 'waiting', 'failed', 'stopped']), round: z.number().int().nonnegative(), message: z.string(), sessionId: z.string().optional(), updatedAt: z.string(), running: z.boolean() })
 export type QALoop = z.infer<typeof qaLoop>
 /** Who runs a role in the QA loop: an executor and, when it needs one, the confirmed model. */
 export type PipelineRoleChoice = { backendId: string; selection?: PipelineRoleModelSelection }
@@ -530,6 +530,8 @@ export interface Backend {
   undoPipelineLocalTest(pipelineId: string, discard?: boolean): Promise<PipelineLocalTest>
   /** Runs QA in its lab in the background; follow it with getPipelineQALoop. */
   startPipelineQA(pipelineId: string, evaluator: PipelineRoleChoice): Promise<QALoop>
+  /** Stops the pipeline's QA where it is: the running round and the fix loop. */
+  stopPipelineQA(pipelineId: string): Promise<QALoop>
   /** Sends the chosen findings and improvements back to Code and loops Code → QA in the background. */
   fixPipelineFindings(input: FixPipelineFindingsInput): Promise<QALoop>
   resumePipelineFixes(input: ResumePipelineFixesInput): Promise<QALoop>

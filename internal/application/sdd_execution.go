@@ -607,6 +607,13 @@ func (s *Service) returnPipelineToCode(pipelineID, sessionID string) error {
 }
 
 func (s *Service) stopPipelineQA(pipelineID, keep string) {
+	s.haltPipelineQA(pipelineID, keep, "QA parou: a conversa com o Coder continuou e o Code voltou para revisão.")
+}
+
+// haltPipelineQA ends the pipeline's QA loop and cancels its Coder and QA runs, except keep's. The loop's number goes
+// first: a run cancelled before it would let the loop record the cancellation as a failure.
+func (s *Service) haltPipelineQA(pipelineID, keep, message string) {
+	s.stopQALoop(pipelineID, message)
 	for _, role := range []string{"evaluator", "coder"} {
 		links, err := s.store.ListPipelineSessions(s.ctx, pipelineID, role)
 		if err != nil {
@@ -624,7 +631,26 @@ func (s *Service) stopPipelineQA(pipelineID, keep string) {
 			}
 		}
 	}
-	s.stopQALoop(pipelineID, "QA parou: a conversa com o Coder continuou e o Code voltou para revisão.")
+}
+
+// StopPipelineQA stops the pipeline's QA at the person's request: the round and the fix loop end where they are, and
+// QA can be run again from the lab.
+func (s *Service) StopPipelineQA(pipelineID string) (QALoopDTO, error) {
+	if err := s.beginCall(); err != nil {
+		return QALoopDTO{}, err
+	}
+	defer s.endCall()
+	if _, err := s.loadPipeline(pipelineID); err != nil {
+		return QALoopDTO{}, err
+	}
+	s.haltPipelineQA(pipelineID, "", "QA parado por você.")
+	s.qaLoopMu.Lock()
+	defer s.qaLoopMu.Unlock()
+	state, ok := s.qaLoops[pipelineID]
+	if !ok {
+		return QALoopDTO{PipelineID: pipelineID}, nil
+	}
+	return state, nil
 }
 
 func separateExecutionRoot(sourceRoot, executionRoot string) bool {

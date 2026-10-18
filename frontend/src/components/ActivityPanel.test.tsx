@@ -65,3 +65,13 @@ describe('running activities', () => {
     expect(screen.queryByRole('list', { name: /Em execução/ })).not.toBeInTheDocument()
   })
 })
+
+it('stops whatever it is following while it runs', async () => {
+  const onStop = vi.fn()
+  render(<ActivityPanel onClose={vi.fn()} events={planned} busy onStop={onStop} />)
+  await userEvent.click(screen.getByRole('button', { name: 'Parar' }))
+  expect(onStop).toHaveBeenCalled()
+  cleanup()
+  render(<ActivityPanel onClose={vi.fn()} events={planned} onStop={onStop} />)
+  expect(screen.queryByRole('button', { name: 'Parar' })).not.toBeInTheDocument()
+})

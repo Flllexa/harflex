@@ -68,7 +68,7 @@ export type HistoryOpenRequest = { requestId: string; sessionId: string; workspa
 export type ProjectOpenRequest = { requestId: string; path: string }
 const terminalRunEvents = new Set(['run.completed', 'run.failed', 'run.cancelled', 'run.interrupted', 'external.run.completed', 'external.run.failed', 'external.run.cancelled', 'external.run.interrupted'])
 
-export type WorkbenchContext = { workspace?: Workspace; session?: Session; busy: boolean; running?: RunningSession[]; startingSession?: boolean; loadingHistory: boolean; hasDraft: boolean; historyHasUserMessage: boolean; readOnly: boolean; recoveryPrompt: string }
+export type WorkbenchContext = { workspace?: Workspace; session?: Session; busy: boolean; /** Stops the run of the conversation on screen (the one Activity follows). */ stop?: () => void; running?: RunningSession[]; startingSession?: boolean; loadingHistory: boolean; hasDraft: boolean; historyHasUserMessage: boolean; readOnly: boolean; recoveryPrompt: string }
 type WorkbenchProps = {
   backend: Backend
   /** Reopen the most recently used project at startup (default). */
@@ -280,8 +280,9 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     }).catch(failure => { if (live) store.setState({error:errorMessage(failure)}) })
     return () => { live = false }
   },[backend,stageViewRequest?.requestId,state.workspace?.id])
+  const stopActivity = useCallback(() => { void cancelRef.current?.() }, [])
   useEffect(() => {
-    onContextChange?.({ workspace: state.workspace, session: state.session, running, busy: executionBusy || startingSession, startingSession, loadingHistory, hasDraft: !!state.draft.trim(), historyHasUserMessage, readOnly: state.readOnly, recoveryPrompt })
+    onContextChange?.({ workspace: state.workspace, session: state.session, running, stop: stopActivity, busy: executionBusy || startingSession, startingSession, loadingHistory, hasDraft: !!state.draft.trim(), historyHasUserMessage, readOnly: state.readOnly, recoveryPrompt })
   }, [onContextChange, running, state.workspace?.id, state.workspace?.path, state.session?.id, state.session?.status, state.session?.resumable, state.session?.updatedAt, state.draft, executionBusy, startingSession, loadingHistory, historyHasUserMessage, state.readOnly, recoveryPrompt])
   useEffect(() => {
     const sessionId = state.session?.id
@@ -594,6 +595,9 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     store.getState().setDraft(text)
   }
 
+  // A stable handle for the Activity panel's stop, which always reaches the latest cancel.
+  const cancelRef = useRef<() => Promise<void>>()
+  cancelRef.current = cancel
   async function cancel() {
     const { session, contiguousSequence: after } = store.getState()
     const signal = lifetime.current?.signal

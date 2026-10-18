@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bot, Check, CircleAlert, CircleDashed, FileText, Globe, LoaderCircle, MessageSquare, PencilLine, Search, SquareTerminal, Wrench } from 'lucide-react'
-import type { Backend, Pipeline, PipelineStageActivity } from '../../lib/backend'
+import { Bot, Check, CircleAlert, CircleDashed, FileText, Globe, LoaderCircle, MessageSquare, PencilLine, Search, Square, SquareTerminal, Wrench } from 'lucide-react'
+import { errorMessage, type Backend, type Pipeline, type PipelineStageActivity } from '../../lib/backend'
 import { beforePlan, buildActivityFlow, type Action, type ActionKind } from '../../components/activity/activityFlow'
 import { useT } from '../../i18n'
 import { useRunJournal } from './QALiveRun'
@@ -67,6 +67,21 @@ function ActionRow({ action }: { action: Action }) {
 }
 
 /** The Coder's run as it happens: the plan it declared, the step it is on, and what it does in each step. */
+/** Stops a run where it is (the conversation stays and can be continued). */
+export function StopRun({ backend, sessionId, label }: { backend: Backend; sessionId: string; label: string }) {
+  const t = useT()
+  const [stopping, setStopping] = useState(false)
+  const [failed, setFailed] = useState('')
+  async function stop() {
+    setStopping(true); setFailed('')
+    try { await backend.cancel(sessionId) } catch (failure) { setFailed(errorMessage(failure)) } finally { setStopping(false) }
+  }
+  return <>
+    <button type="button" className="touch-target secondary-button run-stop" onClick={() => void stop()} disabled={stopping || !sessionId}><Square aria-hidden="true" />{stopping ? t('Parando…') : label}</button>
+    {failed && <span className="form-error" role="alert">{failed}</span>}
+  </>
+}
+
 export function CodeLiveRun({ backend, activity, onOpenSession }: { backend: Backend; activity: PipelineStageActivity; onOpenSession?: (sessionId: string) => void }) {
   const t = useT()
   const journal = useRunJournal(backend, activity.sessionId)
@@ -85,6 +100,7 @@ export function CodeLiveRun({ backend, activity, onOpenSession }: { backend: Bac
         <p className="muted" aria-live="polite">{current ? t('Agora: {action}', { action: current.label }) : flow.plan.length > 0 ? t('{done} de {total} etapas do plano', { done, total: flow.plan.length }) : t('Preparando o trabalho…')}{activity.modelId ? ` · ${activity.modelId}` : ''}</p>
       </div>
       {onOpenSession && <button type="button" className="touch-target secondary-button" onClick={() => onOpenSession(activity.sessionId)}><MessageSquare aria-hidden="true" />{t('Ver a conversa')}</button>}
+      <StopRun backend={backend} sessionId={activity.sessionId} label={t('Parar o Coder')} />
     </header>
     <RunProgress progress={progress} metricsOnly />
     {waiting && <p className="project-warning" role="status">{t('Há uma ação esperando a sua aprovação. Aprove ou negue na conversa para o Coder continuar.')}</p>}

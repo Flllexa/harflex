@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { X } from 'lucide-react'
+import { Square, X } from 'lucide-react'
 import { currentLocale, useT } from '../i18n'
 import type { AgentEvent, RunningSession } from '../lib/backend'
 import { ActivityFlowView } from './activity/ActivityFlowView'
@@ -22,7 +22,7 @@ function current(actions: Action[]) {
 }
 
 /** The latest request as a live flow: the agent's plan, what it is doing under each step and how it ended. */
-export function ActivityPanel({ onClose, events = [], busy = false, running = [], focusedId, onOpenRunning }: { onClose: () => void; events?: AgentEvent[]; busy?: boolean; running?: RunningSession[]; focusedId?: string; onOpenRunning?: (item: RunningSession) => void }) {
+export function ActivityPanel({ onClose, events = [], busy = false, running = [], focusedId, onOpenRunning, onStop }: { onClose: () => void; events?: AgentEvent[]; busy?: boolean; running?: RunningSession[]; focusedId?: string; onOpenRunning?: (item: RunningSession) => void; /** Stops the run the panel follows. */ onStop?: () => void }) {
   const t = useT()
   const journal = useMemo(() => events.filter(item => item.sequence > 0), [events])
   // The flow's labels are written in the language on screen, so a change of language builds it again.
@@ -37,7 +37,11 @@ export function ActivityPanel({ onClose, events = [], busy = false, running = []
   const announcement = busy ? now ? t('Agora: {label}', { label: now.label }) : step ? t('Etapa atual: {text}', { text: step.text }) : '' : flow.outcome ? flow.outcome.label : ''
 
   return <aside id="activity-panel" className="activity-panel has-flow" aria-label={t('Atividade do trabalho')}>
-    <div className="panel-heading"><h2 id="activity-title">{t('Atividade')}</h2><button className="touch-target icon-button" aria-label={t('Fechar atividade')} onClick={onClose}><X aria-hidden="true" /></button></div>
+    <div className="panel-heading"><h2 id="activity-title">{t('Atividade')}</h2>
+      <div className="activity-heading-actions">
+        {busy && onStop && <button type="button" className="touch-target secondary-button activity-stop" onClick={onStop}><Square aria-hidden="true" />{t('Parar')}</button>}
+        <button className="touch-target icon-button" aria-label={t('Fechar atividade')} onClick={onClose}><X aria-hidden="true" /></button>
+      </div></div>
     <p className={`muted activity-description${live ? ' activity-description-live' : ''}`} aria-live="polite" aria-atomic="true">
       {live && <span className="activity-state-indicator" aria-hidden="true" />}
       {awaitingApproval ? t('Aguardando aprovação') : live ? t('Em execução · ações atualizadas ao vivo') : empty ? t('Nenhuma atividade nesta sessão') : t('Último pedido desta sessão')}

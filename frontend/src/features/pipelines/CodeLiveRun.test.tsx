@@ -116,3 +116,13 @@ it('does not verify while the stage is no longer waiting for the Coder', async (
   await new Promise(resolve => setTimeout(resolve, 50))
   expect(complete).not.toHaveBeenCalled()
 })
+
+it('stops the Coder run from where it is followed', async () => {
+  const user = userEvent.setup()
+  const { backend } = createFakeBackend()
+  backend.listEvents = async () => journal()
+  const cancel = vi.spyOn(backend, 'cancel').mockResolvedValue()
+  render(<CodeLiveRun backend={backend} activity={activity('running')} />)
+  await user.click(await screen.findByRole('button', { name: 'Parar o Coder' }))
+  expect(cancel).toHaveBeenCalledWith('coder-1')
+})

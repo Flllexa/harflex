@@ -109,3 +109,24 @@ func TestReturningAnEarlierCoderMakesItTheLatest(t *testing.T) {
 		t.Fatalf("the returned Coder is not active: %v %v", active, err)
 	}
 }
+
+// The person can stop QA at any moment: the loop ends where it is, says so, and its next step neither runs nor
+// writes over the stop.
+func TestStopPipelineQAEndsTheLoop(t *testing.T) {
+	s, approved, _, _, _ := codeVerifiedAndApproved(t)
+	gen, err := s.claimQALoop(approved.ID, QALoopDTO{Phase: "qa", Round: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	loop, err := s.StopPipelineQA(approved.ID)
+	if err != nil || loop.Running || loop.Phase != "stopped" || loop.Message != "QA parado por você." {
+		t.Fatalf("stopping QA: %+v %v", loop, err)
+	}
+	s.qaLoopFailed(approved.ID, gen, 2, "", "O QA não terminou: cancelado")
+	if loop, err := s.GetPipelineQALoop(approved.ID); err != nil || loop.Phase != "stopped" {
+		t.Fatalf("the stopped loop wrote over its stop: %+v %v", loop, err)
+	}
+	if loop, err := s.StopPipelineQA(approved.ID); err != nil || loop.Phase != "stopped" {
+		t.Fatalf("stopping a loop that is not running: %+v %v", loop, err)
+	}
+}

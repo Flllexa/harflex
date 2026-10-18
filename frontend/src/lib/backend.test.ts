@@ -354,3 +354,9 @@ describe('local test', () => {
     expect(parse.terminals(null)).toEqual([])
   })
 })
+
+describe('the QA loop', () => {
+  it('reads a loop the person or a Coder message stopped', () => {
+    expect(parse.qaLoop({ pipelineId: 'p1', phase: 'stopped', round: 2, message: 'QA parado por você.', updatedAt: '2026-10-18T10:00:00Z', running: false }).phase).toBe('stopped')
+  })
+})

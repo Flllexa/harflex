@@ -129,4 +129,12 @@ describe('the local test card', () => {
     setup(applied, {}, { canStart: false })
     expect(await within(card()).findByRole('button', { name: 'Desfazer teste' })).toBeInTheDocument()
   })
+
+  it('stops the AI while it prepares the project', async () => {
+    const user = userEvent.setup()
+    const { backend } = setup({ ...applied, testerStatus: 'running' })
+    const cancel = vi.spyOn(backend, 'cancel').mockResolvedValue()
+    await user.click(await within(card()).findByRole('button', { name: 'Parar a preparação' }))
+    expect(cancel).toHaveBeenCalledWith('tester')
+  })
 })

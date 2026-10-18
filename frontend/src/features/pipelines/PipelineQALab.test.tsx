@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
-import type { Pipeline } from '../../lib/backend'
+import type { Pipeline, QALoop } from '../../lib/backend'
 import { createFakeBackend } from '../../test/fakeBackend'
 import { PipelineQALab } from './PipelineQALab'
 
@@ -118,4 +118,17 @@ it('resumes fixes that stopped before the Coder round, with who fixes and who te
   await user.click(screen.getByRole('button', { name: 'Continuar as correções' }))
   expect(backend.resumePipelineFixes).toHaveBeenCalledWith(expect.objectContaining({ pipelineId: run.id, coder: expect.objectContaining({ backendId: 'api' }), evaluator: expect.objectContaining({ backendId: 'api' }) }))
   expect(await screen.findByText('Retomando as correções no Code')).toBeInTheDocument()
+})
+
+it('stops a running QA from the lab, round and fix loop, and says it stopped', async () => {
+  const user = userEvent.setup()
+  let loop: QALoop = { pipelineId: 'pipeline-qa', phase: 'qa', round: 2, message: 'O QA está rodando build, testes e o app no laboratório', updatedAt: date, running: true, sessionId: 'qa-2' }
+  const { backend } = setup({ passed: false, checks: [], findings: [], improvements: [], criteria: [] }, 'active', backend => {
+    backend.getPipelineQALoop = vi.fn(async () => loop)
+    backend.stopPipelineQA = vi.fn(async () => { loop = { ...loop, phase: 'stopped', running: false, message: 'QA parado por você.' }; return loop })
+  })
+  await user.click(await screen.findByRole('button', { name: 'Parar QA' }))
+  expect(backend.stopPipelineQA).toHaveBeenCalledWith('pipeline-qa')
+  expect(await screen.findByText('QA parado por você.')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Parar QA' })).not.toBeInTheDocument()
 })

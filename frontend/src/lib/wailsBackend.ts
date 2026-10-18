@@ -169,6 +169,7 @@ export const wailsBackend: Backend = {
   decidePipelineExecutionArtifact: async input => parse.pipeline(await Service.DecidePipelineExecutionArtifact(input)),
   getPipelineLocalTest: async pipelineId => parse.pipelineLocalTest(await Service.GetPipelineLocalTest(pipelineId)),
   undoPipelineLocalTest: async (pipelineId, discard) => parse.pipelineLocalTest(await Service.UndoPipelineLocalTest({ pipelineId, discard: discard === true })),
+  stopPipelineQA: async pipelineId => parse.qaLoop(await Service.StopPipelineQA(pipelineId)),
   startPipelineQA: async (pipelineId, evaluator) => parse.qaLoop(await Service.StartPipelineQA({ pipelineId, evaluator: { backendId: evaluator.backendId, ...(evaluator.selection ? { selection: evaluator.selection } : {}) } })),
   resumePipelineFixes: async input => parse.qaLoop(await Service.ResumePipelineFixes({ pipelineId: input.pipelineId, coder: { backendId: input.coder.backendId, ...(input.coder.selection ? { selection: input.coder.selection } : {}) }, evaluator: { backendId: input.evaluator.backendId, ...(input.evaluator.selection ? { selection: input.evaluator.selection } : {}) } })),
   fixPipelineFindings: async input => parse.qaLoop(await Service.FixPipelineFindings({ ...input, coder: { backendId: input.coder.backendId, ...(input.coder.selection ? { selection: input.coder.selection } : {}) }, evaluator: { backendId: input.evaluator.backendId, ...(input.evaluator.selection ? { selection: input.evaluator.selection } : {}) } })),

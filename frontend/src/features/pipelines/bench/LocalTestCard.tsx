@@ -4,6 +4,7 @@ import { IonPicker } from '../../../components/IonPicker'
 import { errorCode, errorMessage, errorPaths, type Backend, type BackendOption, type Pipeline, type PipelineLocalTest } from '../../../lib/backend'
 import { openExternal } from '../../../lib/desktop'
 import { useT } from '../../../i18n'
+import { StopRun } from '../CodeLiveRun'
 
 export type LocalTestCardProps = {
   backend: Backend
@@ -104,6 +105,7 @@ export function LocalTestCard({ backend, run, backends, defaultBackendId, config
         <strong>{t('Aplicado na sua pasta para teste · versão {version}', { version: view.artifactVersion })}</strong>
         {view.artifactVersion !== version && <span className="muted">{t('Em teste: versão {old}. Aprovar desfaz o teste antes.', { old: view.artifactVersion })}</span>}
         {preparing && <span className="muted" role="status"><LoaderCircle aria-hidden="true" className="spin" /> {t('Preparando o projeto…')}</span>}
+        {preparing && <span><StopRun backend={backend} sessionId={view.sessionId} label={t('Parar a preparação')} /></span>}
       </div>
       {view.servicesLost && <div className="local-test-row" role="status">
         <span>{t('Os serviços pararam quando o app fechou. As mudanças continuam aplicadas.')}</span>
