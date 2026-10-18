@@ -110,7 +110,7 @@ func TestTesterWritesOnlyIgnoredFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	write := ignoredOnlyTool(tools.NewWriteTool(guard), root)
+	write := ignoredOnlyTool(tools.NewWriteTool(guard), root, nil)
 	if _, err := runTool(t, write, `{"path":".env","content":"PORT=5173\n"}`); err != nil {
 		t.Fatalf("writing .env was refused: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestTesterWritesOnlyIgnoredFiles(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "src/app.js")); !os.IsNotExist(err) {
 		t.Fatal("the refused write still wrote the file")
 	}
-	edit := ignoredOnlyTool(tools.NewEditTool(guard), root)
+	edit := ignoredOnlyTool(tools.NewEditTool(guard), root, nil)
 	if _, err := runTool(t, edit, `{"path":".gitignore","oldText":".env","newText":".env\nx"}`); err == nil {
 		t.Fatal("editing a tracked-looking project file was accepted")
 	}
@@ -139,5 +139,45 @@ func TestLocalTestReportReadsTheBlock(t *testing.T) {
 	}
 	if prompt := localTestPrompt(catalog.PipelineRun{Title: "TODO", Objective: "Lista"}, "/projeto"); !strings.Contains(prompt, "harflex-local") || !strings.Contains(prompt, "start_service") {
 		t.Fatalf("prompt: %s", prompt)
+	}
+}
+
+// The person's own .env (or any ignored file from before the test) is never overwritten: undo leaves ignored files
+// alone, so what the tester wrote there would stay for good.
+func TestTesterNeverOverwritesIgnoredFilesFromBeforeTheTest(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git unavailable")
+	}
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte(".env*\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if output, err := exec.Command("git", "-C", root, "init", "-q").CombinedOutput(); err != nil {
+		t.Fatalf("%v %s", err, output)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".env"), []byte("SECRET=real\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(filepath.Join(root, ".env"), old, old); err != nil {
+		t.Fatal(err)
+	}
+	guard, err := tools.NewPathGuard(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := func() time.Time { return time.Now().Add(-time.Minute) }
+	write := ignoredOnlyTool(tools.NewWriteTool(guard), root, started)
+	if _, err := runTool(t, write, `{"path":".env","content":"SECRET=example\n"}`); err == nil {
+		t.Fatal("the person's .env was overwritten")
+	}
+	if data, _ := os.ReadFile(filepath.Join(root, ".env")); string(data) != "SECRET=real\n" {
+		t.Fatalf(".env changed: %q", data)
+	}
+	if _, err := runTool(t, write, `{"path":".env.local","content":"PORT=5173\n"}`); err != nil {
+		t.Fatalf("a new ignored file was refused: %v", err)
+	}
+	if _, err := runTool(t, write, `{"path":".env.local","content":"PORT=5174\n"}`); err != nil {
+		t.Fatalf("the tester could not change the file it created: %v", err)
 	}
 }

@@ -773,6 +773,8 @@ const errorMessages: Record<string, string> = {
   local_test_conflict: 'Você mexeu em arquivos durante o teste. Escolha no cartão do teste local se mantém ou descarta essas mudanças.',
   local_test_finished: 'Este teste local foi desfeito. Comece um novo teste para continuar.',
   local_test_backend_unsupported: 'O teste local precisa de um perfil de API ou do Claude Code.',
+  local_test_needs_full_access: 'O Claude Code só prepara o teste local com o projeto em Acesso total. Use um perfil de API ou mude a permissão do projeto.',
+  local_test_needs_git: 'O teste local precisa de um projeto com Git: é assim que as mudanças do teste se separam das suas.',
   pipeline_design_phase_executor_unusable: 'O provedor ou o modelo escolhido para uma das fases não está disponível agora. Abra "Provedor e modelo por fase", no alto desta página, e escolha outro ou volte ao padrão.',
   stage_executor_unsupported: 'Esta fase não pode usar esse executor. Escolha um perfil de API ou o Claude Code; o Codex serve às fases de documento, Code e QA, não aos PRs.',
   pipeline_prs_backend_unsupported: 'Os PRs precisam de um provedor API ou do Claude Code, porque as ferramentas MCP e o terminal rodam no Harflex e a conversa dos PRs é retomada. Escolha um perfil de API ou o Claude Code.',

@@ -12,6 +12,12 @@ export type LocalTestCardProps = {
   defaultBackendId: string
   /** The executor the project chose for the Code phase, preferred when it can run the test. */
   configuredBackendId?: string
+  /** The Code waits on its review: only then can a test start. An applied test stays in view either way. */
+  canStart?: boolean
+  /** The project is on Full access: only then does Claude Code run the test (over MCP nothing asks first). */
+  fullAccess?: boolean
+  /** The person kept their changes: a decision that was waiting on the undo is dropped. */
+  onKeep?: () => void
   /** Starts the tester (createPipelineSession with the tester role). Rejects with the backend's error. */
   onStart: (backendId: string) => Promise<void>
   onOpenSession?: (sessionId: string, draft?: string) => Promise<void>
@@ -27,7 +33,7 @@ export type LocalTestCardProps = {
 const refreshEveryMs = 4000
 
 /** Try the Code before approving it: the AI applies it to the project's own folder and brings the project up. */
-export function LocalTestCard({ backend, run, backends, defaultBackendId, configuredBackendId, onStart, onOpenSession, onOpenTerminal, onOpenPipeline, refreshKey = 0, onUndone }: LocalTestCardProps) {
+export function LocalTestCard({ backend, run, backends, defaultBackendId, configuredBackendId, canStart = true, fullAccess = false, onKeep, onStart, onOpenSession, onOpenTerminal, onOpenPipeline, refreshKey = 0, onUndone }: LocalTestCardProps) {
   const t = useT()
   const [view, setView] = useState<PipelineLocalTest>()
   const [choice, setChoice] = useState('')
@@ -35,7 +41,8 @@ export function LocalTestCard({ backend, run, backends, defaultBackendId, config
   const [error, setError] = useState<{ message: string; paths: string[]; dirty: boolean }>()
   const [conflictShown, setConflictShown] = useState(false)
   // The tester needs Harflex's tools and a conversation it can continue: API profiles and Claude Code.
-  const eligible = useMemo(() => backends.filter(item => item.available && (item.kind === 'api' || item.id === 'claude')), [backends])
+  const eligible = useMemo(() => backends.filter(item => item.available && (item.kind === 'api' || item.id === 'claude' && fullAccess)), [backends, fullAccess])
+  const claudeHeldBack = !fullAccess && backends.some(item => item.available && item.id === 'claude')
   const preferred = [choice, configuredBackendId, defaultBackendId].find(id => id && eligible.some(item => item.id === id))
   const backendId = preferred || eligible[0]?.id || ''
 
@@ -77,6 +84,7 @@ export function LocalTestCard({ backend, run, backends, defaultBackendId, config
   const preparing = applied && (view.testerStatus === 'running' || view.testerStatus === 'awaiting_approval' || view.testerStatus === 'cancellation_pending')
   const conflict = conflictShown ? view?.conflict : undefined
 
+  if (view && !applied && !canStart) return null
   return <section className="bench-slab local-test" aria-label={t('Teste local')}>
     {!view && <p className="muted" role="status">{t('Lendo o teste local…')}</p>}
     {view && !applied && view.heldBy && <div className="local-test-row">
@@ -86,6 +94,7 @@ export function LocalTestCard({ backend, run, backends, defaultBackendId, config
     {view && !applied && !view.heldBy && <div className="local-test-start">
       <div className="local-test-text"><strong>{t('Testar antes de aprovar')}</strong><span className="muted">{t('A IA aplica esta versão na sua pasta e sobe o projeto para você testar antes de aprovar.')}</span></div>
       {eligible.length > 1 && <IonPicker id={`local-test-backend-${run.id}`} label={t('Executor do teste')} value={backendId} onChange={setChoice} options={eligible.map(item => ({ value: item.id, label: item.name }))} disabled={pending} compact />}
+      {claudeHeldBack && <span className="muted">{t('O Claude Code só prepara o teste com Acesso total: por ele nada pede aprovação antes de rodar.')}</span>}
       {eligible.length === 0
         ? <p className="muted">{t('O teste local precisa de um perfil de API ou do Claude Code. Configure um em Configurações.')}</p>
         : <button type="button" className="touch-target secondary-button" onClick={() => void start()} disabled={pending || !backendId}>{pending ? <LoaderCircle aria-hidden="true" className="spin" /> : <Play aria-hidden="true" />}{t('Testar localmente')}</button>}
@@ -112,18 +121,18 @@ export function LocalTestCard({ backend, run, backends, defaultBackendId, config
           {onOpenTerminal && <button type="button" className="touch-target text-button" aria-label={t('Abrir {name} no Terminal', { name: service.name })} onClick={() => onOpenTerminal(service.terminalId)}><SquareTerminal aria-hidden="true" />{t('Terminal')}</button>}
         </li>)}
       </ul>}
-      {view.backupMissing && <p className="form-error" role="alert">{t('O backup deste teste não foi encontrado: o desfazer não pode restaurar a pasta. Use o git para conferir as mudanças.')}</p>}
+      {view.backupMissing && <p className="muted" role="status">{t('O backup deste teste não foi encontrado: o desfazer restaura os arquivos a partir do commit em que a pasta estava.')}</p>}
       {conflict ? <div className="local-test-conflict" role="alert">
         <strong><TriangleAlert aria-hidden="true" />{t('Você mexeu em arquivos durante o teste')}</strong>
         {conflict.edited.length > 0 && <><span className="muted">{t('Alterados')}</span><ul className="mono">{conflict.edited.map(path => <li key={path}>{path}</li>)}</ul></>}
         {conflict.created.length > 0 && <><span className="muted">{t('Criados')}</span><ul className="mono">{conflict.created.map(path => <li key={path}>{path}</li>)}</ul></>}
         <div className="pipeline-actions">
-          <button type="button" className="touch-target secondary-button" onClick={() => setConflictShown(false)} disabled={pending}>{t('Manter minhas mudanças')}</button>
+          <button type="button" className="touch-target secondary-button" onClick={() => { setConflictShown(false); onKeep?.() }} disabled={pending}>{t('Manter minhas mudanças')}</button>
           <button type="button" className="touch-target secondary-button danger" onClick={() => void undo(true)} disabled={pending}>{t('Descartar e desfazer')}</button>
         </div>
       </div> : <div className="pipeline-actions">
         {onOpenSession && view.sessionId && <button type="button" className="touch-target secondary-button" onClick={() => void onOpenSession(view.sessionId)}><MessageSquare aria-hidden="true" />{t('Abrir conversa')}</button>}
-        <button type="button" className="touch-target secondary-button" onClick={() => void undo(false)} disabled={pending || view.backupMissing}><Undo2 aria-hidden="true" />{t('Desfazer teste')}</button>
+        <button type="button" className="touch-target secondary-button" onClick={() => void undo(false)} disabled={pending}><Undo2 aria-hidden="true" />{t('Desfazer teste')}</button>
       </div>}
     </div>}
     {error && <div className="local-test-error" role="alert">

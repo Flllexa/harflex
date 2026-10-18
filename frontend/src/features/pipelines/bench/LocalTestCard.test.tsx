@@ -18,12 +18,12 @@ const applied: PipelineLocalTest = { ...none, status: 'applied', artifactVersion
   report: { urls: [{ label: 'App', url: 'http://localhost:5173' }], stop: 'Ctrl-C nos terminais', notes: 'Login: admin' } }
 const backends = [{ id: 'api-work', name: 'API local', kind: 'api' as const, available: true }, { id: 'codex', name: 'Codex', kind: 'cli' as const, available: true }]
 
-function setup(view: PipelineLocalTest, overrides: Partial<Backend> = {}) {
+function setup(view: PipelineLocalTest, overrides: Partial<Backend> = {}, props: Record<string, unknown> = {}) {
   const { backend } = createFakeBackend()
   backend.getPipelineLocalTest = vi.fn(async () => view)
   Object.assign(backend, overrides)
-  const handlers = { onStart: vi.fn(async () => undefined), onOpenSession: vi.fn(async () => undefined), onOpenTerminal: vi.fn(), onOpenPipeline: vi.fn() }
-  render(<LocalTestCard backend={backend} run={run} backends={backends} defaultBackendId="api-work" {...handlers} />)
+  const handlers = { onStart: vi.fn(async () => undefined), onOpenSession: vi.fn(async () => undefined), onOpenTerminal: vi.fn(), onOpenPipeline: vi.fn(), onKeep: vi.fn() }
+  render(<LocalTestCard backend={backend} run={run} backends={backends} defaultBackendId="api-work" canStart {...handlers} {...props} />)
   return { backend, ...handlers }
 }
 const card = () => screen.getByRole('region', { name: 'Teste local' })
@@ -55,12 +55,14 @@ describe('the local test card', () => {
     const user = userEvent.setup()
     const conflicted: PipelineLocalTest = { ...applied, conflict: { edited: ['README.md'], created: ['server.log'] } }
     const undo = vi.fn(async (_id: string, discard?: boolean) => discard ? none : conflicted)
-    setup(applied, { undoPipelineLocalTest: undo })
+    const { onKeep } = setup(applied, { undoPipelineLocalTest: undo })
     await user.click(await within(card()).findByRole('button', { name: 'Desfazer teste' }))
     expect(await within(card()).findByText('Você mexeu em arquivos durante o teste')).toBeInTheDocument()
     expect(within(card()).getByText('README.md')).toBeInTheDocument()
     expect(within(card()).getByText('server.log')).toBeInTheDocument()
     await user.click(within(card()).getByRole('button', { name: 'Manter minhas mudanças' }))
+    // Keeping the changes also drops a decision that was waiting on this undo: it is not sent later by itself.
+    expect(onKeep).toHaveBeenCalled()
     expect(within(card()).queryByText('Você mexeu em arquivos durante o teste')).not.toBeInTheDocument()
     await user.click(within(card()).getByRole('button', { name: 'Desfazer teste' }))
     await user.click(await within(card()).findByRole('button', { name: 'Descartar e desfazer' }))
@@ -100,5 +102,31 @@ describe('the local test card', () => {
   it('says when the version under test is older than the one in review', async () => {
     setup({ ...applied, artifactVersion: 1 })
     expect(await within(card()).findByText('Em teste: versão 1. Aprovar desfaz o teste antes.')).toBeInTheDocument()
+  })
+
+  it('offers Claude Code only when the project is on Full access', async () => {
+    const withClaude = [...backends, { id: 'claude', name: 'Claude Code', kind: 'cli' as const, available: true }]
+    setup(none, {}, { backends: withClaude })
+    await within(card()).findByRole('button', { name: 'Testar localmente' })
+    expect(within(card()).queryByLabelText('Executor do teste')).not.toBeInTheDocument()
+    expect(within(card()).getByText(/Claude Code só prepara o teste com Acesso total/)).toBeInTheDocument()
+    cleanup()
+    setup(none, {}, { backends: withClaude, fullAccess: true })
+    expect(await within(card()).findByLabelText('Executor do teste')).toBeInTheDocument()
+  })
+
+  it('undoes from the commit when the backup is gone', async () => {
+    setup({ ...applied, backupMissing: true })
+    expect(await within(card()).findByText(/o desfazer restaura os arquivos a partir do commit/)).toBeInTheDocument()
+    expect(within(card()).getByRole('button', { name: 'Desfazer teste' })).toBeEnabled()
+  })
+
+  it('does not offer a new test while the Code is not in review, but keeps an applied one in view', async () => {
+    setup(none, {}, { canStart: false })
+    await waitFor(() => expect(screen.queryByText('Lendo o teste local…')).not.toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: 'Testar localmente' })).not.toBeInTheDocument()
+    cleanup()
+    setup(applied, {}, { canStart: false })
+    expect(await within(card()).findByRole('button', { name: 'Desfazer teste' })).toBeInTheDocument()
   })
 })

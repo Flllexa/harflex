@@ -96,6 +96,8 @@ var errorCodes = []struct {
 	{ErrLocalTestConflict, "local_test_conflict"},
 	{ErrLocalTestFinished, "local_test_finished"},
 	{ErrLocalTestBackendUnsupported, "local_test_backend_unsupported"},
+	{ErrLocalTestNeedsFullAccess, "local_test_needs_full_access"},
+	{repositories.ErrLocalTestNeedsGit, "local_test_needs_git"},
 	{ErrPipelineCodeNotFinished, "pipeline_code_not_finished"},
 	{ErrPullRequestWatchNeedsFullAccess, "pull_request_watch_needs_full_access"},
 	{ErrPullRequestNotFound, "pull_request_not_found"},

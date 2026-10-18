@@ -96,6 +96,9 @@ type Service struct {
 	qaLoops  map[string]QALoopDTO
 	// qaLoopGen counts the loops of each pipeline: a loop whose number is no longer the latest was stopped.
 	qaLoopGen map[string]uint64
+	// localTestMu serializes starting and undoing local tests: two undos at once would restore from one backup while the
+	// other removes it.
+	localTestMu sync.Mutex
 	// prWatch tracks the review checks running for the pull requests.
 	prWatch           pullRequestWatchState
 	projectMemoryRuns map[string]string

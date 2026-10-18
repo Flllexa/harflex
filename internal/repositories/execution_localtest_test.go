@@ -174,17 +174,78 @@ func TestUndoReportsFilesTheTestCreated(t *testing.T) {
 	}
 }
 
-func TestUndoWithoutItsBackupChangesNothing(t *testing.T) {
+// The backup lives in a cache the system may clean. The folder was clean when the test began, so every path the change
+// touched was as its commit has it (or absent): undo rebuilds them from there.
+func TestUndoWithoutItsBackupRestoresFromTheCommit(t *testing.T) {
 	prepared, backup := localTestProject(t)
 	applied := applyForTest(t, prepared, backup)
 	if err := os.RemoveAll(backup); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := UndoExecutionLocalTest(context.Background(), prepared, backup, applied, true); !errors.Is(err, ErrLocalTestBackupMissing) {
+	if conflict, err := UndoExecutionLocalTest(context.Background(), prepared, backup, applied, false); err != nil || !conflict.empty() {
+		t.Fatalf("undo without the backup: %+v %v", conflict, err)
+	}
+	if readText(t, filepath.Join(prepared.SourceRoot, "a.txt")) != "original\n" || readText(t, filepath.Join(prepared.SourceRoot, "old.txt")) != "to delete\n" {
+		t.Fatal("the originals were not rebuilt from the commit")
+	}
+	if target, err := os.Readlink(filepath.Join(prepared.SourceRoot, "link")); err != nil || target != "a.txt" {
+		t.Fatalf("the symlink was not rebuilt: %q %v", target, err)
+	}
+	if matches, err := ExecutionSourceStillMatches(context.Background(), prepared); err != nil || !matches {
+		t.Fatalf("the folder is not back: %v %v", matches, err)
+	}
+}
+
+// A branch made (or switched) during the test does not trap the undo: the paths the change touched go back, and the
+// branch stays the person's.
+func TestUndoAfterTheBranchMovedStillRestoresTheChange(t *testing.T) {
+	prepared, backup := localTestProject(t)
+	applied := applyForTest(t, prepared, backup)
+	gitSnapshot(t, prepared.SourceRoot, "checkout", "-q", "-b", "experimento")
+	if conflict, err := UndoExecutionLocalTest(context.Background(), prepared, backup, applied, false); err != nil || !conflict.empty() {
+		t.Fatalf("undo after a new branch: %+v %v", conflict, err)
+	}
+	if readText(t, filepath.Join(prepared.SourceRoot, "a.txt")) != "original\n" {
+		t.Fatal("the change was not undone")
+	}
+	if _, err := os.Stat(backup); !os.IsNotExist(err) {
+		t.Fatalf("the backup stayed, so the undo would run again: %v", err)
+	}
+}
+
+// A local test needs Git: it is how the folder's own changes are told apart from the test's.
+func TestLocalTestRefusesAFolderOutsideGit(t *testing.T) {
+	source := t.TempDir()
+	writeSnapshotFile(t, source, "a.txt", "original\n")
+	prepared, err := PrepareExecutionSnapshotAt(context.Background(), source, true, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(prepared.Root) })
+	writeSnapshotFile(t, prepared.Root, "a.txt", "changed\n")
+	if _, err := ApplyExecutionForLocalTest(context.Background(), prepared, filepath.Join(t.TempDir(), "backup"), 1<<20); !errors.Is(err, ErrLocalTestNeedsGit) {
 		t.Fatalf("err = %v", err)
 	}
-	if readText(t, filepath.Join(prepared.SourceRoot, "a.txt")) != "changed by the Coder\n" {
-		t.Fatal("an undo without its backup changed the folder")
+	if readText(t, filepath.Join(source, "a.txt")) != "original\n" {
+		t.Fatal("a folder outside Git was written to")
+	}
+}
+
+// A folder of the change replaced by a link to somewhere else during the test: undo never removes or writes through it.
+func TestUndoNeverActsThroughASymlinkedFolder(t *testing.T) {
+	prepared, backup := localTestProject(t)
+	applied := applyForTest(t, prepared, backup)
+	outside := t.TempDir()
+	writeSnapshotFile(t, outside, "deep/new.txt", "someone else's file\n")
+	if err := os.RemoveAll(filepath.Join(prepared.SourceRoot, "dir")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(prepared.SourceRoot, "dir")); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = UndoExecutionLocalTest(context.Background(), prepared, backup, applied, true)
+	if readText(t, filepath.Join(outside, "deep/new.txt")) != "someone else's file\n" {
+		t.Fatal("undo removed a file outside the project through a link")
 	}
 }
 

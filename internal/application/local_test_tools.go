@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/persioflexa/harflex/internal/agentcore"
 	"github.com/persioflexa/harflex/internal/catalog"
@@ -149,13 +150,16 @@ func serviceOutput(s *Service, workspaceID, _ string, args json.RawMessage) (any
 
 // ignoredOnlyTool holds the tester's write and edit to files Git ignores (.env, local configuration): the project's
 // own files are the Code under test, and undo must find them as the change left them.
-func ignoredOnlyTool(inner tools.Tool, root string) tools.Tool {
-	return ignoredOnly{Tool: inner, root: root}
+// startedAt tells when the test began: an ignored file from before it (the person's .env) is never overwritten, since
+// undo leaves ignored files alone. Without it, every ignored file may be written.
+func ignoredOnlyTool(inner tools.Tool, root string, startedAt func() time.Time) tools.Tool {
+	return ignoredOnly{Tool: inner, root: root, startedAt: startedAt}
 }
 
 type ignoredOnly struct {
 	tools.Tool
-	root string
+	root      string
+	startedAt func() time.Time
 }
 
 func (t ignoredOnly) Execute(ctx context.Context, args json.RawMessage, sink agentcore.ToolUpdateSink) (agentcore.ToolExecutionResult, error) {
@@ -181,6 +185,11 @@ func (t ignoredOnly) Execute(ctx context.Context, args json.RawMessage, sink age
 	}
 	if err != nil || !ignored {
 		return agentcore.ToolExecutionResult{}, &agentcore.ToolFailure{Code: "local_test_tracked_file", Message: "Neste teste você só pode escrever em arquivos ignorados pelo git, como .env ou configuração local. Não altere arquivos do projeto."}
+	}
+	if t.startedAt != nil {
+		if info, err := os.Lstat(full); err == nil && info.ModTime().Before(t.startedAt()) {
+			return agentcore.ToolExecutionResult{}, &agentcore.ToolFailure{Code: "local_test_existing_file", Message: "Este arquivo já existia antes do teste (por exemplo, o .env da pessoa). Não o sobrescreva: crie outro arquivo ou peça à pessoa o que mudar nele."}
+		}
 	}
 	return t.Tool.Execute(ctx, args, sink)
 }
@@ -238,9 +247,21 @@ O que fazer:
 Regras:
 - Nunca faça commit, push, nem mude de branch.
 - Não altere arquivos do projeto que o git acompanha: eles são a mudança em teste. Você só pode escrever arquivos ignorados pelo git (.env, configuração local).
+- Nunca sobrescreva um arquivo que já existia, como o .env da pessoa: ele não volta ao desfazer o teste. Se faltar algo nele, pergunte.
 - Se precisar de algo que só a pessoa tem (uma chave, um login), pergunte.
 
 Ao terminar, responda com um resumo curto e este bloco, com os endereços para abrir e como parar:
 ` + "```harflex-local\n{\"urls\":[{\"label\":\"App\",\"url\":\"http://localhost:3000\"}],\"stop\":\"Como parar os serviços\",\"notes\":\"Logins de teste e o que conferir\"}\n```\n")
 	return prompt.String()
+}
+
+// localTestStartedAt is when the project's applied test began (zero when none is applied).
+func (s *Service) localTestStartedAt(workspaceID string) func() time.Time {
+	return func() time.Time {
+		test, err := s.store.ActivePipelineLocalTest(s.ctx, workspaceID)
+		if err != nil {
+			return time.Time{}
+		}
+		return test.CreatedAt
+	}
 }

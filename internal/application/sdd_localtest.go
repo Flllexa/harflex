@@ -13,6 +13,7 @@ import (
 	"github.com/persioflexa/harflex/internal/id"
 	"github.com/persioflexa/harflex/internal/repositories"
 	"github.com/persioflexa/harflex/internal/sdd"
+	"github.com/persioflexa/harflex/internal/security"
 )
 
 // ErrLocalTestConflict stops a Code decision whose automatic undo found changes made during the test: the person
@@ -21,6 +22,9 @@ var ErrLocalTestConflict = errors.New("files changed during the local test")
 
 // ErrLocalTestFinished is a message to a tester whose test was undone: its folder is no longer the one it prepared.
 var ErrLocalTestFinished = errors.New("this local test was undone")
+
+// ErrLocalTestNeedsFullAccess is a Claude Code tester on a project that asks before commands.
+var ErrLocalTestNeedsFullAccess = errors.New("the Claude Code tester needs Full access")
 
 // ErrLocalTestBackendUnsupported is an executor that cannot run the tester: it needs Harflex's tools and a
 // conversation it can continue (API profiles and Claude Code).
@@ -81,13 +85,29 @@ func (s *Service) localTestCacheRoot() (string, error) {
 // createPipelineLocalTestSession applies the Code under review to the project's folder, with a backup, and opens the
 // conversation that brings the project up for the person to try.
 func (s *Service) createPipelineLocalTestSession(in CreatePipelineSessionInput) (PipelineSessionDTO, error) {
+	s.localTestMu.Lock()
+	defer s.localTestMu.Unlock()
 	adapter, external := s.external[in.BackendID]
-	if in.BackendID == "" || external && (in.BackendID != "claude" || !adapter.Capabilities().Resumable || !adapter.Detect().Available) {
+	if in.BackendID == "" || external && in.BackendID != "claude" {
 		return PipelineSessionDTO{}, ErrLocalTestBackendUnsupported
 	}
 	run, err := s.loadPipeline(in.PipelineID)
 	if err != nil {
 		return PipelineSessionDTO{}, err
+	}
+	// Claude Code reaches start_service over MCP, where nothing asks before a tool runs: on a project that asks before
+	// commands it would run them in the person's folder unasked, so it takes Full access.
+	if external {
+		workspace, err := s.store.GetWorkspace(s.ctx, run.WorkspaceID)
+		if err != nil {
+			return PipelineSessionDTO{}, ErrWorkspaceNotFound
+		}
+		if security.Profile(workspace.Profile) != security.FullAccess {
+			return PipelineSessionDTO{}, ErrLocalTestNeedsFullAccess
+		}
+		if !adapter.Capabilities().Resumable || !adapter.Detect().Available {
+			return PipelineSessionDTO{}, ErrLocalTestBackendUnsupported
+		}
 	}
 	artifact := run.Artifacts[sdd.Code]
 	if run.Current != sdd.Code || run.Status[sdd.Code] != sdd.WaitingUser || artifact.Content == "" {
@@ -261,6 +281,8 @@ func (s *Service) UndoPipelineLocalTest(in UndoPipelineLocalTestInput) (Pipeline
 
 // undoLocalTest returns the conflict that stopped it, or nil once the folder is back (or there was no test).
 func (s *Service) undoLocalTest(pipelineID string, discard bool) (*repositories.LocalTestConflict, error) {
+	s.localTestMu.Lock()
+	defer s.localTestMu.Unlock()
 	test, err := s.store.LatestPipelineLocalTest(s.ctx, pipelineID)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && test.Status != "applied" {
 		return nil, nil
@@ -322,4 +344,20 @@ func followsWorkspaceProfile(mode string) bool { return mode == "" || mode == lo
 func (s *Service) localTestStillApplied(record catalog.SessionRecord) bool {
 	test, err := s.store.ActivePipelineLocalTest(s.ctx, record.WorkspaceID)
 	return err == nil && test.SessionID == record.ID
+}
+
+// holdLocalTest keeps a project's folder as it was before a pipeline copies or applies it: the pipeline's own test is
+// undone first; another pipeline's test holds the project, and the person is pointed to it.
+func (s *Service) holdLocalTest(pipelineID, workspaceID string) error {
+	active, err := s.store.ActivePipelineLocalTest(s.ctx, workspaceID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return safe("read the project's local test", err)
+	}
+	if active.PipelineID != pipelineID {
+		return &catalog.LocalTestBusyError{PipelineID: active.PipelineID}
+	}
+	return s.releaseLocalTest(pipelineID)
 }

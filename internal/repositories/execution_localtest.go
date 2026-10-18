@@ -20,6 +20,10 @@ var ErrLocalTestSourceDirty = errors.New("the project folder has changes")
 // ErrLocalTestBackupMissing is an undo whose backup is gone (the cache was cleaned): nothing is restored.
 var ErrLocalTestBackupMissing = errors.New("the local test backup is missing")
 
+// ErrLocalTestNeedsGit refuses a local test outside Git: without it the folder's own changes cannot be told apart
+// from the test's, and undo could not tell what to put back.
+var ErrLocalTestNeedsGit = errors.New("a local test needs a Git project")
+
 // LocalTestDirtyError lists what keeps a folder from taking a local test.
 type LocalTestDirtyError struct{ Paths []string }
 
@@ -61,14 +65,15 @@ const localTestManifest = "manifest.json"
 // ApplyExecutionForLocalTest applies a prepared change to its source folder for the person to try, after backing up
 // every path it touches into backupRoot. The folder must be clean apart from ignored files.
 func ApplyExecutionForLocalTest(ctx context.Context, prepared ExecutionSnapshot, backupRoot string, maxEvidenceBytes int) (LocalTestApply, error) {
-	if prepared.IsGit {
-		dirty, _, err := localTestStatus(ctx, prepared)
-		if err != nil {
-			return LocalTestApply{}, err
-		}
-		if len(dirty) > 0 {
-			return LocalTestApply{}, &LocalTestDirtyError{Paths: dirty}
-		}
+	if !prepared.IsGit {
+		return LocalTestApply{}, ErrLocalTestNeedsGit
+	}
+	dirty, _, err := localTestStatus(ctx, prepared)
+	if err != nil {
+		return LocalTestApply{}, err
+	}
+	if len(dirty) > 0 {
+		return LocalTestApply{}, &LocalTestDirtyError{Paths: dirty}
 	}
 	finalManifest, err := ExecutionResultManifest(ctx, prepared.Root, prepared)
 	if err != nil {
@@ -212,6 +217,10 @@ func LocalTestConflicts(ctx context.Context, prepared ExecutionSnapshot, applied
 	for _, item := range applied.Backup {
 		touched[item.Path] = true
 		current, _, err := prepared.sourceEntry(item.Path, maxExecutionSnapshotBytes)
+		if localTestRestored(item, current, err) {
+			// Already as it was before the test (an undo that stopped half way): nothing of the person's is here.
+			continue
+		}
 		want, exists := after[item.Path]
 		// Edited: gone although the change left it, there although the change removed it, or different.
 		if err != nil {
@@ -247,11 +256,14 @@ func LocalTestConflicts(ctx context.Context, prepared ExecutionSnapshot, applied
 	return conflict, nil
 }
 
-// UndoExecutionLocalTest puts the folder back as it was before the test. With changes made during the test it stops
-// and reports them, unless discard is set: then they go too (tracked files back to their commit, created files
-// removed). Ignored files the test created stay.
+// UndoExecutionLocalTest puts back every path the change touched, as it was before the test. With changes made during
+// the test it stops and reports them, unless discard is set: then they go too (tracked files back to their commit,
+// created files removed). Ignored files the test created stay. Without its backup (a cleaned cache), the originals
+// come from the commit the folder was on when the test began, which it matched exactly.
 func UndoExecutionLocalTest(ctx context.Context, prepared ExecutionSnapshot, backupRoot string, applied LocalTestApply, discard bool) (LocalTestConflict, error) {
-	if _, err := os.Stat(filepath.Join(backupRoot, localTestManifest)); err != nil {
+	_, statErr := os.Stat(filepath.Join(backupRoot, localTestManifest))
+	fromBackup := statErr == nil
+	if !fromBackup && !prepared.IsGit {
 		return LocalTestConflict{}, ErrLocalTestBackupMissing
 	}
 	conflict, err := LocalTestConflicts(ctx, prepared, applied)
@@ -260,6 +272,19 @@ func UndoExecutionLocalTest(ctx context.Context, prepared ExecutionSnapshot, bac
 	}
 	if !conflict.empty() && !discard {
 		return conflict, nil
+	}
+	// Nothing is removed or written through a folder that became a link to somewhere else.
+	for _, item := range applied.Backup {
+		if err := localTestPathSafe(prepared, item.Path); err != nil {
+			return LocalTestConflict{}, err
+		}
+	}
+	if discard {
+		for _, path := range append(append([]string(nil), conflict.Created...), conflict.Edited...) {
+			if err := localTestPathSafe(prepared, path); err != nil {
+				return LocalTestConflict{}, err
+			}
+		}
 	}
 	files := filepath.Join(backupRoot, "files")
 	var createdDirs []string
@@ -273,6 +298,12 @@ func UndoExecutionLocalTest(ctx context.Context, prepared ExecutionSnapshot, bac
 		}
 		if _, err := ensureExecutionParents(location.root, location.inner, &createdDirs); err != nil {
 			return LocalTestConflict{}, err
+		}
+		if !fromBackup {
+			if err := restoreCommittedPath(ctx, location.root, localTestHead(prepared, location), location.inner); err != nil {
+				return LocalTestConflict{}, err
+			}
+			continue
 		}
 		if _, _, err := copyExecutionPath(files, item.Path, location.root, location.inner, maxExecutionSnapshotBytes); err != nil {
 			return LocalTestConflict{}, err
@@ -306,10 +337,69 @@ func UndoExecutionLocalTest(ctx context.Context, prepared ExecutionSnapshot, bac
 	for index := len(applied.CreatedDirs) - 1; index >= 0; index-- {
 		_ = os.Remove(applied.CreatedDirs[index])
 	}
-	if matches, err := ExecutionSourceStillMatches(ctx, prepared); err != nil || !matches {
-		return LocalTestConflict{}, errors.Join(ErrExecutionApplyConflict, err)
+	// The check is on what the change touched: a branch the person made during the test is theirs to keep.
+	for _, item := range applied.Backup {
+		current, _, err := prepared.sourceEntry(item.Path, maxExecutionSnapshotBytes)
+		if !localTestRestored(item, current, err) {
+			return LocalTestConflict{}, ErrExecutionApplyConflict
+		}
 	}
 	return LocalTestConflict{}, os.RemoveAll(backupRoot)
+}
+
+// localTestRestored says whether a touched path is as it was before the test.
+func localTestRestored(item LocalTestBackupEntry, current ExecutionManifestEntry, err error) bool {
+	if item.Absent {
+		return errors.Is(err, os.ErrNotExist)
+	}
+	return err == nil && current == item.Entry
+}
+
+// localTestPathSafe refuses a path whose folders inside its repository are not plain folders (a link put there
+// during the test would lead outside the project).
+func localTestPathSafe(prepared ExecutionSnapshot, path string) error {
+	location := prepared.locate(path)
+	if !safeExecutionRelativePath(filepath.FromSlash(location.inner)) {
+		return ErrExecutionSnapshotUnsafePath
+	}
+	current := location.root
+	parts := strings.Split(filepath.Dir(filepath.FromSlash(location.inner)), string(os.PathSeparator))
+	for _, part := range parts {
+		if part == "." || part == "" {
+			continue
+		}
+		current = filepath.Join(current, part)
+		info, err := os.Lstat(current)
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return ErrExecutionSnapshotUnsafePath
+		}
+	}
+	return nil
+}
+
+// localTestHead is the commit the repository that owns a path was on when the test began.
+func localTestHead(prepared ExecutionSnapshot, location executionLocation) string {
+	if location.repository >= 0 {
+		return prepared.Repositories[location.repository].Head
+	}
+	return prepared.SourceHead
+}
+
+func restoreCommittedPath(ctx context.Context, root, head, path string) error {
+	callCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	command := exec.CommandContext(callCtx, "git", "restore", "--source="+head, "--worktree", "--", path)
+	command.Dir = root
+	if output, err := command.CombinedOutput(); err != nil {
+		return fmt.Errorf("restore %s from its commit: %w: %s", path, err, strings.TrimSpace(string(output)))
+	}
+	return nil
 }
 
 func restoreTrackedPath(ctx context.Context, root, path string) error {

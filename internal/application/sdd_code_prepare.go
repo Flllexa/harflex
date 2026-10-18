@@ -126,6 +126,10 @@ func (s *Service) PrepareAuthoringCode(in PrepareAuthoringCodeInput) (AuthoringC
 	if err != nil {
 		return AuthoringCodeCopyPreparationDTO{}, err
 	}
+	// The private copy is taken from the folder as it is; a test applied there would become its starting point.
+	if err := s.holdLocalTest(run.ID, run.WorkspaceID); err != nil {
+		return AuthoringCodeCopyPreparationDTO{}, err
+	}
 	if run.Revision != in.ExpectedPipelineRevision {
 		return AuthoringCodeCopyPreparationDTO{}, sqlite.ErrPipelineConflict
 	}

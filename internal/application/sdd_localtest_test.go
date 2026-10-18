@@ -284,3 +284,83 @@ func TestTheTesterConversationRunsAndReopens(t *testing.T) {
 		t.Fatalf("a message after the undo: %v", err)
 	}
 }
+
+// Over MCP nothing asks before a tool runs, so the Claude Code tester would run commands in the person's folder
+// without approval: it is offered only when the project is on Full access.
+func TestClaudeTesterNeedsFullAccess(t *testing.T) {
+	s, _, run, _, root := localTestPipeline(t)
+	s.external["claude"] = fakeExternal{available: true}
+	_, err := s.CreatePipelineSession(CreatePipelineSessionInput{PipelineID: run.ID, BackendID: "claude", Role: testerRole})
+	if ErrorCode(err) != "local_test_needs_full_access" {
+		t.Fatalf("a Claude tester on a project without Full access: %v", err)
+	}
+	if fileText(t, filepath.Join(root, "README.md")) != "baseline\n" {
+		t.Fatal("the refused test still applied the Code")
+	}
+}
+
+// Talking to the Coder starts a new version: the test of the old one is undone first, and changes made during it
+// stop the message so the card can ask.
+func TestTalkingToTheCoderEndsTheTestFirst(t *testing.T) {
+	s, _, run, _, root := localTestPipeline(t)
+	startLocalTest(t, s, run)
+	link, err := s.latestPipelineSession(run.ID, "coder")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("my edit\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Prompt(PromptInput{SessionID: link.SessionID, Text: "Mais uma mudança"}); ErrorCode(err) != "local_test_conflict" {
+		t.Fatalf("a message to the Coder over a changed test: %v", err)
+	}
+	if current, err := s.GetPipeline(run.ID); err != nil || current.StageStatus["code"] != "waiting_user" {
+		t.Fatalf("the Code left its review while the test stays: %+v %v", current.StageStatus, err)
+	}
+	if _, err := s.UndoPipelineLocalTest(UndoPipelineLocalTestInput{PipelineID: run.ID, Discard: true}); err != nil {
+		t.Fatal(err)
+	}
+	if result, err := s.Prompt(PromptInput{SessionID: link.SessionID, Text: "Mais uma mudança"}); err != nil || result.Status != RunCompleted {
+		t.Fatalf("the Coder after the undo: %+v %v", result, err)
+	}
+}
+
+// While one pipeline's test is applied, another pipeline of the project does not copy the folder: the copy would
+// take the untested change in as its starting point.
+func TestAnotherPipelineCannotCopyAHeldProject(t *testing.T) {
+	s, _, run, workspace, _ := localTestPipeline(t)
+	other, err := s.CreatePipeline(CreatePipelineInput{WorkspaceID: workspace.ID, Title: "Outro", Objective: "Outra coisa"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 4 {
+		if other, err = s.SkipPipelineStage(SkipPipelineStageInput{PipelineID: other.ID}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	startLocalTest(t, s, run)
+	if _, err := s.CreatePipelineSession(CreatePipelineSessionInput{PipelineID: other.ID, BackendID: "local", Role: "coder"}); ErrorCode(err) != "local_test_busy" {
+		t.Fatalf("a Coder copy of a project under test: %v", err)
+	}
+}
+
+// Two undos at once (Desfazer, then Aprovar before it returned) never lose an original.
+func TestConcurrentUndosNeverLoseAFile(t *testing.T) {
+	s, _, run, _, root := localTestPipeline(t)
+	startLocalTest(t, s, run)
+	errs := make(chan error, 2)
+	for range 2 {
+		go func() {
+			_, err := s.UndoPipelineLocalTest(UndoPipelineLocalTestInput{PipelineID: run.ID})
+			errs <- err
+		}()
+	}
+	for range 2 {
+		if err := <-errs; err != nil {
+			t.Fatalf("an undo failed: %v", err)
+		}
+	}
+	if fileText(t, filepath.Join(root, "README.md")) != "baseline\n" || fileText(t, filepath.Join(root, "novo.go")) != "<absent>" {
+		t.Fatal("the folder is not back after two undos at once")
+	}
+}

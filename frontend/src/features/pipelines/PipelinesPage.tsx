@@ -317,7 +317,7 @@ export function PipelinesPage({ backend, backends, settingsStatus = 'ready', pre
   const coderTalk = run && coderNeedsPerson(coderStatus) && !codeIsRunning(codeRun) && !fixing
     ? <CoderTalk status={coderStatus!} disabled={pending} review={codeWaiting} onReply={codeWaiting ? requestCodeRevision : replyToCoder} />
     : undefined
-  const localTestSetup = { backends, defaultBackendId: preferredBackendId, configuredBackendId: stageExecutors.find(item => item.stage === 'code')?.backendId, onStart: startLocalTest, onOpenSession, onOpenTerminal, onOpenPipeline: onOpenPipelineById }
+  const localTestSetup = { backends, fullAccess: permissionProfile === 'full_access', defaultBackendId: preferredBackendId, configuredBackendId: stageExecutors.find(item => item.stage === 'code')?.backendId, onStart: startLocalTest, onOpenSession, onOpenTerminal, onOpenPipeline: onOpenPipelineById }
   const executionView = !run || recoverLegacyCodeReview || (run.currentStage !== 'code' && run.currentStage !== 'eval') ? null
     : run.currentStage === 'eval' || fixing || resumable ? <PipelineQALab key={run.id} resumable={resumable} backend={backend} backends={backends} run={run} workspaceId={workspaceId} roleDefaults={roleDefaults} onPipelineChange={onSelectPipeline} onOpenSession={sessionId => onOpenSession?.(sessionId)} onLoopChange={setQALoop} onSettings={onSettings} onRoleChosen={saveRoleChoice} />
       : run.stageStatus[run.currentStage] === 'waiting_user' ? <PipelineExecutionReview backend={backend} run={run} stage={run.currentStage} onPipelineChange={onSelectPipeline} localTest={localTestSetup} />

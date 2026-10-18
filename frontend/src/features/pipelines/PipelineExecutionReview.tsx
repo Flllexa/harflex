@@ -5,7 +5,7 @@ import { localeTag, useT } from '../../i18n'
 import { stageNames } from '../../lib/pipelineStages'
 
 type ReviewStage = 'code' | 'eval'
-type Props = { backend: Backend; run: Pipeline; stage: ReviewStage; onPipelineChange: (run: Pipeline) => void; /** "Testar localmente" for the Code review; without it the card is not shown. */ localTest?: Omit<LocalTestCardProps, 'backend' | 'run' | 'refreshKey' | 'onUndone'> }
+type Props = { backend: Backend; run: Pipeline; stage: ReviewStage; onPipelineChange: (run: Pipeline) => void; /** "Testar localmente" for the Code review; without it the card is not shown. */ localTest?: Omit<LocalTestCardProps, 'backend' | 'run' | 'refreshKey' | 'onUndone' | 'onKeep' | 'canStart'> }
 type EvaluationEvidence = {
   passed?: boolean
   findings?: string[]
@@ -73,7 +73,7 @@ export function PipelineExecutionReview({ backend, run, stage, onPipelineChange,
 
   return <section className="pipeline-review" aria-label={t('Revisão de {stage}', { stage: stageLabel[stage] })}>
     <div className="pipeline-review-heading"><div><h3>{t('Revise {stage} antes de continuar', { stage: stageLabel[stage] })}</h3><p className="muted">{t('A decisão fica registrada nesta versão e vinculada ao conteúdo exibido.')}</p></div><span className="status-chip">{t('Versão {version}', { version: artifact?.version ?? '—' })}</span></div>
-    {stage === 'code' && currentReviewReady && localTest && <LocalTestCard backend={backend} run={run} {...localTest} refreshKey={conflictKey} onUndone={() => { setError(''); if (heldDecision) void decide(heldDecision) }} />}
+    {stage === 'code' && currentReviewReady && localTest && <LocalTestCard backend={backend} run={run} {...localTest} refreshKey={conflictKey} onKeep={() => setHeldDecision(undefined)} onUndone={() => { setError(''); if (heldDecision) void decide(heldDecision) }} />}
     {!currentReviewReady && <p className="project-warning" role="alert">{t('A evidência ou o hash desta versão não está disponível. Atualize o pipeline antes de decidir.')}</p>}
     {artifact && <>
       {stage === 'code' ? <pre className="mono diff-body" aria-label={t('Diff de Code')}>{artifact.content}</pre> : <EvaluationSummary evidence={evidence} />}

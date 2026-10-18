@@ -679,7 +679,8 @@ func (s *Service) makeRunnerAt(record *catalog.SessionRecord, workspace catalog.
 			} else if record.Mode == "evaluation" && isQALabRoot(toolRoot) {
 				toolItems = append(toolItems, tools.NewShellTool(tools.ShellConfig{CWD: toolRoot, DefaultTimeout: shellCommandTimeout}), tools.NewPlanTool())
 			} else if record.Mode == localTestMode {
-				toolItems = append(toolItems, ignoredOnlyTool(tools.NewWriteTool(guard), workspace.Path), ignoredOnlyTool(tools.NewEditTool(guard), workspace.Path),
+				startedAt := s.localTestStartedAt(workspace.ID)
+				toolItems = append(toolItems, ignoredOnlyTool(tools.NewWriteTool(guard), workspace.Path, startedAt), ignoredOnlyTool(tools.NewEditTool(guard), workspace.Path, startedAt),
 					tools.NewShellTool(tools.ShellConfig{CWD: workspace.Path}), tools.NewPlanTool())
 				toolItems = append(toolItems, s.localTestTools(workspace.ID, record.ID)...)
 			} else if record.Mode == "" {

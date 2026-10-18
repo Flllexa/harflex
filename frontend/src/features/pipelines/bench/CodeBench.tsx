@@ -18,7 +18,7 @@ type Props = {
   /** The Coder said it finished this version: only then can it be approved. */
   approvable?: boolean
   /** "Testar localmente": what the local test card needs besides the pipeline. Without it the card is not shown. */
-  localTest?: Omit<LocalTestCardProps, 'backend' | 'run' | 'refreshKey' | 'onUndone'>
+  localTest?: Omit<LocalTestCardProps, 'backend' | 'run' | 'refreshKey' | 'onUndone' | 'onKeep' | 'canStart'>
 }
 
 const fileIcon = { added: FilePlus2, removed: FileMinus2, modified: FileCode2 }
@@ -89,7 +89,7 @@ export function CodeBench({ backend, run, onPipelineChange, runControls, live, t
       </div>}
     </section>}
     {artifact && files.length === 0 && <pre className="mono diff-body" aria-label={t('Diff de Code')}>{artifact.content}</pre>}
-    {waiting && localTest && <LocalTestCard backend={backend} run={run} {...localTest} refreshKey={conflictKey} onUndone={() => { setError(''); if (heldDecision) void decide(heldDecision) }} />}
+    {(waiting || active) && localTest && <LocalTestCard backend={backend} run={run} {...localTest} canStart={waiting} refreshKey={conflictKey} onKeep={() => setHeldDecision(undefined)} onUndone={() => { setError(''); if (heldDecision) void decide(heldDecision) }} />}
     {waiting && <div className="bench-actions" role="group" aria-label={t('Decisão sobre o Code')}>
       <div className="bench-actions-text"><strong>{t('Revise a mudança')}</strong><span className="muted">{t('Aprovar leva esta versão ao laboratório da QA. A decisão fica ligada a esta versão.')}</span></div>
       {asking ? <div className="bench-ask"><label className="field">{t('O que deve mudar no Code')}<textarea value={feedback} onChange={event => setFeedback(event.target.value)} rows={2} maxLength={8192} autoFocus /></label>

@@ -330,6 +330,12 @@ func (s *Service) CreatePipelineSession(in CreatePipelineSessionInput) (Pipeline
 	if (in.Role == "coder" && !authoringPlanAllowsCode(run)) || (in.Role == "evaluator" && !authoringCodeAllowsEvaluation(run)) {
 		return PipelineSessionDTO{}, sdd.ErrInvalidTransition
 	}
+	if in.Role == "coder" {
+		// The Coder's copy is taken from the folder as it is; a test applied there would become its starting point.
+		if err := s.holdLocalTest(run.ID, run.WorkspaceID); err != nil {
+			return PipelineSessionDTO{}, err
+		}
+	}
 	if in.Role == "evaluator" {
 		if _, external := s.external[in.BackendID]; external && !s.codexHostModeSupported(in.BackendID, "evaluation") {
 			return PipelineSessionDTO{}, ErrSDDCLIReadIsolationUnavailable
@@ -589,6 +595,10 @@ func (s *Service) coderMayReturn(sessionID string) (string, bool) {
 // returnPipelineToCode takes a pipeline back to Code for the Coder the person is talking to; QA that was evaluating
 // the previous version stops, since its verdict would be about a copy that is about to change.
 func (s *Service) returnPipelineToCode(pipelineID, sessionID string) error {
+	// A new version is on its way: the test of the one in review is undone first.
+	if err := s.releaseLocalTest(pipelineID); err != nil {
+		return err
+	}
 	if _, err := s.store.ReturnPipelineToCode(s.ctx, pipelineID, sessionID); err != nil {
 		return err
 	}
@@ -846,6 +856,9 @@ func (s *Service) ApplyPipelineCode(pipelineID string) (PipelineDTO, error) {
 		return PipelineDTO{}, err
 	}
 	defer s.pipelineApplyGate.lock(run.WorkspaceID)()
+	if err := s.holdLocalTest(run.ID, run.WorkspaceID); err != nil {
+		return PipelineDTO{}, err
+	}
 	if run, err = s.loadPipeline(pipelineID); err != nil {
 		return PipelineDTO{}, err
 	}
