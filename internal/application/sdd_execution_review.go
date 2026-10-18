@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/persioflexa/harflex/internal/catalog"
@@ -24,6 +25,16 @@ func pipelineArtifactApproved(run catalog.PipelineRun, stage sdd.Stage) bool {
 	digest := pipelineArtifactDigest(artifact.Content)
 	for _, review := range run.ExecutionReviews {
 		if review.Stage == stage && review.ArtifactVersion == artifact.Version && review.ArtifactDigest == digest && review.Decision == "approve" {
+			return true
+		}
+	}
+	return false
+}
+
+func pipelineArtifactRevisionRequestedSince(run catalog.PipelineRun, stage sdd.Stage, sessionID string, since time.Time) bool {
+	artifact := run.Artifacts[stage]
+	for _, review := range run.ExecutionReviews {
+		if review.Stage == stage && review.ArtifactVersion == artifact.Version && review.SourceSessionID == sessionID && review.Decision == "request_revision" && !review.CreatedAt.Before(since) {
 			return true
 		}
 	}

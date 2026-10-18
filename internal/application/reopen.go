@@ -159,7 +159,10 @@ func (s *Service) sessionContinuationCached(record catalog.SessionRecord, cache 
 			}
 			if record.Mode == "sdd_code" {
 				active, err := s.pipelineCodeSessionActive(record.ID)
-				if err != nil || !active {
+				if err != nil {
+					return false, true, externalagent.ErrNotResumable
+				}
+				if _, mayReturn := s.coderMayReturn(record.ID); !active && !mayReturn {
 					return false, true, externalagent.ErrNotResumable
 				}
 				// A finished run does not close the conversation: the person can keep refining the Code. A CLI that

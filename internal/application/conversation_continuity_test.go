@@ -76,12 +76,16 @@ func TestACodeConversationStaysOpenAfterARunUntilTheCodeIsVerified(t *testing.T)
 	if err != nil || verified.StageStatus["code"] != "waiting_user" {
 		t.Fatalf("verifying the Code: %+v %v", verified, err)
 	}
-	closed, err := s.OpenSession(OpenSessionInput{SessionID: coder.Session.ID, WorkspaceID: workspace.ID})
-	if err != nil || closed.Resumable {
-		t.Fatalf("a verified Code conversation must close: %+v %v", closed, err)
+	// Verifying no longer closes it: another message takes the Code back from its review, in the same chat.
+	open, err = s.OpenSession(OpenSessionInput{SessionID: coder.Session.ID, WorkspaceID: workspace.ID})
+	if err != nil || !open.Resumable {
+		t.Fatalf("a verified Code conversation closed: %+v %v", open, err)
 	}
-	if _, err := s.Prompt(PromptInput{SessionID: coder.Session.ID, Text: "Mais uma mudança"}); ErrorCode(err) != "pipeline_code_session_closed" {
-		t.Fatalf("a verified Code conversation took another message: %v", err)
+	if result, err := s.Prompt(PromptInput{SessionID: coder.Session.ID, Text: "Mais uma mudança"}); err != nil || result.Status != RunCompleted {
+		t.Fatalf("a verified Code conversation refused another message: %+v %v", result, err)
+	}
+	if back, err := s.GetPipeline(run.ID); err != nil || back.StageStatus["code"] != "active" {
+		t.Fatalf("the Code did not go back to work: %+v %v", back, err)
 	}
 }
 

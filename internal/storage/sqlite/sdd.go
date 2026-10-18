@@ -864,3 +864,59 @@ func (s *Store) GetPipelineExecutionReviewResult(ctx context.Context, pipelineID
 	}
 	return run, true, nil
 }
+
+// ReturnPipelineToCode brings a pipeline back to Code because the person went on talking to one of its Coders: Code is
+// the current stage again, QA starts over on what comes next, and that Coder becomes the latest one, so its next
+// finished run opens the review. A pipeline past QA (pull requests, or done) is left alone.
+func (s *Store) ReturnPipelineToCode(ctx context.Context, pipelineID, sessionID string) (catalog.PipelineRun, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return catalog.PipelineRun{}, fmt.Errorf("begin return to Code: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	run, err := scanPipeline(tx.QueryRowContext(ctx, "SELECT "+pipelineColumns+" FROM pipeline_runs WHERE id=?", pipelineID))
+	if err != nil {
+		return catalog.PipelineRun{}, fmt.Errorf("read pipeline to return to Code: %w", err)
+	}
+	if run.Current != sdd.Code && run.Current != sdd.Eval {
+		return catalog.PipelineRun{}, ErrPipelineConflict
+	}
+	var linked bool
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM pipeline_sessions WHERE pipeline_id=? AND session_id=? AND role='coder')`, pipelineID, sessionID).Scan(&linked); err != nil {
+		return catalog.PipelineRun{}, fmt.Errorf("check Coder link: %w", err)
+	}
+	if !linked {
+		return catalog.PipelineRun{}, sdd.ErrInvalidTransition
+	}
+	status := make(map[sdd.Stage]sdd.Status, len(run.Status))
+	for stage, value := range run.Status {
+		status[stage] = value
+	}
+	status[sdd.Code], status[sdd.Eval] = sdd.Active, sdd.Pending
+	encoded, err := json.Marshal(status)
+	if err != nil {
+		return catalog.PipelineRun{}, fmt.Errorf("marshal returned pipeline status: %w", err)
+	}
+	now := time.Now().UTC()
+	result, err := tx.ExecContext(ctx, `UPDATE pipeline_runs SET current_stage=?,stage_status=?,revision=revision+1,updated_at=? WHERE id=? AND revision=?`, sdd.Code, encoded, formatCatalogTime(now), pipelineID, run.Revision)
+	if err != nil {
+		return catalog.PipelineRun{}, fmt.Errorf("return pipeline to Code: %w", err)
+	}
+	if changed, err := result.RowsAffected(); err != nil || changed != 1 {
+		return catalog.PipelineRun{}, ErrPipelineConflict
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE pipeline_sessions SET created_at=? WHERE pipeline_id=? AND session_id=? AND role='coder'`, formatCatalogTime(now), pipelineID, sessionID); err != nil {
+		return catalog.PipelineRun{}, fmt.Errorf("make the Coder the latest: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO pipeline_transitions (id,pipeline_id,stage,action,actor,reason,created_at) VALUES (?,?,?,?,?,?,?)`, id.New(), pipelineID, sdd.Code, "return_to_code", "local_user", "A pessoa continuou a conversa do Coder", formatCatalogTime(now)); err != nil {
+		return catalog.PipelineRun{}, fmt.Errorf("record return to Code: %w", err)
+	}
+	if err := appendPipelineEvent(ctx, tx, pipelineID, "pipeline.code.returned", map[string]any{"sessionId": sessionID, "from": run.Current}, now); err != nil {
+		return catalog.PipelineRun{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return catalog.PipelineRun{}, fmt.Errorf("commit return to Code: %w", err)
+	}
+	run.Current, run.Status, run.Revision, run.UpdatedAt = sdd.Code, status, run.Revision+1, now
+	return run, nil
+}

@@ -108,6 +108,7 @@ type Store interface {
 	SavePipelineExecutionArtifact(context.Context, string, sdd.Stage, string, string, int64) error
 	TransitionPipeline(context.Context, string, sdd.Stage, sdd.Flow, string, string, int64) error
 	DecidePipelineExecutionArtifact(context.Context, catalog.PipelineExecutionReviewRequest) (catalog.PipelineRun, error)
+	ReturnPipelineToCode(ctx context.Context, pipelineID, sessionID string) (catalog.PipelineRun, error)
 	ReopenPipelineCodeReview(context.Context, catalog.PipelineExecutionReviewRecoveryRequest) (catalog.PipelineRun, error)
 	GetPipelineExecutionReviewResult(context.Context, string, string, string) (catalog.PipelineRun, bool, error)
 	GetPipelineStageSkipReason(context.Context, string, sdd.Stage) (string, error)

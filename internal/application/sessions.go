@@ -804,8 +804,15 @@ func (s *Service) Prompt(in PromptInput) (RunResultDTO, error) {
 		if err != nil {
 			return RunResultDTO{}, err
 		}
+		// Talking to a Coder whose change went to review or QA takes the pipeline back to Code; only one past QA is closed.
 		if !active {
-			return RunResultDTO{}, ErrPipelineCodeSessionClosed
+			pipelineID, ok := s.coderMayReturn(record.ID)
+			if !ok {
+				return RunResultDTO{}, ErrPipelineCodeSessionClosed
+			}
+			if err := s.returnPipelineToCode(pipelineID, record.ID); err != nil {
+				return RunResultDTO{}, err
+			}
 		}
 	}
 	_, delegated, allowed, err := s.store.ReserveDelegationPrompt(s.ctx, in.SessionID, maxDelegatedPrompts)

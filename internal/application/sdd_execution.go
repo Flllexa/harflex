@@ -556,7 +556,68 @@ func (s *Service) pipelineCodeSessionActive(sessionID string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return link.SessionID == sessionID && !pipelineArtifactRevisionRequested(run, sdd.Code, sessionID), nil
+	// A revision asked before this Coder was last brought back no longer holds it closed.
+	return link.SessionID == sessionID && !pipelineArtifactRevisionRequestedSince(run, sdd.Code, sessionID, link.CreatedAt), nil
+}
+
+// coderMayReturn says whether a message to this Coder can bring its pipeline back to Code: the pipeline is still at
+// Code or QA, and the session is one of its Coders with a private copy.
+func (s *Service) coderMayReturn(sessionID string) (string, bool) {
+	pipelineID, err := s.store.GetPipelineIDForSession(s.ctx, sessionID)
+	if err != nil {
+		return "", false
+	}
+	run, err := s.loadPipeline(pipelineID)
+	if err != nil || run.Current != sdd.Code && run.Current != sdd.Eval {
+		return "", false
+	}
+	links, err := s.store.ListPipelineSessions(s.ctx, pipelineID, "coder")
+	if err != nil {
+		return "", false
+	}
+	for _, link := range links {
+		if link.SessionID == sessionID {
+			return pipelineID, len(link.ExecutionSnapshot) > 0
+		}
+	}
+	return "", false
+}
+
+// returnPipelineToCode takes a pipeline back to Code for the Coder the person is talking to; QA that was evaluating
+// the previous version stops, since its verdict would be about a copy that is about to change.
+func (s *Service) returnPipelineToCode(pipelineID, sessionID string) error {
+	if _, err := s.store.ReturnPipelineToCode(s.ctx, pipelineID, sessionID); err != nil {
+		return err
+	}
+	s.stopPipelineQA(pipelineID, sessionID)
+	return nil
+}
+
+func (s *Service) stopPipelineQA(pipelineID, keep string) {
+	for _, role := range []string{"evaluator", "coder"} {
+		links, err := s.store.ListPipelineSessions(s.ctx, pipelineID, role)
+		if err != nil {
+			continue
+		}
+		for _, link := range links {
+			if link.SessionID == keep {
+				continue
+			}
+			s.mu.RLock()
+			runner := s.sessions[link.SessionID]
+			s.mu.RUnlock()
+			if runner != nil {
+				runner.Cancel()
+			}
+		}
+	}
+	s.qaLoopMu.Lock()
+	current, ok := s.qaLoops[pipelineID]
+	s.qaLoopMu.Unlock()
+	if ok && current.Running {
+		current.Running, current.Phase, current.Message = false, "stopped", "QA parou: a conversa com o Coder continuou e o Code voltou para revisão."
+		s.qaLoopSet(current)
+	}
 }
 
 func separateExecutionRoot(sourceRoot, executionRoot string) bool {

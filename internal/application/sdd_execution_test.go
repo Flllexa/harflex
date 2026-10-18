@@ -285,9 +285,7 @@ func TestAuthoringPipelineExecutesAndEvaluatesApprovedPlan(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(workspace.Path, "main.js")); !os.IsNotExist(err) {
 		t.Fatalf("Code wrote into the source workspace before Eval: %v", err)
 	}
-	if _, err := s.Prompt(PromptInput{SessionID: coder.Session.ID, Text: "continue editing after Code verification"}); ErrorCode(err) != "pipeline_code_session_closed" {
-		t.Fatalf("verified Code session remained writable after its gate: %v", err)
-	}
+	// A message to the Coder now would take the Code back from review (coder_after_qa_test.go); this test goes on to apply.
 	if _, err := s.ApplyPipelineCode(run.ID); !errors.Is(err, sdd.ErrInvalidTransition) {
 		t.Fatalf("Code patch was applicable before human review: %v", err)
 	}
@@ -866,9 +864,7 @@ func TestPipelineCodeReviewRequestReturnsToCodeWithDurableFeedback(t *testing.T)
 	if err != nil || revised.CurrentStage != "code" || revised.StageStatus["code"] != "active" || revised.StageStatus["eval"] != "pending" {
 		t.Fatalf("Code revision decision: %+v %v", revised, err)
 	}
-	if _, err := s.Prompt(PromptInput{SessionID: pendingReview.Artifacts["code"].SourceSessionID, Text: "continue"}); ErrorCode(err) != "pipeline_code_session_closed" {
-		t.Fatalf("rejected Code session remained writable: %v", err)
-	}
+	// The rejected Coder's chat could go on too (coder_after_qa_test.go); here a new round takes the feedback.
 	newCoder, err := s.CreatePipelineSession(CreatePipelineSessionInput{PipelineID: revised.ID, BackendID: "local", Role: "coder", ConfirmWorkspaceCopy: true})
 	if err != nil || !strings.Contains(newCoder.Prompt, "Keep the single-file layout and add keyboard activation.") {
 		t.Fatalf("new Coder did not receive durable human feedback: %+v %v", newCoder, err)
