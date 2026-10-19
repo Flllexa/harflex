@@ -53,8 +53,8 @@ func TestShellWindowsStartsSuspended(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = command.close() })
-	want := uint32(windows.CREATE_SUSPENDED | windows.CREATE_NEW_PROCESS_GROUP)
-	if command.cmd.SysProcAttr.CreationFlags&want != want {
+	want := uint32(windows.CREATE_SUSPENDED | windows.CREATE_NEW_PROCESS_GROUP | windows.CREATE_NO_WINDOW)
+	if command.cmd.SysProcAttr.CreationFlags&want != want || !command.cmd.SysProcAttr.HideWindow {
 		t.Fatalf("missing suspended start flags: %#x", command.cmd.SysProcAttr.CreationFlags)
 	}
 }

@@ -14,6 +14,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/persioflexa/harflex/internal/procattr"
 )
 
 var ErrGitUnavailable = errors.New("git unavailable")
@@ -58,6 +60,7 @@ func gitOutput(ctx context.Context, dir string, limit int, args ...string) (stri
 	callCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(callCtx, "git", args...)
+	procattr.Hide(cmd)
 	cmd.Dir = dir
 	cmd.Env = make([]string, 0, len(os.Environ())+2)
 	for _, entry := range os.Environ() {

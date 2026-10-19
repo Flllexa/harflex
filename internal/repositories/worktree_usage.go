@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/persioflexa/harflex/internal/procattr"
 )
 
 // ProcessUse names one running program that sits inside a working tree: its working directory
@@ -103,7 +105,9 @@ func listProcessesLsof(ctx context.Context) []processEntry {
 	type result struct{ entries []processEntry }
 	cwds := make(chan result, 1)
 	go func() {
-		out, err := exec.CommandContext(ctx, "lsof", "-w", "-n", "-P", "+c", "0", "-d", "cwd", "-F", "pcRn").Output()
+		lsof := exec.CommandContext(ctx, "lsof", "-w", "-n", "-P", "+c", "0", "-d", "cwd", "-F", "pcRn")
+		procattr.Hide(lsof)
+		out, err := lsof.Output()
 		if err != nil && len(out) == 0 {
 			cwds <- result{}
 			return
@@ -111,7 +115,9 @@ func listProcessesLsof(ctx context.Context) []processEntry {
 		cwds <- result{parseLsofCwd(string(out))}
 	}()
 	var texts []processEntry
-	if out, err := exec.CommandContext(ctx, "ps", "-axo", "pid=,ppid=,command=").Output(); err == nil {
+	ps := exec.CommandContext(ctx, "ps", "-axo", "pid=,ppid=,command=")
+	procattr.Hide(ps)
+	if out, err := ps.Output(); err == nil {
 		texts = parsePs(string(out))
 	}
 	return mergeProcesses((<-cwds).entries, texts)

@@ -16,6 +16,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/persioflexa/harflex/internal/procattr"
 )
 
 const (
@@ -271,6 +273,7 @@ func gitValue(parent context.Context, dir string, args ...string) string {
 	ctx, cancel := context.WithTimeout(parent, 3*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
+	procattr.Hide(cmd)
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_OPTIONAL_LOCKS=0")
 	output, err := cmd.Output()
 	if err != nil {

@@ -42,7 +42,8 @@ func newShellCommand(command string) (*shellCommand, error) {
 		return nil, err
 	}
 	cmd := exec.Command("powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command)
-	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: windows.CREATE_SUSPENDED | windows.CREATE_NEW_PROCESS_GROUP}
+	// CREATE_NO_WINDOW: the command runs without a console window flashing on screen.
+	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: windows.CREATE_SUSPENDED | windows.CREATE_NEW_PROCESS_GROUP | windows.CREATE_NO_WINDOW, HideWindow: true}
 	return &shellCommand{cmd: cmd, job: job}, nil
 }
 
@@ -50,7 +51,8 @@ func (c *shellCommand) start() error {
 	if c.cmd.SysProcAttr == nil {
 		c.cmd.SysProcAttr = &syscall.SysProcAttr{}
 	}
-	c.cmd.SysProcAttr.CreationFlags |= windows.CREATE_SUSPENDED | windows.CREATE_NEW_PROCESS_GROUP
+	c.cmd.SysProcAttr.CreationFlags |= windows.CREATE_SUSPENDED | windows.CREATE_NEW_PROCESS_GROUP | windows.CREATE_NO_WINDOW
+	c.cmd.SysProcAttr.HideWindow = true
 	if err := c.cmd.Start(); err != nil {
 		return errors.Join(err, c.close())
 	}

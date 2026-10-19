@@ -29,7 +29,8 @@ func ownCommand(cmd *exec.Cmd) (*ownedCommand, error) {
 		windows.CloseHandle(job)
 		return nil, err
 	}
-	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: windows.CREATE_SUSPENDED | windows.CREATE_NEW_PROCESS_GROUP}
+	// CREATE_NO_WINDOW: the CLI runs without a console window flashing on screen.
+	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: windows.CREATE_SUSPENDED | windows.CREATE_NEW_PROCESS_GROUP | windows.CREATE_NO_WINDOW, HideWindow: true}
 	return &ownedCommand{cmd: cmd, job: job}, nil
 }
 func (c *ownedCommand) start() error {

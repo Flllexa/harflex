@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/persioflexa/harflex/internal/procattr"
 )
 
 // RestoreExecutionSnapshot rebuilds a private copy that vanished, for instance when the system cleared a cache to
@@ -94,6 +96,7 @@ func applyExecutionPatch(ctx context.Context, root, patch string) error {
 	callCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(callCtx, "git", "apply", "--whitespace=nowarn", file.Name())
+	procattr.Hide(cmd)
 	cmd.Dir = root
 	for _, entry := range os.Environ() {
 		if !strings.HasPrefix(entry, "GIT_") {

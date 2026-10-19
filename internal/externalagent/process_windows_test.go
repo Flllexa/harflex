@@ -16,8 +16,9 @@ func TestWindowsOwnsSuspendedProcessAndDescendants(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = c.close() })
-	want := uint32(windows.CREATE_SUSPENDED | windows.CREATE_NEW_PROCESS_GROUP)
-	if c.cmd.SysProcAttr.CreationFlags&want != want {
+	// No console window flashes on screen each time the app calls a CLI.
+	want := uint32(windows.CREATE_SUSPENDED | windows.CREATE_NEW_PROCESS_GROUP | windows.CREATE_NO_WINDOW)
+	if c.cmd.SysProcAttr.CreationFlags&want != want || !c.cmd.SysProcAttr.HideWindow {
 		t.Fatal("process not created suspended")
 	}
 	var limits windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION

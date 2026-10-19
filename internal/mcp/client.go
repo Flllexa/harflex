@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/persioflexa/harflex/internal/procattr"
 )
 
 var ErrInvalidConfig = errors.New("invalid MCP server configuration")
@@ -221,6 +223,7 @@ func connect(ctx context.Context, cfg Config) (*mcp.ClientSession, error) {
 	var transport mcp.Transport
 	if cfg.Transport == "stdio" {
 		cmd := exec.CommandContext(ctx, cfg.Command, cfg.Args...)
+		procattr.Hide(cmd)
 		cmd.Dir = cfg.WorkspacePath
 		cmd.Env = stdioEnv()
 		if cfg.TokenEnvVar != "" && cfg.Token != "" {

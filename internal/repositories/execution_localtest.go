@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/persioflexa/harflex/internal/procattr"
 )
 
 // ErrLocalTestSourceDirty refuses a local test on a folder with changes of its own: undoing the test could not tell
@@ -395,6 +397,7 @@ func restoreCommittedPath(ctx context.Context, root, head, path string) error {
 	callCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	command := exec.CommandContext(callCtx, "git", "restore", "--source="+head, "--worktree", "--", path)
+	procattr.Hide(command)
 	command.Dir = root
 	if output, err := command.CombinedOutput(); err != nil {
 		return fmt.Errorf("restore %s from its commit: %w: %s", path, err, strings.TrimSpace(string(output)))
@@ -406,6 +409,7 @@ func restoreTrackedPath(ctx context.Context, root, path string) error {
 	callCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	command := exec.CommandContext(callCtx, "git", "restore", "--source=HEAD", "--staged", "--worktree", "--", path)
+	procattr.Hide(command)
 	command.Dir = root
 	if output, err := command.CombinedOutput(); err != nil {
 		return fmt.Errorf("restore %s: %w: %s", path, err, strings.TrimSpace(string(output)))
@@ -441,6 +445,7 @@ func IsIgnored(ctx context.Context, root, slashPath string) (bool, error) {
 	callCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
 	command := exec.CommandContext(callCtx, "git", "check-ignore", "-q", "--", filepath.ToSlash(inner))
+	procattr.Hide(command)
 	command.Dir = repository
 	err = command.Run()
 	var exit *exec.ExitError

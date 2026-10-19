@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/persioflexa/harflex/internal/procattr"
 )
 
 var (
@@ -138,6 +140,7 @@ func runGit(ctx context.Context, dir string, timeout time.Duration, extraEnv []s
 	defer cancel()
 	full := append([]string{"-c", "core.fsmonitor=false", "-c", "core.hooksPath=" + inertHooksDir()}, args...)
 	cmd := exec.CommandContext(callCtx, "git", full...)
+	procattr.Hide(cmd)
 	cmd.Dir = dir
 	cmd.Env = make([]string, 0, len(os.Environ())+len(extraEnv)+2)
 	for _, entry := range os.Environ() {

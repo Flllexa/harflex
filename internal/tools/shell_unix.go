@@ -13,6 +13,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/persioflexa/harflex/internal/procattr"
 )
 
 const shellToolName = "bash"
@@ -30,6 +32,7 @@ func newShellCommand(command string) (*shellCommand, error) {
 		shell = "/bin/sh"
 	}
 	cmd := exec.Command(shell, "-lc", command)
+	procattr.Hide(cmd)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	return &shellCommand{cmd: cmd}, nil
 }
