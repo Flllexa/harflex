@@ -270,6 +270,12 @@ func (s *Service) FinishPipelinePRs(in FinishPipelinePRsInput) (PipelineDTO, err
 	if err := s.store.FinishPipelinePRs(s.ctx, finish); err != nil {
 		return PipelineDTO{}, safe("finish pull request stage", err)
 	}
+	if in.Outcome == string(sdd.Completed) {
+		// The PRs were accepted: the work folder goes, the conversations stay as history.
+		if err := s.prunePipelineCopies(s.ctx, run.ID, true); err != nil {
+			s.diagnostics.write(map[string]any{"event": "copy.prune_failed", "pipelineId": run.ID, "detail": diagnosticText(err)})
+		}
+	}
 	updated, err := s.loadPipeline(run.ID)
 	if err != nil {
 		return PipelineDTO{}, err

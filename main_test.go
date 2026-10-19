@@ -188,8 +188,9 @@ func TestResolveDataDirKeepsInstalledDefaultsAndIsolatesOverrides(t *testing.T) 
 }
 
 func TestExecutionCopiesFollowAnIsolatedDataDir(t *testing.T) {
-	if got := executionCacheRootFor("", "/home/dev/.config/Harflex"); got != "" {
-		t.Fatalf("without an override the service keeps its default cache, got %q", got)
+	// The system may empty its cache folder when the disk runs low, so work in progress lives with the data.
+	if got, want := executionCacheRootFor("", "/home/dev/.config/Harflex"), filepath.Join("/home/dev/.config/Harflex", "sdd-executions"); got != want {
+		t.Fatalf("pipeline work root = %q, want %q", got, want)
 	}
 	dir := filepath.Join(t.TempDir(), "dev")
 	if got, want := executionCacheRootFor(dir, dir), filepath.Join(dir, "sdd-executions"); got != want {

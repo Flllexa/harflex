@@ -395,11 +395,12 @@ func (s *Service) CreatePipelineSession(in CreatePipelineSessionInput) (Pipeline
 		if err != nil {
 			return PipelineSessionDTO{}, safe("get coder workspace", err)
 		}
-		if s.executionCacheRoot == "" {
-			executionSnapshot, err = repositories.PrepareExecutionSnapshot(s.ctx, workspace.Path, in.ConfirmWorkspaceCopy)
-		} else {
-			executionSnapshot, err = repositories.PrepareExecutionSnapshotAt(s.ctx, workspace.Path, in.ConfirmWorkspaceCopy, s.executionCacheRoot)
+		cache, err := s.executionCache()
+		if err != nil {
+			return PipelineSessionDTO{}, safe("resolve private execution cache", err)
 		}
+		// Every copy of this work lives in the pipeline's own folder.
+		executionSnapshot, err = repositories.PrepareExecutionSnapshotAt(s.ctx, workspace.Path, in.ConfirmWorkspaceCopy, pipelineWorkFolder(cache, run.ID))
 		if errors.Is(err, repositories.ErrExecutionSourceDirty) {
 			return PipelineSessionDTO{}, ErrPipelineGitDirty
 		}
@@ -424,6 +425,9 @@ func (s *Service) CreatePipelineSession(in CreatePipelineSessionInput) (Pipeline
 		}
 		executionSnapshot, err = s.executionSnapshotForLink(coderLink)
 		if err != nil {
+			return PipelineSessionDTO{}, err
+		}
+		if err := s.restoreMissingCopy(executionSnapshot, run.Artifacts[sdd.Code].Content); err != nil {
 			return PipelineSessionDTO{}, err
 		}
 		executionRoot = executionSnapshot.Root
@@ -495,6 +499,10 @@ func (s *Service) CreatePipelineSession(in CreatePipelineSessionInput) (Pipeline
 		return PipelineSessionDTO{}, safe("link pipeline session", err)
 	}
 	removeExecutionRoot = false
+	// The new copy or lab takes the place of the older ones.
+	if err := s.prunePipelineCopies(s.ctx, run.ID, false); err != nil {
+		s.diagnostics.write(map[string]any{"event": "copy.prune_failed", "pipelineId": run.ID, "detail": diagnosticText(err)})
+	}
 	return PipelineSessionDTO{Session: session, Prompt: prompt, Role: in.Role}, nil
 }
 
@@ -925,6 +933,11 @@ func (s *Service) ApplyPipelineCode(pipelineID string) (PipelineDTO, error) {
 	snapshot, err := s.executionSnapshotForLink(link)
 	if err != nil {
 		return PipelineDTO{}, err
+	}
+	if link.ExecutionAppliedAt.IsZero() {
+		if err := s.restoreMissingCopy(snapshot, codeArtifact.Content); err != nil {
+			return PipelineDTO{}, err
+		}
 	}
 	if !link.ExecutionAppliedAt.IsZero() {
 		applied, err := repositories.ExecutionSnapshotApplied(s.ctx, snapshot)

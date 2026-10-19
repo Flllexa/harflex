@@ -52,12 +52,9 @@ func resolveDataDir(override string, userConfigDir func() (string, error)) (dir,
 	return dir, instanceID + "." + hex.EncodeToString(sum[:4]), nil
 }
 
-// executionCacheRootFor keeps the project copies a pipeline's Code phase works on beside an isolated
-// catalog. Without an override it returns "" and the service uses <user cache>/Harflex/sdd-executions.
-func executionCacheRootFor(override, dataDir string) string {
-	if override == "" {
-		return ""
-	}
+// executionCacheRootFor keeps the project copies a pipeline's Code phase works on beside the catalog. Not in the
+// system cache: macOS empties that folder when the disk runs low, and a copy holds work not applied yet.
+func executionCacheRootFor(_, dataDir string) string {
 	return filepath.Join(dataDir, "sdd-executions")
 }
 
@@ -166,6 +163,8 @@ func run() error {
 	scheduler := appservice.StartScheduler(service)
 	stopScheduler = scheduler.Stop
 	defer shutdown()
+	// Copies that earlier rounds and finished work left behind go in the background.
+	go service.SweepPipelineCopies()
 	appservice.SetEmitter(service, func(name string, payload any) { app.Event.Emit(name, payload) })
 	appservice.SetQuitHandler(service, app.Quit)
 	app.Window.NewWithOptions(windowOptions())
