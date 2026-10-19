@@ -297,3 +297,61 @@ func TestFitForSummaryDropsWholeExchangesAndKeepsTheNewest(t *testing.T) {
 		}
 	}
 }
+
+// The provider's own count after a compaction is the truth: when it still comes back past the threshold (a CLI adds
+// its own instructions, the estimate was low), summarizing again on the next turn does not help, so it waits.
+func TestSessionTrustsTheProviderCountAfterACompaction(t *testing.T) {
+	rounds, summaries := 0, 0
+	p := &sessionProvider{stream: func(_ context.Context, req ChatRequest) (<-chan StreamEvent, <-chan error) {
+		if isSummaryRequest(req) {
+			summaries++
+			return streamEvents(StreamEvent{Type: "text_delta", Delta: "resumo"})
+		}
+		usage := StreamEvent{Type: "usage", Usage: &Usage{InputTokens: 900}}
+		if rounds++; rounds <= 4 {
+			return streamEvents(toolEvent(fmt.Sprintf("call-%d", rounds)), usage)
+		}
+		return streamEvents(StreamEvent{Type: "text_delta", Delta: "fim"}, usage)
+	}}
+	tools := &sessionTools{risk: "read_only", execute: func(context.Context, string, json.RawMessage, ToolUpdateSink) (ToolExecutionResult, error) {
+		return ToolExecutionResult{Content: []byte(`"ok"`)}, nil
+	}}
+	s := NewSession("session-1", p, tools, &sessionJournal{}, security.FullAccess)
+	s.SetContextWindow(1000)
+	if err := s.Prompt(t.Context(), "pedido"); err != nil {
+		t.Fatal(err)
+	}
+	if summaries > 1 {
+		t.Fatalf("summaries = %d: it compacted again although the provider's count did not go down", summaries)
+	}
+}
+
+// A first request larger than the room a compaction leaves (instructions carrying a whole diff) is kept by its head
+// and tail, so the conversation actually gets its room back.
+func TestCompactionKeepsAHugeFirstRequestShortened(t *testing.T) {
+	var after []Message
+	p := &sessionProvider{stream: func(_ context.Context, req ChatRequest) (<-chan StreamEvent, <-chan error) {
+		if isSummaryRequest(req) {
+			return streamEvents(StreamEvent{Type: "text_delta", Delta: "resumo"})
+		}
+		after = req.Messages
+		return streamEvents(StreamEvent{Type: "text_delta", Delta: "ok"})
+	}}
+	j := &sessionJournal{}
+	s := NewSession("session-1", p, &sessionTools{}, j, security.Ask)
+	s.SetContextWindow(10_000)
+	first := "INÍCIO DO PEDIDO\n" + strings.Repeat("linha do diff\n", 4000) + "FIM DO PEDIDO"
+	if err := s.Prompt(t.Context(), first); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Compact(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Prompt(t.Context(), "segundo"); err != nil {
+		t.Fatal(err)
+	}
+	kept := after[0].Content
+	if len(kept) > 8*1024 || !strings.Contains(kept, "INÍCIO DO PEDIDO") || !strings.Contains(kept, "FIM DO PEDIDO") {
+		t.Fatalf("first request kept: %d bytes", len(kept))
+	}
+}

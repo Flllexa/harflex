@@ -5,10 +5,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -531,4 +533,35 @@ func sameFailuresKey(findings []string) string {
 	}
 	sort.Strings(keys)
 	return strings.Join(keys, "\n")
+}
+
+// qaInlineChangesBytes is the largest Code change QA's first message carries as it is; past it the change waits in the
+// lab as a file (qaChangesFile) and the message lists the files.
+const qaInlineChangesBytes = 24 * 1024
+
+const qaChangesFile = ".harflex/qa-changes.diff"
+
+var diffHeader = regexp.MustCompile(`(?m)^diff --git a/\S+ b/(\S+)$`)
+
+func writeQAChanges(labRoot, content string) error {
+	path := filepath.Join(labRoot, filepath.FromSlash(qaChangesFile))
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(content), 0o600)
+}
+
+// qaChangesPointer is what QA's first message says of a change too large to carry: where it is and which files it
+// touches.
+func qaChangesPointer(content string) string {
+	var text strings.Builder
+	fmt.Fprintf(&text, "O diff completo (%d KB) está no laboratório em `%s`: leia com a ferramenta de leitura, por partes, conforme precisar.\nArquivos alterados:\n", len(content)/1024, qaChangesFile)
+	seen := map[string]bool{}
+	for _, match := range diffHeader.FindAllStringSubmatch(content, -1) {
+		if path := match[1]; !seen[path] && len(seen) < 400 {
+			seen[path] = true
+			text.WriteString("- " + path + "\n")
+		}
+	}
+	return text.String()
 }

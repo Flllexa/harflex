@@ -3,6 +3,7 @@ package application
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -151,5 +152,46 @@ func TestAQARunFromAnEarlierCodeVersionIsNotItsVerdict(t *testing.T) {
 	decidePipelineStageReviewForTest(t, s, waiting, "code", "approve", "")
 	if _, err := s.CompletePipelineEvaluation(approved.ID); ErrorCode(err) != "pipeline_evaluation_stale" {
 		t.Fatalf("a QA run of the previous version was taken as the new one's verdict: %v", err)
+	}
+}
+
+// A large change does not ride in QA's first message (it filled most of the model's window before QA did anything):
+// the full diff waits in the QA lab as a file, and the message lists the files and says where it is.
+func TestALargeCodeChangeGoesToTheQALabAsAFile(t *testing.T) {
+	s, approved, coder, _, root := codeVerifiedAndApproved(t)
+	if _, err := s.Prompt(PromptInput{SessionID: coder.Session.ID, Text: "Mais conteúdo"}); err != nil {
+		t.Fatal(err)
+	}
+	big := strings.Repeat("<li>tarefa de exemplo com texto longo</li>\n", 3000)
+	if err := os.WriteFile(filepath.Join(root, "lista.html"), []byte(big), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	waiting, err := coderSaidDone(t, s, approved.ID).CompletePipelineCode(approved.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decidePipelineStageReviewForTest(t, s, waiting, "code", "approve", "")
+	qa, err := s.CreatePipelineSession(CreatePipelineSessionInput{PipelineID: approved.ID, BackendID: "local", Role: "evaluator"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(qa.Prompt) > 40*1024 || !strings.Contains(qa.Prompt, ".harflex/qa-changes.diff") || !strings.Contains(qa.Prompt, "lista.html") {
+		t.Fatalf("QA's first message: %d bytes, mentions the file: %v", len(qa.Prompt), strings.Contains(qa.Prompt, ".harflex/qa-changes.diff"))
+	}
+	link, err := s.latestPipelineSession(approved.ID, "evaluator")
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := s.executionSnapshotForLink(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, err := s.GetPipeline(approved.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved, err := os.ReadFile(filepath.Join(qaLabRoot(snapshot.Root, link.ID), ".harflex", "qa-changes.diff"))
+	if err != nil || string(saved) != current.Artifacts["code"].Content {
+		t.Fatalf("the lab does not hold the full change: %d bytes %v", len(saved), err)
 	}
 }

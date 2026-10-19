@@ -136,6 +136,8 @@ type Session struct {
 	streamed bool
 	// stuckAt is the estimate right after a compaction that shrank the history by less than a fifth (0: none).
 	stuckAt int
+	// checkCompaction: the next count from the provider is the first after a compaction, and says whether it helped.
+	checkCompaction bool
 }
 
 // AddInstructions puts a note at the head of the system instructions, for the next turns of a conversation that is
@@ -759,6 +761,14 @@ func (s *Session) respond(ctx context.Context) (result []ToolCall, resultErr err
 					if item.Usage.InputTokens > 0 {
 						s.mu.Lock()
 						s.usageTokens, s.usageBytes = int(item.Usage.InputTokens+item.Usage.OutputTokens), messagesBytes(messages)+full.Len()
+						// The provider's count is the truth the estimate guessed at: a compaction that left the request past
+						// the threshold (a CLI adds its own instructions) is not repeated until the conversation grows.
+						if s.checkCompaction {
+							s.checkCompaction = false
+							if float64(s.usageTokens) > compactAt*float64(s.windowLocked()) {
+								s.stuckAt = s.usageTokens
+							}
+						}
 						s.mu.Unlock()
 					}
 					if s.maxRunOutputTokens > 0 && maxOutputTokens > 0 && item.Usage.OutputTokens > int64(maxOutputTokens) {

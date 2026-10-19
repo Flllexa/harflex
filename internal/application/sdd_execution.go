@@ -443,6 +443,19 @@ func (s *Service) CreatePipelineSession(in CreatePipelineSessionInput) (Pipeline
 		}
 		executionRoot = labRoot
 		removeExecutionRoot = true
+		// A large change would fill most of the model's window in QA's first message: it waits in the lab as a file.
+		if code := run.Artifacts[sdd.Code]; len(code.Content) > qaInlineChangesBytes {
+			if err := writeQAChanges(labRoot, code.Content); err != nil {
+				return PipelineSessionDTO{}, safe("prepare QA lab", err)
+			}
+			artifacts := make(map[sdd.Stage]catalog.PipelineArtifact, len(run.Artifacts))
+			for stage, artifact := range run.Artifacts {
+				artifacts[stage] = artifact
+			}
+			code.Content = qaChangesPointer(code.Content)
+			artifacts[sdd.Code] = code
+			run.Artifacts = artifacts
+		}
 	}
 	prompt := pipelinePrompt(run, in.Role, in.BackendID, evaluationCriteria)
 	if len(prompt) > maxPromptBytes {

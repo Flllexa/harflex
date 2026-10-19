@@ -147,7 +147,13 @@ func (s *Session) compact(ctx context.Context, refused bool) error {
 	if strings.TrimSpace(summary) == "" {
 		return errors.New("the model returned an empty summary")
 	}
-	kept := []Message{messages[lead], {Role: RoleUser, Content: summaryMarker + "\n\n" + strings.TrimSpace(summary)}}
+	first := messages[lead]
+	// A first request larger than a tenth of the window (instructions carrying a whole diff) would leave no room: its
+	// head and tail stay, and the summary carries the rest.
+	if budget := window / 10 * 4; len(first.Content) > budget {
+		first.Content = shortenMiddle(first.Content, budget)
+	}
+	kept := []Message{first, {Role: RoleUser, Content: summaryMarker + "\n\n" + strings.TrimSpace(summary)}}
 	latest := latestExchange(messages, lead+1)
 	for index := range latest {
 		if latest[index].Role == RoleTool && len(latest[index].Content)/4 > window/10 {
@@ -166,6 +172,7 @@ func (s *Session) compact(ctx context.Context, refused bool) error {
 	if after := s.estimateLocked(); after*5 > before*4 {
 		s.stuckAt = after
 	}
+	s.checkCompaction = true
 	s.mu.Unlock()
 	return nil
 }
@@ -261,4 +268,20 @@ func (s *Session) collectText(ctx context.Context, request ChatRequest) (string,
 		return "", failure
 	}
 	return text.String(), nil
+}
+
+// shortenMiddle keeps the head and the tail of a long text within budget bytes, saying how much was left out.
+func shortenMiddle(content string, budget int) string {
+	half := max(budget/2, 256)
+	if len(content) <= 2*half {
+		return content
+	}
+	head, tail := half, len(content)-half
+	for head > 0 && !utf8.RuneStart(content[head]) {
+		head--
+	}
+	for tail < len(content) && !utf8.RuneStart(content[tail]) {
+		tail++
+	}
+	return content[:head] + fmt.Sprintf("\n\n[… %d bytes do pedido original deixados de fora ao compactar o contexto; o resumo traz o que importa deles]\n\n", tail-head) + content[tail:]
 }
