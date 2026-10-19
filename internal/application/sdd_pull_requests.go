@@ -11,7 +11,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/persioflexa/harflex/internal/catalog"
-	"github.com/persioflexa/harflex/internal/events"
 	"github.com/persioflexa/harflex/internal/id"
 	"github.com/persioflexa/harflex/internal/repositories"
 	"github.com/persioflexa/harflex/internal/sdd"
@@ -211,23 +210,9 @@ func (s *Service) createPipelinePRSession(in CreatePipelineSessionInput) (Pipeli
 
 // pipelinePRReport reads how a pull request conversation ended: whether its last run completed, and its final answer.
 func (s *Service) pipelinePRReport(sessionID string) (completed bool, report string, err error) {
-	err = s.walkEvents(s.ctx, sessionID, func(event events.Event) error {
-		switch event.Type {
-		case "run.completed":
-			completed = true
-		case "run.started", "run.failed", "run.cancelled":
-			completed = false
-		case "message.assistant":
-			var message struct {
-				Content string `json:"content"`
-			}
-			if json.Unmarshal(event.Data, &message) == nil && strings.TrimSpace(message.Content) != "" {
-				report = message.Content
-			}
-		}
-		return nil
-	})
-	return completed, report, err
+	// The conversation may run on an API profile or on a CLI, whose runs and replies are journaled as external events.
+	state, text, err := s.coderTurn(sessionID)
+	return state == "completed", text, err
 }
 
 // FinishPipelinePRs ends the last stage of the pipeline. Completing it needs the agent's finished report; skipping
