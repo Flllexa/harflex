@@ -18,14 +18,21 @@ type contextKeeper interface {
 	Compact(ctx context.Context) error
 }
 
-// effectiveContextWindow is the smaller of the model's window and the maximum the person set in Settings.
+// effectiveContextWindow is the window a conversation keeps within. A model that reports its window keeps the smaller of
+// it and the maximum set in Settings; one that does not (the CLIs) takes that maximum as its window, or 200 thousand.
 func (s *Service) effectiveContextWindow(ctx context.Context, selection catalog.ModelSelection) int {
-	window := selection.ContextLength
-	if window <= 0 {
-		window = defaultContextWindow
+	maximum := 0
+	if settings, err := s.store.GetSettings(ctx); err == nil {
+		maximum = settings.MaxContextTokens
 	}
-	if settings, err := s.store.GetSettings(ctx); err == nil && settings.MaxContextTokens > 0 && settings.MaxContextTokens < window {
-		window = settings.MaxContextTokens
+	window := selection.ContextLength
+	switch {
+	case window <= 0 && maximum > 0:
+		return maximum
+	case window <= 0:
+		return defaultContextWindow
+	case maximum > 0 && maximum < window:
+		return maximum
 	}
 	return window
 }

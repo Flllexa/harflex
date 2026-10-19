@@ -186,7 +186,7 @@ export function SettingsPage({ backend, backends, connectionState, workspace, on
         <div className="field settings-max-context">
           <label htmlFor="settings-max-context">{t('Contexto máximo das conversas (tokens)')}</label>
           <input id="settings-max-context" type="number" inputMode="numeric" min={8000} step={1000} value={maxContext} placeholder={t('Automático: a janela de cada modelo')} onChange={event => setMaxContext(event.target.value)} aria-invalid={maxContextInvalid || undefined} aria-describedby="settings-max-context-help" />
-          <span id="settings-max-context-help" className="muted">{maxContextInvalid ? t('Use pelo menos 8.000 tokens, ou deixe vazio para usar a janela de cada modelo.') : t('Perto deste limite a conversa se compacta sozinha e segue. Vazio usa a janela de cada modelo.')}</span>
+          <span id="settings-max-context-help" className="muted">{maxContextInvalid ? t('Use pelo menos 8.000 tokens, ou deixe vazio para usar a janela de cada modelo.') : t('Perto deste limite a conversa se compacta sozinha e segue. Claude Code e Codex não informam a janela: para eles este número é a janela (vazio, 200 mil). Um modelo de API que informa a janela usa a menor das duas.')}</span>
         </div>
         <div className="settings-actions"><span className="muted">{t('Atual:')} {settings.defaultBackendId || t('escolher ao iniciar')}{settings.defaultModelId && ` · ${settings.defaultModelId}`}</span><button type="submit" className="touch-target primary-button" disabled={saving || settingsUnchanged || maxContextInvalid}>{t('Salvar preferências')}</button></div>
       </form>

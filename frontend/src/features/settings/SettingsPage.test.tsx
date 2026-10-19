@@ -89,6 +89,8 @@ it('saves the maximum context of the conversations', async () => {
   const field = await screen.findByLabelText('Contexto máximo das conversas (tokens)')
   expect(field).toHaveValue(null)
   expect(field).toHaveAttribute('placeholder', 'Automático: a janela de cada modelo')
+  // It says it raises the CLIs' window too: they do not report theirs, so the maximum becomes it.
+  expect(screen.getByText(/Claude Code e Codex não informam a janela/)).toBeInTheDocument()
   await user.type(field, '100000')
   await user.click(screen.getByRole('button', { name: 'Salvar preferências' }))
   expect(save).toHaveBeenCalledWith(expect.objectContaining({ maxContextTokens: 100000 }))
