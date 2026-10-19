@@ -15,7 +15,7 @@ func (s *Store) WalkAfter(ctx context.Context, stream string, after int64, maxEv
 	if after < 0 || maxEvents <= 0 || maxEvents > 1_000_000 || maxBytes <= 0 || visit == nil {
 		return fmt.Errorf("invalid journal iteration bounds")
 	}
-	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := s.read().BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return fmt.Errorf("begin journal iteration: %w", err)
 	}

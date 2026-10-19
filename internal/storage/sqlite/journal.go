@@ -78,7 +78,7 @@ func (s *Store) ListAfterLimit(ctx context.Context, streamID string, sequence in
 }
 
 func (s *Store) listEvents(ctx context.Context, query string, args ...any) ([]events.Event, error) {
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.read().QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list journal events: %w", err)
 	}

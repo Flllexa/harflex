@@ -41,14 +41,16 @@ export function StageActivityPane({backend,pipeline,stage}: {backend:Backend; pi
   const t = useT()
   const labels: Record<string,string> = { pending: t('Ainda não iniciou'), ready: t('Pronto'), active: t('Em andamento'), running: t('IA trabalhando'), completed: t('IA concluiu a etapa'), failed: t('Execução falhou'), cancelled: t('Cancelada'), paused: t('Pausada'), stale: t('Documento desatualizado'), waiting_user: t('Aguardando revisão'), awaiting_approval: t('Aguardando sua autorização') }
   const panel = useRef<HTMLElement>(null)
-  const scope = `${pipeline.workspaceId}:${pipeline.id}:${stage}`, epoch = useRef(0), session = useRef(''), order = useRef(0)
+  const scope = `${pipeline.workspaceId}:${pipeline.id}:${stage}`, epoch = useRef(0), session = useRef(''), order = useRef(0), seen = useRef(0)
   const [activity,setActivity] = useState<PipelineStageActivity>(), [events,setEvents] = useState<AgentEvent[]>([]), [error,setError] = useState(''), [retry,setRetry] = useState(0)
   useEffect(() => { panel.current?.focus({preventScroll:true}); panel.current?.scrollIntoView?.({block:'start',behavior:'auto'}) },[scope])
   useEffect(() => {
     const ticket = ++epoch.current; let live = true, timer:ReturnType<typeof setTimeout> | undefined
-    const started = Date.now(); session.current = ''; setActivity(undefined); setEvents([]); setError('')
+    const started = Date.now(); session.current = ''; seen.current = 0; setActivity(undefined); setEvents([]); setError('')
     const valid = () => live && ticket === epoch.current
-    const merge = (incoming:AgentEvent[]) => setEvents(current => [...new Map([...current,...incoming].map(event => [event.id,event])).values()].sort((a,b) => a.sequence-b.sequence).slice(-1000))
+    // Each check reads only what came after the last event seen: re-reading a long run's whole journal every second
+    // held the one database connection the run writes through, until one of its writes missed its deadline.
+    const merge = (incoming:AgentEvent[]) => { for (const event of incoming) seen.current = Math.max(seen.current, event.sequence); setEvents(current => [...new Map([...current,...incoming].map(event => [event.id,event])).values()].sort((a,b) => a.sequence-b.sequence).slice(-1000)) }
     const unsubscribe = backend.onEvent(event => { if (valid() && event.streamId === session.current) merge([event]) })
     const read = async () => {
       const readOrder = ++order.current
@@ -56,10 +58,10 @@ export function StageActivityPane({backend,pipeline,stage}: {backend:Backend; pi
         const value = await backend.getPipelineStageActivity(pipeline.id,stage)
         if (!valid() || readOrder !== order.current) return
         if (value.pipelineId !== pipeline.id || value.workspaceId !== pipeline.workspaceId || value.stage !== stage) throw new Error('Activity returned for another work')
-        if (session.current !== value.sessionId) { session.current = value.sessionId; setEvents([]) }
+        if (session.current !== value.sessionId) { session.current = value.sessionId; seen.current = 0; setEvents([]) }
         setActivity(value); setError('')
         if (value.sessionId) {
-          const found = await backend.listEvents(value.sessionId,0,1000)
+          const found = await backend.listEvents(value.sessionId,seen.current,1000)
           if (!valid() || readOrder !== order.current || session.current !== value.sessionId) return
           if (found.some(event => event.streamId !== value.sessionId)) throw new Error('Activity events returned for another session')
           merge(found)

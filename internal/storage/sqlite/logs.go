@@ -9,7 +9,7 @@ import (
 )
 
 func (s *Store) ListLogEvents(ctx context.Context, workspaceID, eventType string, beforeID int64, limit int) ([]catalog.LogEntry, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT e.rowid, e.id, e.stream_id, ss.workspace_id, e.sequence, e.type, e.created_at
+	rows, err := s.read().QueryContext(ctx, `SELECT e.rowid, e.id, e.stream_id, ss.workspace_id, e.sequence, e.type, e.created_at
 		FROM events e JOIN sessions ss ON ss.id = e.stream_id
 		WHERE (? = '' OR ss.workspace_id = ?) AND (? = '' OR e.type = ?) AND (? = 0 OR e.rowid < ?)
 		ORDER BY e.rowid DESC LIMIT ?`, workspaceID, workspaceID, eventType, eventType, beforeID, beforeID, limit)

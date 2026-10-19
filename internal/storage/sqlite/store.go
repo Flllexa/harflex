@@ -16,7 +16,24 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-type Store struct{ db *sql.DB }
+// Store keeps the catalog and the journals. Writes go through one connection (SQLite has one writer); reads of the
+// journals have their own read-only connections, so a screen reading a long run never holds up the run's writes (in
+// WAL a reader sees every committed write and blocks none).
+type Store struct {
+	db     *sql.DB
+	reader *sql.DB
+}
+
+// journalReaders is how many journal reads run at once next to the writer.
+const journalReaders = 4
+
+// read is the connection pool for journal reads: the read-only pool, or the writer's for an in-memory catalog.
+func (s *Store) read() *sql.DB {
+	if s.reader != nil {
+		return s.reader
+	}
+	return s.db
+}
 
 func Open(ctx context.Context, path string) (*Store, error) {
 	normalizedPath := path
@@ -49,8 +66,27 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	if err := migrate(ctx, db); err != nil {
 		return nil, fmt.Errorf("migrate sqlite %q: %w", path, err)
 	}
+	store := &Store{db: db}
+	if normalizedPath != ":memory:" {
+		reader, err := sql.Open("sqlite", sqliteReaderDSN(normalizedPath))
+		if err != nil {
+			return nil, fmt.Errorf("open sqlite reader %q: %w", path, err)
+		}
+		reader.SetMaxOpenConns(journalReaders)
+		if err := reader.PingContext(ctx); err != nil {
+			_ = reader.Close()
+			return nil, fmt.Errorf("ping sqlite reader %q: %w", path, err)
+		}
+		store.reader = reader
+	}
 	success = true
-	return &Store{db: db}, nil
+	return store, nil
+}
+
+// sqliteReaderDSN opens the same file for reads only.
+func sqliteReaderDSN(normalizedPath string) string {
+	dsn := sqliteDSN(normalizedPath)
+	return dsn + "&mode=ro&_pragma=" + url.QueryEscape("query_only(1)")
 }
 
 func sqliteDSN(normalizedPath string) string {
@@ -67,8 +103,15 @@ func sqliteDSN(normalizedPath string) string {
 }
 
 func (s *Store) Close() error {
+	var readerErr error
+	if s.reader != nil {
+		readerErr = s.reader.Close()
+	}
 	if err := s.db.Close(); err != nil {
 		return fmt.Errorf("close sqlite: %w", err)
+	}
+	if readerErr != nil {
+		return fmt.Errorf("close sqlite reader: %w", readerErr)
 	}
 	return nil
 }

@@ -20,7 +20,7 @@ func streamDataBytes(ctx context.Context, query rowQueryer, stream string) (int6
 }
 
 func (s *Store) StreamDataBytes(ctx context.Context, stream string) (int64, error) {
-	return streamDataBytes(ctx, s.db, stream)
+	return streamDataBytes(ctx, s.read(), stream)
 }
 
 // The caller must hold SQLite's write reservation before checking this sum.
