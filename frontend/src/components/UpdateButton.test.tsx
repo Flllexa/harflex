@@ -65,6 +65,8 @@ describe('update button beside the logo', () => {
     expect(backend.installUpdate).toHaveBeenCalledTimes(2)
     send({ phase: 'failed', percent: 0, errorCode: 'update_checksum' })
     expect(await screen.findByRole('alert')).toHaveTextContent('não confere com o publicado')
+    send({ phase: 'failed', percent: 0, errorCode: 'update_cancelled' })
+    expect(await screen.findByRole('alert')).toHaveTextContent('A permissão do Windows foi recusada')
   })
 
   it('opens the release page when this copy cannot install by itself', async () => {

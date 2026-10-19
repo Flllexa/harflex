@@ -197,6 +197,8 @@ func updateErrorCode(err error) string {
 		return "update_not_installable"
 	case errors.Is(err, updaterNotWritable):
 		return "update_not_writable"
+	case errors.Is(err, updater.ErrCancelled):
+		return "update_cancelled"
 	}
 	return "update_failed"
 }

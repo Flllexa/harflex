@@ -33,6 +33,8 @@ var (
 	ErrChecksum = errors.New("the download does not match the release checksum")
 	// ErrNotInstalled says this run is not an installed copy (a development build or a package manager's), so it cannot replace itself.
 	ErrNotInstalled = errors.New("this copy of the app cannot replace itself")
+	// ErrCancelled says the person declined the system's permission prompt, so nothing was installed.
+	ErrCancelled = errors.New("the installation was cancelled at the permission prompt")
 )
 
 // Release is a published version newer than the running one.

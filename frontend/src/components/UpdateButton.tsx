@@ -47,6 +47,7 @@ export function UpdateButton({ backend }: { backend?: Backend }) {
   const reason = failure === 'update_checksum' ? t('O arquivo baixado não confere com o publicado, então nada foi instalado.')
     : failure === 'update_not_writable' ? t('Não há uma pasta de aplicativos em que você possa instalar. Tente de novo ou baixe a versão.')
     : failure === 'update_not_installable' ? t('Esta cópia do app não se atualiza sozinha. Baixe a versão e instale.')
+    : failure === 'update_cancelled' ? t('A permissão do Windows foi recusada, então nada foi instalado. Tente de novo e aceite o pedido.')
     : t('Não foi possível atualizar agora.')
   const progress = !working ? '' : state.phase === 'downloading' ? t('Baixando {percent}%', { percent: state.percent })
     : state.phase === 'installing' ? t('Instalando…') : t('Reiniciando…')

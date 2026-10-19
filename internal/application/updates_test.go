@@ -195,7 +195,7 @@ func TestInstallUpdateThatCannotBeAppliedFailsWithACodeAndCanBeTriedAgain(t *tes
 func TestUpdateErrorCodes(t *testing.T) {
 	for err, want := range map[error]string{
 		updater.ErrChecksum: "update_checksum", updater.ErrNoInstaller: "update_not_installable", updater.ErrNotInstalled: "update_not_installable",
-		updaterNotWritable: "update_not_writable", errors.New("boom"): "update_failed",
+		updaterNotWritable: "update_not_writable", updater.ErrCancelled: "update_cancelled", errors.New("boom"): "update_failed",
 	} {
 		if got := updateErrorCode(err); got != want {
 			t.Fatalf("%v: %s, want %s", err, got, want)
