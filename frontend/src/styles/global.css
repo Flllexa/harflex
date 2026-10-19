@@ -781,10 +781,14 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: var
 .provider-clear-credential input { width: 18px; height: 18px; min-height: 18px; padding: 0; flex: none; accent-color: var(--mint); }
 @media (min-width: 768px) {
   /* The shell fills the window; the work area, sidebar and activity scroll on their own. */
-  .app-shell { display: grid; grid-template-columns: 72px minmax(0, 1fr); height: 100dvh; overflow: hidden; }
+  /* The frame fills the window and holds everything placed inside it: an absolutely placed element (the screen
+     reader's copy of a long activity list, a popover) was placed against the page, made it taller than the window,
+     and a scrollIntoView or a focus scrolled the page, sliding the whole app up over an empty band. clip, not hidden:
+     a hidden box can still be scrolled that way. */
+  .app-shell { position: relative; display: grid; grid-template-columns: 72px minmax(0, 1fr); height: 100dvh; overflow: clip; }
   .workspace { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100dvh; }
   .work-area { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
-  .work-area.is-conversation { overflow: hidden; }
+  .work-area.is-conversation { overflow: clip; }
   .work-area.is-conversation .work-panel { min-height: 0; overflow-y: auto; }
   .workspace-footer { position: sticky; bottom: 0; background: var(--ion-void); margin-top: auto; }
   /* The desktop shell hides the native title bar and treats the top 50px as a window-drag strip, so no
