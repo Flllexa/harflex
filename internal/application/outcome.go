@@ -106,6 +106,7 @@ var errorCodes = []struct {
 	{ErrStageExecutorUnsupported, "stage_executor_unsupported"},
 	{ErrPipelineDesignPhaseExecutor, "pipeline_design_phase_executor_unusable"},
 	{ErrPipelineEvaluationCriteriaChanged, "pipeline_evaluation_criteria_changed"},
+	{ErrPipelineEvaluationStale, "pipeline_evaluation_stale"},
 	{ErrSDDCLIReadIsolationUnavailable, "sdd_cli_read_isolation_unavailable"},
 	{ErrPipelineDesignModelRequired, "pipeline_design_model_required"},
 	{ErrPipelineDesignSpecStale, "pipeline_design_spec_stale"},

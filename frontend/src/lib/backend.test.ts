@@ -360,3 +360,7 @@ describe('the QA loop', () => {
     expect(parse.qaLoop({ pipelineId: 'p1', phase: 'stopped', round: 2, message: 'QA parado por você.', updatedAt: '2026-10-18T10:00:00Z', running: false }).phase).toBe('stopped')
   })
 })
+
+it('says a QA verdict from an earlier Code version needs a new QA run', () => {
+  expect(errorMessage({ cause: { code: 'pipeline_evaluation_stale' } })).toBe('Este relatório é de uma versão anterior do Code. Rode o QA de novo para testar a versão aprovada.')
+})

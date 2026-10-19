@@ -130,3 +130,26 @@ func TestStopPipelineQAEndsTheLoop(t *testing.T) {
 		t.Fatalf("stopping a loop that is not running: %+v %v", loop, err)
 	}
 }
+
+// A QA run tested the Code version it was copied from: once a newer version is approved, that run's verdict is not
+// the new version's, and QA has to run again.
+func TestAQARunFromAnEarlierCodeVersionIsNotItsVerdict(t *testing.T) {
+	s, approved, coder, _, root := codeVerifiedAndApproved(t)
+	if _, err := s.CreatePipelineSession(CreatePipelineSessionInput{PipelineID: approved.ID, BackendID: "local", Role: "evaluator"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Prompt(PromptInput{SessionID: coder.Session.ID, Text: "Mais uma correção"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "index.html"), []byte("<h1>Tarefas v2</h1>\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	waiting, err := coderSaidDone(t, s, approved.ID).CompletePipelineCode(approved.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decidePipelineStageReviewForTest(t, s, waiting, "code", "approve", "")
+	if _, err := s.CompletePipelineEvaluation(approved.ID); ErrorCode(err) != "pipeline_evaluation_stale" {
+		t.Fatalf("a QA run of the previous version was taken as the new one's verdict: %v", err)
+	}
+}

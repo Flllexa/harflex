@@ -9,7 +9,7 @@ afterEach(cleanup)
 
 const date = '2026-10-07T10:00:00Z'
 
-function setup(report: object, evalStatus: 'waiting_user' | 'active' = 'waiting_user', prepare?: (backend: ReturnType<typeof createFakeBackend>['backend']) => void) {
+function setup(report: object, evalStatus: 'waiting_user' | 'active' = 'waiting_user', prepare?: (backend: ReturnType<typeof createFakeBackend>['backend']) => void, props: Record<string, unknown> = {}) {
   const { backend } = createFakeBackend()
   const run: Pipeline = { id: 'pipeline-qa', workspaceId: 'workspace-1', kind: 'ai_authoring', title: 'TODO', objective: 'TODO', currentStage: 'eval',
     stageStatus: { discovery: 'completed', spec: 'completed', plan: 'completed', code: 'completed', eval: evalStatus }, revision: 9,
@@ -23,7 +23,7 @@ function setup(report: object, evalStatus: 'waiting_user' | 'active' = 'waiting_
   const defaults = { backendId: 'api', defaultModelBackendId: 'api', defaultModelId: 'api-model', phaseConfigured: false }
   const changed = vi.fn()
   prepare?.(backend)
-  render(<PipelineQALab backend={backend} backends={[{ id: 'api', name: 'API', kind: 'api', available: true }]} run={run} workspaceId="workspace-1" roleDefaults={() => defaults} onPipelineChange={changed} />)
+  render(<PipelineQALab backend={backend} backends={[{ id: 'api', name: 'API', kind: 'api', available: true }]} run={run} workspaceId="workspace-1" roleDefaults={() => defaults} onPipelineChange={changed} {...props} />)
   return { backend, run, changed }
 }
 
@@ -131,4 +131,14 @@ it('stops a running QA from the lab, round and fix loop, and says it stopped', a
   expect(backend.stopPipelineQA).toHaveBeenCalledWith('pipeline-qa')
   expect(await screen.findByText('QA parado por você.')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Parar QA' })).not.toBeInTheDocument()
+})
+
+it('starts a new QA round by itself when asked, right after the Code is approved', async () => {
+  const onAutoStarted = vi.fn()
+  const { backend } = setup({ passed: false, checks: [], findings: ['velho'], improvements: [], criteria: [] }, 'active', backend => {
+    backend.startPipelineQA = vi.fn(async pipelineId => ({ pipelineId, phase: 'qa' as const, round: 1, message: 'O QA está rodando', updatedAt: date, running: true }))
+  }, { autoStart: 1, onAutoStarted })
+  await waitFor(() => expect(backend.startPipelineQA).toHaveBeenCalledTimes(1))
+  expect(backend.startPipelineQA).toHaveBeenCalledWith('pipeline-qa', expect.objectContaining({ backendId: 'api', selection: expect.objectContaining({ modelId: 'api-model' }) }))
+  expect(onAutoStarted).toHaveBeenCalled()
 })

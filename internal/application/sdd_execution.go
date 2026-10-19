@@ -31,6 +31,9 @@ var ErrPipelineCodeSnapshotUnavailable = errors.New("pipeline Code execution sna
 var ErrPipelineCodeSessionClosed = errors.New("pipeline Code session is no longer active")
 var ErrPipelineEvaluationCriteriaChanged = errors.New("pipeline evaluation criteria changed after admission")
 
+// ErrPipelineEvaluationStale is a QA run made before the current Code version: it tested the previous one.
+var ErrPipelineEvaluationStale = errors.New("the latest QA run tested an earlier Code version")
+
 const maxPipelineGitBaselineUntrackedBytes = 64 * 1024 * 1024
 
 type pipelineEvaluationCriterion struct {
@@ -760,6 +763,11 @@ func (s *Service) CompletePipelineEvaluation(pipelineID string) (PipelineDTO, er
 	link, err := s.latestPipelineSession(run.ID, "evaluator")
 	if err != nil {
 		return PipelineDTO{}, err
+	}
+	// The QA lab is a copy of the Code as it was when the run began: a run from before the current version tested the
+	// previous one, and its verdict is not this version's.
+	if code := run.Artifacts[sdd.Code]; !code.UpdatedAt.IsZero() && link.CreatedAt.Before(code.UpdatedAt) {
+		return PipelineDTO{}, ErrPipelineEvaluationStale
 	}
 	criteria, err := s.pipelineEvaluationCriteria(run)
 	if err != nil {

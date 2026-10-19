@@ -769,6 +769,7 @@ const errorMessages: Record<string, string> = {
   pipeline_qa_busy: 'O QA já está rodando para este pipeline.',
   pipeline_code_not_finished: 'O Coder ainda não disse que terminou. Responda às perguntas dele ou peça para continuar; a revisão abre quando ele concluir.',
   pipeline_code_not_applied: 'Aplique o patch aprovado ao projeto antes de abrir os PRs: o agente trabalha na pasta do projeto.',
+  pipeline_evaluation_stale: 'Este relatório é de uma versão anterior do Code. Rode o QA de novo para testar a versão aprovada.',
   local_test_busy: 'Outro teste local está aplicado neste projeto. Desfaça aquele teste antes de começar este.',
   local_test_source_dirty: 'Sua pasta tem mudanças não salvas',
   local_test_backup_missing: 'O backup deste teste não foi encontrado: o desfazer não pode restaurar a pasta.',

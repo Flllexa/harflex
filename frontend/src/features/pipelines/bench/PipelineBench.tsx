@@ -13,6 +13,8 @@ type Props = {
   viewRequestId?: number
   /** A bench to show instead of the current stage's, such as QA while a fix round runs in Code. */
   focus?: BenchStage
+  /** A bench to bring to the front now (a new id each time), such as QA right after the Code is approved. */
+  showRequest?: { stage: BenchStage; id: number }
   /** Tells the stage bar which bench is on screen, so its border marks the same stage. */
   onShownStage?: (stage: BenchStage) => void
   code: ReactNode
@@ -29,13 +31,14 @@ function benchesOf(t: (source: string) => string): { stage: BenchStage; name: st
 }
 
 /** Code, QA and PRs each get a screen of their own, opened from the stage bar at the top (the current stage by default). */
-export function PipelineBench({ run, viewStage, viewRequestId, focus, onShownStage, code, qa, prs }: Props) {
+export function PipelineBench({ run, viewStage, viewRequestId, focus, showRequest, onShownStage, code, qa, prs }: Props) {
   const t = useT()
   const benches = benchesOf(t)
   const current: BenchStage = focus ?? (run.currentStage === 'eval' ? 'eval' : run.currentStage === 'code' ? 'code' : 'prs')
   const [stage, setStage] = useState<BenchStage>(current)
   useEffect(() => { setStage(current) }, [run.id, current])
   useEffect(() => { if (viewStage === 'code' || viewStage === 'eval' || viewStage === 'prs') setStage(viewStage) }, [viewStage, viewRequestId])
+  useEffect(() => { if (showRequest) setStage(showRequest.stage) }, [showRequest?.stage, showRequest?.id])
   useEffect(() => { onShownStage?.(stage) }, [stage, onShownStage])
   const bench = benches.find(item => item.stage === stage)!
   const Icon = bench.Icon

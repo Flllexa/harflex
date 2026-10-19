@@ -18,6 +18,8 @@ type Props = {
   /** The Coder said it finished this version: only then can it be approved. */
   approvable?: boolean
   /** "Testar localmente": what the local test card needs besides the pipeline. Without it the card is not shown. */
+  /** The Code was approved: the page takes the person to QA and starts it. */
+  onApproved?: () => void
   localTest?: Omit<LocalTestCardProps, 'backend' | 'run' | 'refreshKey' | 'onUndone' | 'onKeep' | 'canStart'>
 }
 
@@ -32,7 +34,7 @@ function ChangeBar({ file }: { file: DiffFile }) {
 }
 
 /** Code's own bench: the change spotlighted file by file, and the decision that sends it to QA. */
-export function CodeBench({ backend, run, onPipelineChange, runControls, live, talk, approvable = true, localTest }: Props) {
+export function CodeBench({ backend, run, onPipelineChange, runControls, live, talk, approvable = true, localTest, onApproved }: Props) {
   const t = useT()
   const artifact = run.artifacts.code
   const files = useMemo(() => artifact ? parseUnifiedDiff(artifact.content) : [], [artifact?.content])
@@ -58,6 +60,7 @@ export function CodeBench({ backend, run, onPipelineChange, runControls, live, t
     try {
       onPipelineChange(await backend.decidePipelineExecutionArtifact({ pipelineId: run.id, requestId: crypto.randomUUID(), stage: 'code', artifactVersion: artifact.version, artifactDigest: artifact.contentDigest, decision, feedback: decision === 'approve' ? '' : feedback.trim(), pipelineRevision: run.revision }))
       setHeldDecision(undefined)
+      if (decision === 'approve') onApproved?.()
     } catch (failure) {
       if (errorCode(failure) === 'local_test_conflict') { setHeldDecision(decision); setConflictKey(key => key + 1) }
       setError(errorMessage(failure))

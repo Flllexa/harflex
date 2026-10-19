@@ -29,6 +29,9 @@ type Props = {
   onRoleChosen?: (stage: 'code' | 'eval', backendId: string, modelId: string) => void
   /** QA's failures went back to Code and the fix loop stopped before its Coder round; the lab offers to go on. */
   resumable?: boolean
+  /** Start a QA round as soon as the lab can (a new number each time), such as right after the Code is approved. */
+  autoStart?: number
+  onAutoStarted?: () => void
 }
 
 const kindIcons: Record<string, typeof TestTube2> = { build: Hammer, unit: TestTube2, e2e: MonitorPlay, run: Play, lint: ScanSearch, other: Wrench }
@@ -70,7 +73,7 @@ function QARing({ passed, total }: { passed: number; total: number }) {
 }
 
 /** QA as a lab: it runs the project's checks, lists failures and improvements, fixes the chosen ones and runs again. */
-export function PipelineQALab({ backend, backends, run, workspaceId, roleDefaults, onPipelineChange, onOpenSession, onLoopChange, onSettings, onRoleChosen, resumable = false }: Props) {
+export function PipelineQALab({ backend, backends, run, workspaceId, roleDefaults, onPipelineChange, onOpenSession, onLoopChange, onSettings, onRoleChosen, resumable = false, autoStart, onAutoStarted }: Props) {
   const t = useT()
   const kindLabels: Record<string, string> = { build: 'Build', unit: t('Testes unitários'), e2e: 'E2E', run: t('Execução do app'), lint: 'Lint', other: t('Verificação') }
   const statusLabels = { passed: t('Passou'), failed: t('Falhou'), skipped: t('Não rodou') }
@@ -164,6 +167,15 @@ export function PipelineQALab({ backend, backends, run, workspaceId, roleDefault
     try { const state = await backend.startPipelineQA(run.id, { backendId: qaRole.backendId, selection: qaRole.selection }); setLoop(state); onLoopChange?.(state) }
     catch (failure) { setError(errorMessage(failure)) } finally { setPending(false) }
   }
+
+  // Approving the Code asks for a new round: it starts once who tests and with which model are known.
+  const autoStarted = useRef(0)
+  useEffect(() => {
+    if (!autoStart || autoStarted.current === autoStart || !canRun || pending) return
+    autoStarted.current = autoStart
+    onAutoStarted?.()
+    void start()
+  }, [autoStart, canRun, pending])
 
   async function fix() {
     if (!codeRole.selection || !qaRole.selection) { setError(t('Escolha os modelos do Code e do QA para as correções.')); return }
