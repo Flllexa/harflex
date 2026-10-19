@@ -234,4 +234,6 @@ type Dependencies struct {
 	Emit                   func(string, any)
 	ExecutionCacheRoot     string
 	PrivateWorkspaceParent string
+	// DiagnosticLogDir holds harflex.log, where a run that ends in an error records why (masked); empty keeps none.
+	DiagnosticLogDir string
 }

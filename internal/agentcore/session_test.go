@@ -1145,6 +1145,9 @@ func TestSessionAcceptedPersistenceSurvivesCancellation(t *testing.T) {
 }
 
 func TestSessionPersistenceTimeoutSealsWithoutClaimingTerminal(t *testing.T) {
+	saved := persistTimeout
+	persistTimeout = 2 * time.Second
+	t.Cleanup(func() { persistTimeout = saved })
 	var deadlineDuration time.Duration
 	j := &sessionJournal{checkContext: true, beforeAppend: func(ctx context.Context, typ string) {
 		if typ == "assistant.delta" {

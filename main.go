@@ -151,6 +151,7 @@ func run() error {
 	service, err = newRecoveredServiceAfterInstanceLock(appCtx, appservice.Dependencies{
 		Store: store, Secrets: secrets.NewKeyring("ai.harflex.desktop"),
 		PrivateWorkspaceParent: dataDir, ExecutionCacheRoot: executionCacheRootFor(os.Getenv("HARFLEX_DATA_DIR"), dataDir),
+		DiagnosticLogDir: filepath.Join(dataDir, "logs"),
 	}, func(lockedService *appservice.Service) error {
 		service = lockedService
 		options := desktopOptions(service, shutdown)

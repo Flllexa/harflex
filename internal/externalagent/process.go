@@ -192,7 +192,34 @@ func runProcess(parent context.Context, path string, args []string, input string
 	if diagnostic.truncated {
 		detail += " [truncated]"
 	}
-	return fmt.Errorf("external agent failed: %s: %w", detail, safeCause{cause})
+	return &processFailure{detail: detail, cause: safeCause{cause}}
+}
+
+// processFailure is a CLI run that failed, with what it said on stderr (masked: the prompt, the model, the session and
+// the folder are taken out) for the app's diagnostic record.
+type processFailure struct {
+	detail string
+	cause  error
+}
+
+func (e *processFailure) Error() string {
+	return "external agent failed: " + e.detail + ": " + e.cause.Error()
+}
+func (e *processFailure) Unwrap() error { return e.cause }
+
+// FailureDetail is what a failed CLI run left for diagnosis: its exit code (0 when it did not exit on its own) and its
+// masked stderr.
+func FailureDetail(err error) (int, string) {
+	code := 0
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		code = exit.ExitCode()
+	}
+	var failure *processFailure
+	if errors.As(err, &failure) {
+		return code, failure.detail
+	}
+	return code, ""
 }
 func sanitizeDiagnostic(text string, r Request, truncated bool, sensitive ...string) string {
 	if truncated {

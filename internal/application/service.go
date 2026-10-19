@@ -36,8 +36,10 @@ type Service struct {
 	secrets            secrets.Store
 	external           map[string]ExternalBackend
 	executionCacheRoot string
-	mu                 sync.RWMutex
-	workChatMu         sync.Mutex // one pass at a time gives each work its chat, so none gets two
+	// diagnostics records why runs ended in an error (harflex.log in the data folder).
+	diagnostics *diagnosticLog
+	mu          sync.RWMutex
+	workChatMu  sync.Mutex // one pass at a time gives each work its chat, so none gets two
 	// profileGate serializes catalog/credential changes with credential resolution.
 	// Never hold mu with profileGate; finish external calls and release profileGate
 	// before acquiring mu for lifecycle or session state.
@@ -118,7 +120,7 @@ func NewService(ctx context.Context, deps Dependencies) *Service {
 	if factory == nil {
 		factory = func(c openai.Config) (agentcore.Provider, error) { return openai.New(c) }
 	}
-	service := &Service{ctx: ctx, store: deps.Store, secrets: deps.Secrets, external: external, executionCacheRoot: deps.ExecutionCacheRoot, sessions: make(map[string]sessionRunner), journals: make(map[string]*eventJournal), authoringCodeOwners: make(map[string]*authoringCodeOwner), providerFactory: factory, modelHTTPClient: &http.Client{Transport: http.DefaultTransport}, modelCatalogCache: modelcatalog.NewCache(time.Now), privateWorkspaceParent: deps.PrivateWorkspaceParent, privateCodeCopy: sddworkspace.CreatePrivateCopyAt, authoringCodeScan: sddworkspace.Scan, authoringCodeReadbackTimeout: 15 * time.Minute, authoringCodePatchMaxBytes: sddworkspace.MaxPatchEvidenceBytes, privateCodeCopyInFlight: make(map[string]struct{}), audit: deps.Audit, emit: deps.Emit, drained: make(chan struct{}), scheduleWake: make(chan struct{}, 1), scheduleCanceled: make(map[string]bool), scheduleRunning: make(map[string]struct{}), delegationTimeout: defaultDelegationTimeout, projectMemoryRuns: make(map[string]string)}
+	service := &Service{ctx: ctx, store: deps.Store, secrets: deps.Secrets, external: external, executionCacheRoot: deps.ExecutionCacheRoot, diagnostics: newDiagnosticLog(deps.DiagnosticLogDir), sessions: make(map[string]sessionRunner), journals: make(map[string]*eventJournal), authoringCodeOwners: make(map[string]*authoringCodeOwner), providerFactory: factory, modelHTTPClient: &http.Client{Transport: http.DefaultTransport}, modelCatalogCache: modelcatalog.NewCache(time.Now), privateWorkspaceParent: deps.PrivateWorkspaceParent, privateCodeCopy: sddworkspace.CreatePrivateCopyAt, authoringCodeScan: sddworkspace.Scan, authoringCodeReadbackTimeout: 15 * time.Minute, authoringCodePatchMaxBytes: sddworkspace.MaxPatchEvidenceBytes, privateCodeCopyInFlight: make(map[string]struct{}), audit: deps.Audit, emit: deps.Emit, drained: make(chan struct{}), scheduleWake: make(chan struct{}, 1), scheduleCanceled: make(map[string]bool), scheduleRunning: make(map[string]struct{}), delegationTimeout: defaultDelegationTimeout, projectMemoryRuns: make(map[string]string)}
 	_, tokenErr := rand.Read(service.catalogTokenKey[:])
 	service.catalogTokenReady = tokenErr == nil
 	if service.audit == nil {

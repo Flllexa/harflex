@@ -856,6 +856,15 @@ func (s *Service) Prompt(in PromptInput) (RunResultDTO, error) {
 			return RunResultDTO{}, safe("release refused delegated prompt", err)
 		}
 	}
+	var ended *agentcore.RunError
+	if runErr != nil && !errors.Is(runErr, agentcore.ErrApprovalRequired) && !(errors.As(runErr, &ended) && ended.Reason == RunCancelled) {
+		s.logRunFailure(in.SessionID, "prompt", runErr)
+	}
+	// The journal could not be written: the run is closed from it as recovery would, and the person gets the reason.
+	// A stream that reached its size limit has no room for the closing either: it stays sealed, as history_too_large.
+	if errors.Is(runErr, agentcore.ErrJournalUnavailable) && !errors.Is(runErr, events.ErrStreamBudgetExceeded) && !errors.Is(runErr, events.ErrEventBudgetExceeded) && s.closeFaultedRun(record) {
+		return RunResultDTO{Status: RunFailed, Reason: "journal_unavailable", Code: "session_journal_unavailable"}, nil
+	}
 	return s.sessionResult(in.SessionID, "prompt", runErr)
 }
 func (s *Service) Approve(in ApprovalInput) (RunResultDTO, error) {

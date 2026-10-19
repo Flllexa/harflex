@@ -31,6 +31,10 @@ var (
 	errTurnLimit        = errors.New("provider turn limit reached")
 )
 
+// persistTimeout bounds each journal write. One SQLite connection serves every conversation and screen: a write can
+// wait behind a long read for a few seconds, and a write that misses its deadline stops the run, so it is generous.
+var persistTimeout = 15 * time.Second
+
 const (
 	maxBatchBytes = 16 * 1024
 	// maxMessageBytes bounds one message (a prompt, an answer, a tool call's arguments): it guards memory only.
@@ -39,10 +43,9 @@ const (
 	// A 10 MiB read becomes approximately 14 MiB after JSON/base64 encoding.
 	maxToolContentBytes = 16 * 1024 * 1024
 	maxToolDetailsBytes = 16 * 1024 * 1024
-	persistTimeout      = 2 * time.Second
 	// A maximum-sized result includes up to 32 MiB before redaction/encoding.
 	// Keep that durability path bounded without applying the small-event deadline.
-	toolResultPersistTimeout = 10 * time.Second
+	toolResultPersistTimeout = 30 * time.Second
 	// maxTurns bounds only the run limits a caller sets on purpose (SetRunLimits). A run without them has no turn
 	// limit: a long task goes on until it finishes or the person cancels it.
 	maxTurns = 10_000
@@ -53,10 +56,15 @@ type pendingApproval struct {
 	call ToolCall
 }
 
+// ErrJournalUnavailable is a run that stopped because its journal could not be written: nothing more is written for it,
+// and the application closes it from the journal as recovery would.
+var ErrJournalUnavailable = errors.New("session journal unavailable")
+
 type journalError struct{ cause error }
 
-func (e *journalError) Error() string { return "session journal unavailable" }
-func (e *journalError) Unwrap() error { return e.cause }
+func (e *journalError) Error() string        { return "session journal unavailable" }
+func (e *journalError) Unwrap() error        { return e.cause }
+func (e *journalError) Is(target error) bool { return target == ErrJournalUnavailable }
 
 // safeJoinedError keeps diagnostics available to errors.Is/As without exposing
 // external provider, executor, or journal messages through the public Error text.

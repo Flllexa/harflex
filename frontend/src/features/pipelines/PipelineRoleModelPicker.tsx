@@ -19,6 +19,9 @@ type Props = {
 const labels = { code: 'Code', eval: 'QA', prs: 'PRs' } as const
 /** The backend refuses a pick whose catalog answer is older than five minutes; the pick is withdrawn a little before. */
 const catalogMaxAge = 270_000
+// How long the picker waits for a catalog before saying it did not answer (a CLI's list takes a few seconds).
+const catalogAnswerTimeoutMs = 30_000
+class CatalogUnanswered extends Error {}
 const usableProfile = (profile: ProviderProfile) => !profile.endpointBlocked && profile.providerType !== 'generic' &&
   (profile.hasCredential || profile.providerType === 'lm_studio' || profile.providerType === 'ollama')
 
@@ -97,9 +100,13 @@ export function PipelineRoleModelPicker({ backend, workspaceId, stage, backendOp
       } else {
         setProfiles([])
       }
-      const result = backendOption.kind === 'cli'
-        ? await backend.queryCLIModelCatalog({ workspaceId, backendId: backendOption.id }, controller.signal)
-        : await backend.queryHTTPModelCatalog({ profileId: backendOption.id, searchTerm: '', refresh: true }, controller.signal)
+      // A catalog that never answers would keep the picker, and every action needing a model, waiting with no way out.
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const unanswered = new Promise<never>((_, reject) => { timer = setTimeout(() => { controller.abort(); reject(new CatalogUnanswered(t('{name} não respondeu à lista de modelos. Atualize o catálogo para tentar de novo.', { name: backendOption.name }))) }, catalogAnswerTimeoutMs) })
+      const query = backendOption.kind === 'cli'
+        ? backend.queryCLIModelCatalog({ workspaceId, backendId: backendOption.id }, controller.signal)
+        : backend.queryHTTPModelCatalog({ profileId: backendOption.id, searchTerm: '', refresh: true }, controller.signal)
+      const result = await Promise.race([query, unanswered]).finally(() => clearTimeout(timer))
       if (request.current !== current) return
       setCatalog(result)
       const age = Date.now() - Date.parse(result.checkedAt)
@@ -120,9 +127,9 @@ export function PipelineRoleModelPicker({ backend, workspaceId, stage, backendOp
         selectionCallback.current(selectedRoleModel(result, backendOption, preferred, selectedProfile, false, false))
       }
     })().catch(failure => {
-      if (request.current !== current || controller.signal.aborted) return
+      if (request.current !== current || controller.signal.aborted && !(failure instanceof CatalogUnanswered)) return
       setCatalogState('error')
-      setCatalogError(errorMessage(failure))
+      setCatalogError(failure instanceof CatalogUnanswered ? failure.message : errorMessage(failure))
     })
     return () => { request.current++; controller.abort() }
   }, [backend, workspaceId, backendOption.id, backendOption.kind, backendOption.available, backendOption.name, defaultModelBackendId, defaultModelId, refreshRevision, t])

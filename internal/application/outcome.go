@@ -60,6 +60,7 @@ var errorCodes = []struct {
 	{ErrBackendChanged, "backend_changed"},
 	{ErrSessionNotFound, "session_not_found"},
 	{ErrSessionCorrupt, "session_corrupt"},
+	{agentcore.ErrJournalUnavailable, "session_journal_unavailable"},
 	{ErrHistoryTooLarge, "history_too_large"},
 	{events.ErrStreamBudgetExceeded, "history_too_large"},
 	{externalagent.ErrNotResumable, "session_not_resumable"},

@@ -40,7 +40,7 @@ func runClaudeHelper(mode string) {
 		default:
 			fmt.Println("not json")
 		}
-	case "claude-document", "claude-document-tools", "claude-document-logout", "claude-document-full":
+	case "claude-document", "claude-document-tools", "claude-document-logout", "claude-document-full", "claude-document-crash":
 		runClaudeDocumentHelper(mode)
 	case "claude-run":
 		input, _ := io.ReadAll(os.Stdin)
@@ -197,6 +197,11 @@ func runClaudeDocumentHelper(mode string) {
 		toolList = `["StructuredOutput","Bash"]`
 	}
 	fmt.Printf(`{"type":"system","subtype":"init","session_id":%q,"tools":%s,"mcp_servers":[]}`+"\n", session, toolList)
+	if mode == "claude-document-crash" {
+		// The CLI dies mid-run: no result record, a reason on stderr, a non-zero exit.
+		fmt.Fprintln(os.Stderr, "API Error: 429 usage limit reached for opus; resets at 15:00 (key sk-ant-test-secret-1234)")
+		syscall.Exit(2)
+	}
 	if mode == "claude-document-full" {
 		fmt.Printf(`{"type":"result","subtype":"success","is_error":true,"result":"Prompt is too long","session_id":%q}`+"\n", session)
 		syscall.Exit(1)
@@ -312,5 +317,19 @@ func TestClaudeCodeDocumentReportsAPromptThatDoesNotFit(t *testing.T) {
 	adapter, request := claudeDocumentFixture(t, "claude-document-full")
 	if _, err := adapter.GenerateDocument(t.Context(), request, nil); !errors.Is(err, ErrCLIContextFull) {
 		t.Fatalf("a prompt the CLI said was too long came back as %v", err)
+	}
+}
+
+// A CLI that dies mid-run says why on stderr and in its exit code; both reach the failure, masked, so the app can
+// record the cause (a usage limit, a login, a crash) without exposing the prompt or a key.
+func TestClaudeCodeDocumentCrashKeepsItsCause(t *testing.T) {
+	adapter, request := claudeDocumentFixture(t, "claude-document-crash")
+	_, err := adapter.GenerateDocument(t.Context(), request, nil)
+	if err == nil {
+		t.Fatal("a crashed run came back as a success")
+	}
+	code, detail := FailureDetail(err)
+	if code != 2 || !strings.Contains(detail, "usage limit reached") || strings.Contains(detail, request.Prompt) {
+		t.Fatalf("crash cause: exit %d, %q", code, detail)
 	}
 }

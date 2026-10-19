@@ -68,3 +68,21 @@ describe('the catalog answer behind a pick', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })
+
+describe('a catalog that does not answer', () => {
+  afterEach(() => { vi.useRealTimers() })
+  // A CLI that never answers the model list (stuck on its login, a busy machine) left the picker at "Consultando…" and
+  // every action that needs a model disabled, with nothing to do about it: after a while it says so and offers to retry.
+  it('stops waiting and offers to try again', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const { backend } = createFakeBackend()
+    backend.queryCLIModelCatalog = vi.fn(() => new Promise<ModelCatalogResult>(() => undefined))
+    const cli: BackendOption = { id: 'claude', name: 'Claude Code', kind: 'cli', available: true, professionalAvailable: true }
+    render(<PipelineRoleModelPicker backend={backend} workspaceId="workspace-1" stage="code" backendOption={cli} defaultModelBackendId="claude" defaultModelId="opus" disabled={false} onSelectionChange={() => undefined} />)
+    expect(screen.getByText('Consultando modelos de Claude Code para Code…')).toBeInTheDocument()
+    await act(async () => { await vi.advanceTimersByTimeAsync(31_000) })
+    expect(screen.queryByText('Consultando modelos de Claude Code para Code…')).not.toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Claude Code não respondeu à lista de modelos')
+    expect(screen.getByRole('button', { name: 'Atualizar catálogo' })).toBeEnabled()
+  })
+})

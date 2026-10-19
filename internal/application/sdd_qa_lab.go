@@ -468,7 +468,7 @@ func (s *Service) runQALoop(pipelineID string, gen uint64, coder *PipelineRoleCh
 			}
 			sessionID, err := s.runPipelineRole(pipelineID, "coder", *coder, true, func(id string) { fixing.SessionID = id; s.qaLoopSetFor(gen, fixing) })
 			if err != nil {
-				s.qaLoopFailed(pipelineID, gen, round, sessionID, "O Coder não terminou: "+err.Error())
+				s.qaLoopFailed(pipelineID, gen, round, sessionID, "O Coder não terminou: "+roleFailureText(err))
 				return
 			}
 			// A Coder that stopped to ask hands the loop back to the person with its questions.
@@ -491,7 +491,7 @@ func (s *Service) runQALoop(pipelineID string, gen uint64, coder *PipelineRoleCh
 		}
 		sessionID, err := s.runPipelineRole(pipelineID, "evaluator", evaluator, false, func(id string) { testing.SessionID = id; s.qaLoopSetFor(gen, testing) })
 		if err != nil {
-			s.qaLoopFailed(pipelineID, gen, round, sessionID, "O QA não terminou: "+err.Error())
+			s.qaLoopFailed(pipelineID, gen, round, sessionID, "O QA não terminou: "+roleFailureText(err))
 			return
 		}
 		run, err := s.completeQA(pipelineID, sessionID)
@@ -564,4 +564,14 @@ func qaChangesPointer(content string) string {
 		}
 	}
 	return text.String()
+}
+
+// roleFailureText is what a role's failure says on the QA screen: the error and, when it has one, its cause's code
+// (session_busy, session_journal_unavailable…), which "operation failed" alone hides. The diagnostic log has the rest.
+func roleFailureText(err error) string {
+	text := err.Error()
+	if code := ErrorCode(err); code != codeInternal && !strings.Contains(text, code) {
+		text += " (" + code + ")"
+	}
+	return text
 }
