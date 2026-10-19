@@ -6,6 +6,7 @@ import type { ConnectionState } from '../../state/session'
 import { ProviderDialog } from './ProviderDialog'
 import { FullAccessDialog } from '../permissions/FullAccessDialog'
 import { currentLocale, locales, setLocale, useT, type Locale } from '../../i18n'
+import { backendLabel } from '../../lib/backendLabel'
 
 type Props = {
   backend: Backend
@@ -175,7 +176,7 @@ export function SettingsPage({ backend, backends, connectionState, workspace, on
           setModelCatalog(undefined)
           setCatalogState('idle')
           setCatalogError('')
-        }} options={[{ value: '', label: t('Escolher ao iniciar') }, ...backends.map(item => ({ value: item.id, label: item.available ? item.name : t('{name} · indisponível', { name: item.name }), disabled: !item.available }))]} searchable={backends.length > 6} />
+        }} options={[{ value: '', label: t('Escolher ao iniciar') }, ...backends.map(item => ({ value: item.id, label: backendLabel(item), disabled: !item.available }))]} searchable={backends.length > 6} />
         <div className="settings-default-model">
           <IonPicker id="settings-default-model" label={t('Modelo padrão do SDD')} value={defaultModelId} onChange={setDefaultModelId} options={modelOptions} searchable disabled={!supportsSDDModelDefault || catalogState === 'loading'} />
           <p className="muted">{!providerCatalogAvailable ? t('Não foi possível confirmar os provedores. O modelo salvo foi preservado até a conexão voltar.') : !defaultId ? t('Escolha um provedor para definir o modelo padrão.') : !supportsSDDModelDefault ? t('Este provedor padrão não é compatível com o SDD. Escolha Codex CLI ou um perfil de API compatível para definir este padrão.') : selectedBackend?.kind === 'cli' ? t('Selecione um modelo descoberto pelo Codex CLI local.') : t('Padrão atual do provedor: {model}.', { model: selectedProfile?.model || t('nenhum modelo configurado') })}</p>

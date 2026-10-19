@@ -5,6 +5,7 @@ import { IonPicker } from '../../components/IonPicker'
 import { errorMessage, type Backend, type BackendOption, type Schedule, type ScheduleInput, type ScheduleJob, type Workflow } from '../../lib/backend'
 import { localeTag, t, useT } from '../../i18n'
 import { SessionRunProgress } from '../../components/activity/RunProgressView'
+import { backendLabel } from '../../lib/backendLabel'
 
 type Props = { backend: Backend; backends: BackendOption[]; workspaceId?: string; onProjects: () => void; onSettings: () => void; onWorkflows: () => void; onOpenSession: (sessionId: string) => Promise<void> }
 type FormState = Omit<ScheduleInput, 'workspaceId' | 'id' | 'revision'>
@@ -99,7 +100,7 @@ export function SchedulesPage({ backend, backends, workspaceId, onProjects, onSe
             : <label className="field schedule-prompt">{t('Prompt')}<textarea value={form.prompt} onChange={event => setField('prompt', event.target.value)} rows={3} maxLength={1024 * 1024} required /></label>}
           <IonPicker id="schedule-backend" label={t('Backend')} value={selectedBackend} required
             onChange={next => setForm(current => ({ ...current, backendId: next, allowCli: false }))}
-            options={[{ value: '', label: t('Escolha um backend') }, ...backends.map(item => ({ value: item.id, label: item.available ? item.name : t('{name} · indisponível', { name: item.name }), disabled: !item.available }))]} />
+            options={[{ value: '', label: t('Escolha um backend') }, ...backends.map(item => ({ value: item.id, label: backendLabel(item), disabled: !item.available }))]} />
           <IonPicker id="schedule-frequency" label={t('Frequência')} value={form.frequency}
             onChange={next => setField('frequency', next as FormState['frequency'])}
             options={[{ value: 'daily', label: t('Todos os dias') }, { value: 'once', label: t('Uma vez') }]} />

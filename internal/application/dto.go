@@ -272,6 +272,9 @@ type BackendDTO struct {
 	Available             bool                   `json:"available"`
 	ProfessionalAvailable bool                   `json:"professionalAvailable,omitempty"`
 	Capabilities          agentcore.Capabilities `json:"capabilities"`
+	// UnavailableReason says why a CLI is unavailable (not_found, failed, timeout), with the CLI's own message.
+	UnavailableReason string `json:"unavailableReason,omitempty"`
+	UnavailableDetail string `json:"unavailableDetail,omitempty"`
 }
 type SaveProviderProfileInput struct {
 	ID              string `json:"id"`

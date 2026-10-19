@@ -52,6 +52,10 @@ type Detection struct {
 	Available bool   `json:"available"`
 	Path      string `json:"path,omitempty"`
 	Version   string `json:"version,omitempty"`
+	// Reason says why the CLI is unavailable: not_found, failed (it did not answer --version) or timeout.
+	Reason string `json:"reason,omitempty"`
+	// Detail is the first line the CLI printed when it failed.
+	Detail string `json:"detail,omitempty"`
 }
 type Adapter interface {
 	ID() string
@@ -95,6 +99,9 @@ func (a *cliAdapter) executable() (string, error) {
 	if a.id == "claude" && a.path == "" && runtime.GOOS == "darwin" {
 		candidates = append(candidates, claudeDesktopCandidates(home)...)
 	}
+	if a.path == "" && runtime.GOOS == "windows" {
+		candidates = append(windowsCLICandidates(a.id, home, os.Getenv("APPDATA"), os.Getenv("LOCALAPPDATA")), candidates...)
+	}
 	for _, path := range candidates {
 		resolved, err := exec.LookPath(path)
 		if err != nil {
@@ -110,6 +117,28 @@ func (a *cliAdapter) executable() (string, error) {
 		}
 	}
 	return "", errors.New("external agent executable unavailable")
+}
+
+// windowsCLICandidates are where the Windows installers put a CLI: the native installer, npm, pnpm, scoop and winget.
+// An app opened from the Start menu keeps the PATH of the login, so a CLI installed later is not on it yet.
+func windowsCLICandidates(id, home, appData, localAppData string) []string {
+	var found []string
+	if home != "" {
+		found = append(found, home+`\.local\bin\`+id+".exe")
+	}
+	if appData != "" {
+		found = append(found, appData+`\npm\`+id+".cmd")
+	}
+	if localAppData != "" {
+		found = append(found, localAppData+`\pnpm\`+id+".cmd")
+	}
+	if home != "" {
+		found = append(found, home+`\scoop\shims\`+id+".exe")
+	}
+	if localAppData != "" {
+		found = append(found, localAppData+`\Microsoft\WinGet\Links\`+id+".exe")
+	}
+	return found
 }
 
 func openCodeNativePackageCandidates(home string) []string {
@@ -163,9 +192,14 @@ func (a *cliAdapter) Detect() Detection {
 	}
 	path, err := a.executable()
 	if err != nil {
-		return Detection{}
+		return Detection{Reason: "not_found"}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	// A CLI that starts through Node and an npm .cmd shim, scanned by the antivirus on first run, is slow on Windows.
+	timeout := 2 * time.Second
+	if runtime.GOOS == "windows" {
+		timeout = 15 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	cmd := exec.Command(path, "--version")
 	cmd.WaitDelay = 250 * time.Millisecond
@@ -175,16 +209,23 @@ func (a *cliAdapter) Detect() Detection {
 	cmd.Stderr = output
 	owned, err := ownCommand(cmd)
 	if err != nil {
-		return Detection{}
+		return Detection{Path: path, Reason: "failed", Detail: firstLine(err.Error())}
 	}
 	defer owned.close()
 	if err = owned.start(); err != nil {
-		return Detection{}
+		return Detection{Path: path, Reason: "failed", Detail: firstLine(err.Error())}
 	}
 	err = owned.wait(ctx)
 	err = errors.Join(err, owned.close())
-	if err != nil || ctx.Err() != nil || output.truncated {
-		return Detection{}
+	if ctx.Err() != nil {
+		return Detection{Path: path, Reason: "timeout"}
+	}
+	if err != nil || output.truncated {
+		detail := firstLine(strings.ToValidUTF8(output.String(), "\uFFFD"))
+		if detail == "" && err != nil {
+			detail = firstLine(err.Error())
+		}
+		return Detection{Path: path, Reason: "failed", Detail: detail}
 	}
 	return Detection{Available: true, Path: path, Version: strings.TrimSpace(strings.ToValidUTF8(output.String(), "�"))}
 }
@@ -312,6 +353,14 @@ func buildEnvironment(adapter string, source []string, goos string) []string {
 		// The macOS keychain entry that holds the Claude Code login is keyed by USER; without it the CLI reads as logged out.
 		allowed[canonical("USER")] = true
 		allowed[canonical("CLAUDE_CONFIG_DIR")] = true
+		// On Windows Claude Code runs its commands through Git Bash, found here when it is not in the usual place.
+		allowed[canonical("CLAUDE_CODE_GIT_BASH_PATH")] = true
+	}
+	if goos == "windows" {
+		// The system folders Node, npm shims and the CLIs read on Windows; none of them carries a secret.
+		for _, name := range []string{"APPDATA", "LOCALAPPDATA", "PROGRAMDATA", "ALLUSERSPROFILE", "PUBLIC", "PROGRAMFILES", "PROGRAMFILES(X86)", "PROGRAMW6432", "COMMONPROGRAMFILES", "COMMONPROGRAMFILES(X86)", "SYSTEMDRIVE", "HOMEDRIVE", "HOMEPATH", "USERNAME", "USERDOMAIN", "COMPUTERNAME", "OS", "PROCESSOR_ARCHITECTURE", "NUMBER_OF_PROCESSORS"} {
+			allowed[name] = true
+		}
 	}
 	env := make([]string, 0, len(allowed)+1)
 	positions := make(map[string]int)
@@ -335,4 +384,17 @@ func buildEnvironment(adapter string, source []string, goos string) []string {
 		env = append(env, "OPENCODE_DISABLE_AUTOUPDATE=1", "OPENCODE_DISABLE_LSP_DOWNLOAD=1", "OPENCODE_DISABLE_MODELS_FETCH=1")
 	}
 	return append(env, "NO_COLOR=1")
+}
+
+// firstLine keeps the first non-empty line of a CLI's message, short enough for a status line.
+func firstLine(text string) string {
+	for _, line := range strings.Split(text, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			if len(line) > 240 {
+				line = strings.ToValidUTF8(line[:240], "") + "…"
+			}
+			return line
+		}
+	}
+	return ""
 }

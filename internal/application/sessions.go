@@ -60,6 +60,7 @@ func (s *Service) ListBackends() []BackendDTO {
 		if adapter != nil {
 			detected := adapter.Detect()
 			item.Available = detected.Available
+			item.UnavailableReason, item.UnavailableDetail = detected.Reason, detected.Detail
 			item.ProfessionalAvailable = codexDocumentContractAvailable(adapter, detected)
 			item.Capabilities = adapter.Capabilities()
 		}

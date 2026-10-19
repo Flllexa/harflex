@@ -175,7 +175,8 @@ const authoringCodeRunPatchPage = z.strictObject({
     : value.sourceReadbackStatus === 'unchecked'
   return contentBytes <= 256 * 1024 && readbackStatusMatchesCursor && value.baselineHash === value.sourceManifestHash && (next === null ? end === value.totalBytes : next === end && next < value.totalBytes)
 }, { message: 'Patch page cursor does not match its content' })
-const backend = z.object({ id: z.string().min(1), name: z.string(), kind: z.enum(['api', 'cli']), available: z.boolean(), professionalAvailable: z.boolean().optional() })
+const backend = z.object({ id: z.string().min(1), name: z.string(), kind: z.enum(['api', 'cli']), available: z.boolean(), professionalAvailable: z.boolean().optional(),
+  unavailableReason: z.string().max(32).optional(), unavailableDetail: z.string().max(400).optional() })
 const credentialProbe = z.object({ status: z.enum(['ready', 'unconfigured', 'degraded', 'unavailable']), checked: z.number().int().nonnegative(), missing: z.number().int().nonnegative() })
 const session = z.object({ id: z.string().min(1), workspaceId: z.string().min(1), backendId: z.string().min(1), status: z.string().min(1),
   purpose: z.enum(['chat', 'preparation', 'code', 'evaluation']).optional(), title: z.string().max(400).optional(),

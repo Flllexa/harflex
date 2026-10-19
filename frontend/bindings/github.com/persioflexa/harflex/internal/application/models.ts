@@ -325,6 +325,12 @@ export interface BackendDTO {
     "available": boolean;
     "professionalAvailable"?: boolean;
     "capabilities": agentcore$0.Capabilities;
+
+    /**
+     * UnavailableReason says why a CLI is unavailable (not_found, failed, timeout), with the CLI's own message.
+     */
+    "unavailableReason"?: string;
+    "unavailableDetail"?: string;
 }
 
 export interface BrainstormAttemptDTO {
