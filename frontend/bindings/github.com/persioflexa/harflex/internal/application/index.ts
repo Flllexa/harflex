@@ -90,6 +90,7 @@ export type {
     KnowledgeSearchDTO,
     ListBrainstormingInput,
     ListChatProjectsInput,
+    ListEventsBeforeInput,
     ListEventsInput,
     ListLogEventsInput,
     ListRunningSessionsInput,

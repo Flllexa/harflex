@@ -427,6 +427,14 @@ export function ListEvents($in: $models.ListEventsInput): $CancellablePromise<$m
     return $Call.ByID(3802611200, $in);
 }
 
+/**
+ * ListEventsBefore reads a conversation from its end, a few turns at a time, so a long chat opens on its last turns
+ * and loads older ones as the person scrolls up. Each page starts at a person's message.
+ */
+export function ListEventsBefore($in: $models.ListEventsBeforeInput): $CancellablePromise<$models.EventDTO[] | null> {
+    return $Call.ByID(485789115, $in);
+}
+
 export function ListKnowledge(workspaceID: string): $CancellablePromise<$models.KnowledgeDocumentDTO[] | null> {
     return $Call.ByID(87882247, workspaceID);
 }

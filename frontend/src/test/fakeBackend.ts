@@ -279,6 +279,12 @@ export function createFakeBackend() {
     },
     cancel: async () => undefined,
     listEvents: async (_session, after) => journal.filter(event => event.sequence > after),
+    listEventsBefore: async (_session, before, turns) => {
+      const end = before > 0 ? before : Number.MAX_SAFE_INTEGER
+      const starts = journal.filter(event => event.type === 'message.user' && event.sequence < end).map(event => event.sequence)
+      const start = starts.length > turns ? starts[starts.length - turns] : 1
+      return journal.filter(event => event.sequence >= start && event.sequence < end)
+    },
     onEvent: listener => { listeners.add(listener); return () => listeners.delete(listener) },
   }
   return { backend, journal, pendingApproval: () => pendingApproval, respondReadOnly }

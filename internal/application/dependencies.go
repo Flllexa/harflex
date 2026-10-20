@@ -18,6 +18,7 @@ import (
 type Store interface {
 	agentcore.Journal
 	ListAfterLimit(context.Context, string, int64, int) ([]events.Event, error)
+	ListTurnsBefore(context.Context, string, int64, int) ([]events.Event, error)
 	WalkAfter(context.Context, string, int64, int, int, func(events.Event) error) error
 	StreamDataBytes(context.Context, string) (int64, error)
 	RepairInterruptedRun(context.Context, string, events.RecoveryRequest) ([]events.Event, error)
@@ -115,6 +116,7 @@ type Store interface {
 	GetPipelineStageSkipReason(context.Context, string, sdd.Stage) (string, error)
 	LinkPipelineSession(context.Context, catalog.PipelineSession) error
 	ListPipelineSessions(context.Context, string, string) ([]catalog.PipelineSession, error)
+	ListPipelineSessionHeads(context.Context, string, string) ([]catalog.PipelineSessionHead, error)
 	GetPipelineIDForSession(context.Context, string) (string, error)
 	GetPipelineIDForPRSession(context.Context, string) (string, error)
 	SetPipelineCoordinator(ctx context.Context, pipelineID, sessionID string) error

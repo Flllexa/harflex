@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { invalidEventDiagnostic, type AgentEvent } from './backend'
-import { checkReplayOutcome, replaySession } from './replay'
+import { checkReplayOutcome, historyTurns, loadOlderTurns, replaySession } from './replay'
 import { createSessionStore } from '../state/session'
 import { createFakeBackend, sessionMetadata } from '../test/fakeBackend'
 
@@ -101,7 +101,9 @@ describe('bounded session replay', () => {
   it('aborts an outstanding page and ignores its late response after cleanup', async () => {
     const { backend, store, controller } = setup()
     let resolve: (events: AgentEvent[]) => void = () => undefined
-    backend.listEvents = vi.fn(() => new Promise<AgentEvent[]>(complete => { resolve = complete }))
+    // A conversation opening now reads its last turns first: that is the request in flight.
+    backend.listEventsBefore = vi.fn(() => new Promise<AgentEvent[]>(complete => { resolve = complete }))
+    backend.listEvents = vi.fn(async () => [])
     const updates = vi.fn()
     store.subscribe(updates)
     const replay = replaySession(backend, store, controller.signal)
@@ -111,7 +113,8 @@ describe('bounded session replay', () => {
     resolve([event(1)])
     await Promise.resolve()
     expect(updates).not.toHaveBeenCalled()
-    expect(backend.listEvents).toHaveBeenCalledTimes(1)
+    expect(backend.listEventsBefore).toHaveBeenCalledTimes(1)
+    expect(backend.listEvents).not.toHaveBeenCalled()
   })
 
   it('times out a stalled page instead of leaving a call pending indefinitely', async () => {
@@ -121,5 +124,44 @@ describe('bounded session replay', () => {
     const failure = expect(replaySession(backend, store, controller.signal)).rejects.toThrow('Não foi possível atualizar')
     await vi.advanceTimersByTimeAsync(30_000)
     await failure
+  })
+})
+
+describe('a long conversation opens on its last turns', () => {
+  const turn = (index: number): AgentEvent[] => ['message.user', 'run.started', 'run.completed'].map((type, offset) => ({ ...event(index * 3 + offset + 1), type, data: type === 'message.user' ? { content: `pedido ${index}` } : {} }))
+  const journal = Array.from({ length: historyTurns + 5 }, (_, index) => turn(index)).flat()
+  const before = vi.fn(async (_id: string, beforeSequence: number, turns: number) => {
+    const end = beforeSequence > 0 ? beforeSequence : Number.MAX_SAFE_INTEGER
+    const starts = journal.filter(item => item.type === 'message.user' && item.sequence < end).map(item => item.sequence)
+    const start = starts.length > turns ? starts[starts.length - turns] : 1
+    return journal.filter(item => item.sequence >= start && item.sequence < end)
+  })
+
+  it('reads only the last turns, then catches up from there', async () => {
+    const { backend, store, controller } = setup()
+    backend.listEventsBefore = before
+    backend.listEvents = vi.fn(async (_id, after) => journal.filter(item => item.sequence > after))
+    await replaySession(backend, store, controller.signal)
+    const state = store.getState()
+    expect(state.windowStart).toBe(5 * 3 + 1)
+    expect(state.hasOlder).toBe(true)
+    expect(state.contiguousSequence).toBe(journal.length)
+    expect(state.messages.filter(item => item.kind === 'user')).toHaveLength(historyTurns)
+    expect(vi.mocked(backend.listEvents).mock.calls[0]).toEqual(['s1', journal.length, 1000])
+  })
+
+  it('brings older turns in front of the ones on screen', async () => {
+    const { backend, store, controller } = setup()
+    backend.listEventsBefore = before
+    backend.listEvents = vi.fn(async (_id, after) => journal.filter(item => item.sequence > after))
+    await replaySession(backend, store, controller.signal)
+    await loadOlderTurns(backend, store)
+    const state = store.getState()
+    expect(state.windowStart).toBe(1)
+    expect(state.hasOlder).toBe(false)
+    const users = state.messages.filter(item => item.kind === 'user')
+    expect(users).toHaveLength(historyTurns + 5)
+    expect(users[0]).toMatchObject({ text: 'pedido 0' })
+    expect(state.contiguousSequence).toBe(journal.length)
   })
 })

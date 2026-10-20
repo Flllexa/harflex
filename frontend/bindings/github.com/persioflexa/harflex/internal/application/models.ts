@@ -830,6 +830,15 @@ export interface ListChatProjectsInput {
     "perProject": number;
 }
 
+/**
+ * ListEventsBeforeInput asks for a conversation's last turns before a sequence (0: the end).
+ */
+export interface ListEventsBeforeInput {
+    "sessionId": string;
+    "beforeSequence": number;
+    "turns": number;
+}
+
 export interface ListEventsInput {
     "sessionId": string;
     "afterSequence": number;

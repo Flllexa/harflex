@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { ChevronLeft, Info, Lock, Pause, RefreshCw } from 'lucide-react'
 import { runIsLive, type SessionState } from '../../state/session'
 import { ChatComposer, type ComposerAttachment } from '../../components/ChatComposer'
@@ -82,7 +82,9 @@ function UserText({ text }: { text: string }) {
 }
 
 type Props = {
-  state: Pick<SessionState, 'messages' | 'pendingApprovals' | 'activeRun' | 'outcome' | 'calling' | 'error' | 'draft' | 'connectionState' | 'readOnly'> & { events?: SessionState['events'] }
+  state: Pick<SessionState, 'messages' | 'pendingApprovals' | 'activeRun' | 'outcome' | 'calling' | 'error' | 'draft' | 'connectionState' | 'readOnly'> & { events?: SessionState['events']; hasOlder?: boolean }
+  /** Reads the turns before the first one on screen (a long conversation opens on its last turns). */
+  onLoadOlder?: () => Promise<void>
   onDraft: (text: string) => void
   onPrompt: (text: string) => void
   onResolve: (approvalId: string, allow: boolean) => void
@@ -129,7 +131,7 @@ type Props = {
 }
 
 
-export function ConversationPane({ sessionKey, state, loadingHistory, permissionControl, contextUse, onCompact, queued = [], onQueue, onUnqueue, attachments = [], onAttach, onRemoveAttachment, attachError, viewMode, cancelPending = false, delegationParentId, delegation, queuedTask, onPrepareDelegatedTask, onOpenParent, onDraft, onPrompt, onResolve, onCancel, onRetry, onNewWork, onContinue, onPipelineChoice, commands, backendLabel, modelBar, switchModel, projectControl }: Props) {
+export function ConversationPane({ sessionKey, state, loadingHistory, permissionControl, contextUse, onCompact, queued = [], onQueue, onUnqueue, attachments = [], onAttach, onRemoveAttachment, attachError, viewMode, cancelPending = false, delegationParentId, delegation, queuedTask, onPrepareDelegatedTask, onOpenParent, onDraft, onPrompt, onResolve, onCancel, onRetry, onNewWork, onContinue, onPipelineChoice, onLoadOlder, commands, backendLabel, modelBar, switchModel, projectControl }: Props) {
   const t = useT()
   const draft = state.draft
   const running = state.activeRun === 'running'
@@ -162,14 +164,44 @@ export function ConversationPane({ sessionKey, state, loadingHistory, permission
   const composer = useRef<HTMLTextAreaElement>(null)
   // Follow the newest message only while the reader is at the bottom; scrolling up pauses it.
   const following = useRef(true)
+  // Older turns come in at the top; the reader stays on the message they were reading.
+  const [loadingOlder, setLoadingOlder] = useState(false)
+  const fromBottom = useRef<number | null>(null)
+  const canLoadOlder = !!state.hasOlder && !!onLoadOlder && !loadingHistory
+  function loadOlder() {
+    if (!canLoadOlder || loadingOlder || !onLoadOlder) return
+    const element = log.current
+    fromBottom.current = element ? element.scrollHeight - element.scrollTop : null
+    setLoadingOlder(true)
+    void onLoadOlder().finally(() => setLoadingOlder(false))
+  }
   useLayoutEffect(() => {
     const element = log.current
     if (state.messages.length === 0) following.current = true
+    if (element && fromBottom.current !== null && !following.current) {
+      element.scrollTop = element.scrollHeight - fromBottom.current
+      fromBottom.current = null
+      return
+    }
+    fromBottom.current = null
     if (element && following.current) element.scrollTop = element.scrollHeight
   }, [state.messages, loadingHistory])
+  // The last turns fit on screen, so there is nothing to scroll: the older ones come in by themselves, once for each
+  // new length of the conversation (a page that brings nothing new does not ask again).
+  const autoLoadedAt = useRef(-1)
+  useEffect(() => {
+    const element = log.current
+    if (!canLoadOlder || loadingOlder || autoLoadedAt.current === state.messages.length) return
+    if (!element || element.scrollHeight <= element.clientHeight) {
+      autoLoadedAt.current = state.messages.length
+      loadOlder()
+    }
+  })
   function trackScroll() {
     const element = log.current
-    if (element) following.current = element.scrollHeight - element.scrollTop - element.clientHeight < 64
+    if (!element) return
+    following.current = element.scrollHeight - element.scrollTop - element.clientHeight < 64
+    if (element.scrollTop < 160) loadOlder()
   }
   function submit(event?: FormEvent) {
     event?.preventDefault()
@@ -185,6 +217,7 @@ export function ConversationPane({ sessionKey, state, loadingHistory, permission
     {messages.length === 0
       ? <div className="empty-state conversation-enter"><p>{viewMode === 'casual' ? t('Nova conversa') : t('Nenhuma conversa iniciada')}</p>{viewMode !== 'casual' && <span className="muted">{t('O trabalho começa com uma conversa.')}</span>}</div>
       : <CommandRunnerContext.Provider value={commands}><ol ref={log} key={changingChat ? shown.current.key : sessionKey} className={`conversation-log${leaving ? ' is-switching' : ' conversation-enter'}`} aria-label={t('Conversa')} aria-busy={leaving || undefined} onScroll={trackScroll}>
+        {canLoadOlder && <li className="turn history-older">{loadingOlder ? <span className="muted" role="status">{t('Carregando mensagens anteriores…')}</span> : <button type="button" className="touch-target text-button" onClick={loadOlder}>{t('Ver mensagens anteriores')}</button>}</li>}
         {messages.map((item, index) => {
           const reply = item.kind === 'assistant' ? splitPipelineChoice(item.text) : undefined
           // The choice is open only while nothing came after it: once the person answers, the answer is in the conversation.

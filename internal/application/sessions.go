@@ -1024,6 +1024,32 @@ func (s *Service) ListEvents(in ListEventsInput) ([]EventDTO, error) {
 	}
 	return result, nil
 }
+// ListEventsBefore reads a conversation from its end, a few turns at a time, so a long chat opens on its last turns
+// and loads older ones as the person scrolls up. Each page starts at a person's message.
+func (s *Service) ListEventsBefore(in ListEventsBeforeInput) ([]EventDTO, error) {
+	if err := s.beginCall(); err != nil {
+		return nil, err
+	}
+	defer s.endCall()
+	if in.BeforeSequence < 0 || in.Turns <= 0 || in.Turns > 200 {
+		return nil, ErrInvalidInput
+	}
+	if _, err := s.store.GetSession(s.ctx, in.SessionID); errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrSessionNotFound
+	} else if err != nil {
+		return nil, safe("get session", err)
+	}
+	items, err := s.store.ListTurnsBefore(s.ctx, in.SessionID, in.BeforeSequence, in.Turns)
+	if err != nil {
+		return nil, safe("list events", err)
+	}
+	result := make([]EventDTO, len(items))
+	for i, item := range items {
+		result[i] = eventDTO(item)
+	}
+	return result, nil
+}
+
 func (s *Service) ExportAudit(in ExportAuditInput) (string, error) {
 	if err := s.beginCall(); err != nil {
 		return "", err

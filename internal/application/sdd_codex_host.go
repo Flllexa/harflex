@@ -61,6 +61,17 @@ func (s *Service) codexHostModeSupported(backendID, mode string) bool {
 	return codexDocumentContractAvailable(adapter, adapter.Detect())
 }
 
+// codexHostModeSupportedBy is codexHostModeSupported with a detection already made.
+func codexHostModeSupportedBy(adapter ExternalBackend, backendID, mode string, detected externalagent.Detection) bool {
+	if !documentCLI(backendID) || (mode != "sdd_code" && mode != "evaluation") {
+		return false
+	}
+	if _, ok := adapter.(externalagent.DocumentGenerator); !ok {
+		return false
+	}
+	return codexDocumentContractAvailable(adapter, detected)
+}
+
 func isCodexHostSession(record catalog.SessionRecord) bool {
 	return documentCLI(record.BackendID) && (record.Mode == "sdd_code" || record.Mode == "evaluation") && strings.HasPrefix(record.BackendRevision, hostRevisionPrefix(record.BackendID))
 }

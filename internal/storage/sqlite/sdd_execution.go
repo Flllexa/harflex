@@ -46,6 +46,29 @@ func (s *Store) LinkPipelineSession(ctx context.Context, link catalog.PipelineSe
 	return nil
 }
 
+// ListPipelineSessionHeads lists a pipeline's links of one role, newest first, without decoding their baselines and
+// snapshots.
+func (s *Store) ListPipelineSessionHeads(ctx context.Context, pipelineID, role string) ([]catalog.PipelineSessionHead, error) {
+	rows, err := s.read().QueryContext(ctx, "SELECT id, session_id, role, execution_snapshot <> '', created_at FROM pipeline_sessions WHERE pipeline_id = ? AND role = ? ORDER BY created_at DESC, rowid DESC", pipelineID, role)
+	if err != nil {
+		return nil, fmt.Errorf("list pipeline session heads: %w", err)
+	}
+	defer rows.Close()
+	result := make([]catalog.PipelineSessionHead, 0)
+	for rows.Next() {
+		var head catalog.PipelineSessionHead
+		var created string
+		if err := rows.Scan(&head.ID, &head.SessionID, &head.Role, &head.HasExecutionSnapshot, &created); err != nil {
+			return nil, fmt.Errorf("scan pipeline session head: %w", err)
+		}
+		if head.CreatedAt, err = time.Parse(time.RFC3339Nano, created); err != nil {
+			return nil, fmt.Errorf("parse pipeline session time: %w", err)
+		}
+		result = append(result, head)
+	}
+	return result, rows.Err()
+}
+
 func (s *Store) ListPipelineSessions(ctx context.Context, pipelineID, role string) ([]catalog.PipelineSession, error) {
 	rows, err := s.db.QueryContext(ctx, "SELECT id, pipeline_id, session_id, role, baseline_git_hash, baseline_git_files, baseline_git_file_hashes, execution_snapshot, execution_applied_at, evaluation_criteria, created_at FROM pipeline_sessions WHERE pipeline_id = ? AND role = ? ORDER BY created_at DESC, rowid DESC", pipelineID, role)
 	if err != nil {

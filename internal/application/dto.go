@@ -631,6 +631,13 @@ type ListEventsInput struct {
 	AfterSequence int64  `json:"afterSequence"`
 	Limit         int    `json:"limit"`
 }
+
+// ListEventsBeforeInput asks for a conversation's last turns before a sequence (0: the end).
+type ListEventsBeforeInput struct {
+	SessionID      string `json:"sessionId"`
+	BeforeSequence int64  `json:"beforeSequence"`
+	Turns          int    `json:"turns"`
+}
 type ExportAuditInput struct {
 	SessionID   string `json:"sessionId"`
 	Destination string `json:"destination"`

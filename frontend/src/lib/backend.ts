@@ -612,6 +612,8 @@ export interface Backend {
   approve(sessionId: string, approvalId: string, allow: boolean): Promise<RunResult>
   cancel(sessionId: string): Promise<void>
   listEvents(sessionId: string, afterSequence: number, limit?: number): Promise<AgentEvent[]>
+  /** The last turns before a sequence (0: the end), oldest first; each page starts at a person's message. */
+  listEventsBefore(sessionId: string, beforeSequence: number, turns: number): Promise<AgentEvent[]>
   onEvent(listener: (event: AgentEvent) => void): () => void
 }
 

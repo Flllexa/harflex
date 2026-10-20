@@ -262,6 +262,7 @@ export const wailsBackend: Backend = {
   approve: async (sessionId, approvalId, allow) => parse.runResult(await Service.Approve({ sessionId, approvalId, allow })),
   cancel: async sessionId => { await Service.Cancel(sessionId) },
   listEvents: async (sessionId, afterSequence, limit = 1000) => parse.events(await Service.ListEvents({ sessionId, afterSequence, limit })),
+  listEventsBefore: async (sessionId, beforeSequence, turns) => parse.events(await Service.ListEventsBefore({ sessionId, beforeSequence, turns })),
   onEvent: listener => Events.On('harflex:event', event => {
     const parsed = parse.safeEvent(event.data)
     if (parsed) listener(parsed)

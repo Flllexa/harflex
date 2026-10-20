@@ -5,6 +5,8 @@ import { t } from '../i18n'
 export const replayErrorMessage = 'Não foi possível atualizar os eventos. Tente novamente.'
 const pageSize = 1000
 const maxPages = 100
+/** Turns a conversation opens on, and turns read each time the person scrolls to the top. */
+export const historyTurns = 5
 
 export type ReplayExpectation = { after: number; approval: boolean }
 
@@ -19,19 +21,31 @@ export function checkReplayOutcome(state: SessionState, expected?: ReplayExpecta
   throw new Error(t(replayErrorMessage))
 }
 
-function readPage(backend: Backend, sessionId: string, after: number, signal: AbortSignal): Promise<AgentEvent[]> {
+function abortable<T>(request: Promise<T>, signal: AbortSignal): Promise<T> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) { reject(signal.reason); return }
     const aborted = () => reject(signal.reason)
     signal.addEventListener('abort', aborted, { once: true })
-    backend.listEvents(sessionId, after, pageSize).then(resolve, reject)
-      .finally(() => signal.removeEventListener('abort', aborted))
+    request.then(resolve, reject).finally(() => signal.removeEventListener('abort', aborted))
   })
 }
 
-/** Bounded catch-up, retaining the journal and projecting once per batch of pages.
- * Full journal retention remains intentional; incremental projection/virtualization
- * is a future optimization, never a truncation of audit evidence.
+function readPage(backend: Backend, sessionId: string, after: number, signal: AbortSignal): Promise<AgentEvent[]> {
+  if (signal.aborted) return Promise.reject(signal.reason)
+  return abortable(backend.listEvents(sessionId, after, pageSize), signal)
+}
+
+/** Reads the turns before the first one on screen and puts them in front. */
+export async function loadOlderTurns(backend: Backend, store: SessionStore) {
+  const { session, windowStart, hasOlder } = store.getState()
+  if (!session || !hasOlder) return
+  const older = await backend.listEventsBefore(session.id, windowStart, historyTurns)
+  if (store.getState().session?.id !== session.id || store.getState().windowStart !== windowStart) return
+  store.getState().receiveOlder(older)
+}
+
+/** Bounded catch-up, projecting once per batch of pages. A conversation opened now starts at its last turns; the
+ * journal stays whole in the catalog, and older turns load on demand (loadOlderTurns).
  */
 export async function replaySession(backend: Backend, store: SessionStore, signal: AbortSignal) {
   const { session, contiguousSequence } = store.getState()
@@ -44,6 +58,14 @@ export async function replaySession(backend: Backend, store: SessionStore, signa
   let after = contiguousSequence
   let finished = false
   try {
+    // A conversation opened now starts at its last turns; the older ones load as the person scrolls up.
+    if (after === 0 && store.getState().windowStart === 0) {
+      const tail = await abortable(backend.listEventsBefore(session.id, 0, historyTurns), deadline.signal)
+      if (signal.aborted || store.getState().session?.id !== session.id) return
+      if (tail.some(event => event.streamId !== session.id)) throw new Error(t(replayErrorMessage))
+      store.getState().openWindow(tail)
+      after = store.getState().contiguousSequence
+    }
     for (let pageNumber = 0; pageNumber < maxPages; pageNumber++) {
       const page = await readPage(backend, session.id, after, deadline.signal)
       if (signal.aborted || store.getState().session?.id !== session.id) return

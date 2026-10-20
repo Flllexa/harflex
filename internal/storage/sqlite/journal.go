@@ -2,8 +2,11 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/persioflexa/harflex/internal/events"
@@ -75,6 +78,25 @@ func (s *Store) ListAfterLimit(ctx context.Context, streamID string, sequence in
 		return nil, fmt.Errorf("list journal events: limit must be between 1 and 1000")
 	}
 	return s.listEvents(ctx, "SELECT id, stream_id, sequence, type, data, created_at FROM events WHERE stream_id = ? AND sequence > ? ORDER BY sequence ASC LIMIT ?", streamID, sequence, limit)
+}
+
+// ListTurnsBefore returns the last turns of a stream before a sequence (0 means the end), oldest first. A turn starts
+// at a person's message, so a page never cuts a reply or a tool call in half.
+func (s *Store) ListTurnsBefore(ctx context.Context, streamID string, before int64, turns int) ([]events.Event, error) {
+	if turns <= 0 || turns > 200 {
+		return nil, fmt.Errorf("list journal turns: turns must be between 1 and 200")
+	}
+	if before <= 0 {
+		before = math.MaxInt64
+	}
+	var start int64 = 1
+	err := s.read().QueryRowContext(ctx, "SELECT sequence FROM events WHERE stream_id = ? AND type = 'message.user' AND sequence < ? ORDER BY sequence DESC LIMIT 1 OFFSET ?", streamID, before, turns-1).Scan(&start)
+	if errors.Is(err, sql.ErrNoRows) {
+		start = 1
+	} else if err != nil {
+		return nil, fmt.Errorf("find journal turn: %w", err)
+	}
+	return s.listEvents(ctx, "SELECT id, stream_id, sequence, type, data, created_at FROM events WHERE stream_id = ? AND sequence >= ? AND sequence < ? ORDER BY sequence ASC", streamID, start, before)
 }
 
 func (s *Store) listEvents(ctx context.Context, query string, args ...any) ([]events.Event, error) {

@@ -126,6 +126,20 @@ func (s *Service) sessionContinuation(record catalog.SessionRecord) (resumable, 
 	return s.sessionContinuationCached(record, nil)
 }
 
+// detectOnce runs a CLI's detection (it starts the CLI) once per listing: every conversation on that CLI shares it.
+func (s *Service) detectOnce(backendID string, adapter ExternalBackend, cache map[string]cliContinuationSnapshot) externalagent.Detection {
+	if cache == nil {
+		return adapter.Detect()
+	}
+	key := "detect\x00" + backendID
+	if snapshot, found := cache[key]; found {
+		return snapshot.detected
+	}
+	detected := adapter.Detect()
+	cache[key] = cliContinuationSnapshot{detected: detected}
+	return detected
+}
+
 func (s *Service) sessionContinuationCached(record catalog.SessionRecord, cache map[string]cliContinuationSnapshot) (resumable, used bool, err error) {
 	if record.Status == "history_too_large" {
 		return false, false, ErrHistoryTooLarge
@@ -144,7 +158,7 @@ func (s *Service) sessionContinuationCached(record catalog.SessionRecord, cache 
 		}
 	}
 	if pipelineID, pipelineErr := s.store.GetPipelineIDForSession(s.ctx, record.ID); pipelineErr == nil {
-		links, err := s.store.ListPipelineSessions(s.ctx, pipelineID, "coder")
+		links, err := s.store.ListPipelineSessionHeads(s.ctx, pipelineID, "coder")
 		if err != nil {
 			return false, false, safe("read linked Code session", err)
 		}
@@ -152,7 +166,7 @@ func (s *Service) sessionContinuationCached(record catalog.SessionRecord, cache 
 			if link.SessionID != record.ID {
 				continue
 			}
-			if len(link.ExecutionSnapshot) == 0 {
+			if !link.HasExecutionSnapshot {
 				// Older Code sessions ran in the registered project. Keep their
 				// journal readable after upgrade, but never resume their tools.
 				return false, true, externalagent.ErrNotResumable
@@ -192,7 +206,7 @@ func (s *Service) sessionContinuationCached(record catalog.SessionRecord, cache 
 			return false, false, ErrBackendNotFound
 		}
 		hostSession := isCodexHostSession(record)
-		if hostSession && !s.codexHostModeSupported(record.BackendID, record.Mode) {
+		if hostSession && !codexHostModeSupportedBy(adapter, record.BackendID, record.Mode, s.detectOnce(record.BackendID, adapter, cache)) {
 			return false, false, ErrBackendChanged
 		}
 		if record.BackendRevision != "" && record.BackendRevision != "cli:"+adapter.ID() && !hostSession {
@@ -208,7 +222,7 @@ func (s *Service) sessionContinuationCached(record catalog.SessionRecord, cache 
 			key := record.BackendID + "\x00" + workspace.Path
 			snapshot, found := cache[key]
 			if !found {
-				snapshot.detected = adapter.Detect()
+				snapshot.detected = s.detectOnce(record.BackendID, adapter, cache)
 				snapshot.revision, snapshot.err = cliCatalogRevision(record.BackendID, snapshot.detected.Path, snapshot.detected.Version, workspace.Path)
 				if cache != nil {
 					cache[key] = snapshot
@@ -255,7 +269,7 @@ func (s *Service) sessionContinuationCached(record catalog.SessionRecord, cache 
 			if used {
 				return false, true, externalagent.ErrNotResumable
 			}
-			if selectedDetection == nil && !adapter.Detect().Available {
+			if selectedDetection == nil && !s.detectOnce(record.BackendID, adapter, cache).Available {
 				return false, false, ErrBackendNotFound
 			}
 			return false, false, nil
@@ -264,12 +278,12 @@ func (s *Service) sessionContinuationCached(record catalog.SessionRecord, cache 
 			return false, true, externalagent.ErrNotResumable
 		}
 		if record.BackendID == "codex" && bound == "" {
-			if selectedDetection == nil && !adapter.Detect().Available {
+			if selectedDetection == nil && !s.detectOnce(record.BackendID, adapter, cache).Available {
 				return false, false, ErrBackendNotFound
 			}
 			return false, false, nil
 		}
-		if selectedDetection == nil && !adapter.Detect().Available {
+		if selectedDetection == nil && !s.detectOnce(record.BackendID, adapter, cache).Available {
 			return false, used, ErrBackendNotFound
 		}
 		return true, used, nil

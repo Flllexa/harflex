@@ -196,6 +196,10 @@ export type SessionState = Projection & {
   readOnly: boolean
   events: AgentEvent[]
   contiguousSequence: number
+  /** The first sequence on screen: a long conversation opens on its last turns (0: nothing read yet, 1: from the start). */
+  windowStart: number
+  /** Older turns are still in the journal, read when the person scrolls up. */
+  hasOlder: boolean
   draft: string
   /** A backend call is in flight (Prompt and Approve block while a run executes). */
   calling: boolean
@@ -207,6 +211,10 @@ export type SessionState = Projection & {
   setSession(session: Session, calling?: boolean): void
   updateSession(session: Session): void
   receive(events: AgentEvent[]): void
+  /** Starts the conversation at the last turns read from the journal. */
+  openWindow(events: AgentEvent[]): void
+  /** Puts older turns in front of the ones on screen. */
+  receiveOlder(events: AgentEvent[]): void
   setDraft(draft: string): void
   finishCall(result?: RunResult, error?: string): void
   startCall(): void
@@ -244,17 +252,42 @@ export function createSessionStore() {
     backends: [],
     events: [],
     contiguousSequence: 0,
+    windowStart: 0,
+    hasOlder: false,
     draft: '',
     calling: false,
     readOnly: false,
     setConnection: (connectionState, backends) => set(backends ? { connectionState, backends } : { connectionState }),
     addBackend: backend => set(state => ({ backends: [...state.backends.filter(item => item.id !== backend.id), backend].sort((a, b) => a.id.localeCompare(b.id)) })),
-    setWorkspace: workspace => set({ workspace, session: undefined, events: [], contiguousSequence: 0, draft: '', calling: false, readOnly: false, ...emptyProjection, error: undefined }),
-    setSession: (session, calling = false) => set({ session, readOnly: sessionReadOnly(session, get().backends), events: [], contiguousSequence: 0, draft: '', calling, ...emptyProjection, error: undefined }),
+    setWorkspace: workspace => set({ workspace, session: undefined, events: [], contiguousSequence: 0, windowStart: 0, hasOlder: false, draft: '', calling: false, readOnly: false, ...emptyProjection, error: undefined }),
+    setSession: (session, calling = false) => set({ session, readOnly: sessionReadOnly(session, get().backends), events: [], contiguousSequence: 0, windowStart: 0, hasOlder: false, draft: '', calling, ...emptyProjection, error: undefined }),
     updateSession: session => { if (get().session?.id === session.id) set({ session, readOnly: sessionReadOnly(session, get().backends) }) },
     setDraft: draft => set({ draft }),
+    openWindow: incoming => {
+      const { session } = get()
+      if (!session) return
+      const own = incoming.filter(event => event.streamId === session.id && event.sequence > 0)
+      const windowStart = own.length > 0 ? Math.min(...own.map(event => event.sequence)) : 1
+      set({ windowStart, hasOlder: windowStart > 1 })
+      get().receive(own)
+    },
+    receiveOlder: incoming => {
+      const { session, events, windowStart } = get()
+      if (!session || windowStart <= 1) return
+      const older = incoming.filter(event => event.streamId === session.id && event.sequence > 0 && event.sequence < windowStart)
+      const start = older.length > 0 ? Math.min(...older.map(event => event.sequence)) : 1
+      // Nothing older came back: the conversation is whole from the start.
+      const next = [...older, ...events].sort((a, b) => a.sequence - b.sequence)
+      let contiguousSequence = start - 1
+      for (const event of next) {
+        if (event.streamId !== session.id) continue
+        if (event.sequence === contiguousSequence + 1) contiguousSequence++
+        else if (event.sequence > contiguousSequence) break
+      }
+      set({ windowStart: start, hasOlder: start > 1, events: next, contiguousSequence, ...project(next.filter(event => event.sequence <= contiguousSequence)) })
+    },
     receive: incoming => {
-      const { session, events } = get()
+      const { session, events, windowStart } = get()
       if (!session) return
       const known = new Set(events.map(event => event.id))
       const fresh = incoming.filter(event => {
@@ -265,7 +298,8 @@ export function createSessionStore() {
       })
       if (fresh.length === 0) return
       const next = [...events, ...fresh].sort((a, b) => a.sequence - b.sequence)
-      let contiguousSequence = 0
+      // The journal is contiguous from the first turn on screen; older turns load as the person scrolls up.
+      let contiguousSequence = windowStart > 1 ? windowStart - 1 : 0
       for (const event of next) {
         if (event.streamId !== session.id) continue
         if (event.sequence === contiguousSequence + 1) contiguousSequence++

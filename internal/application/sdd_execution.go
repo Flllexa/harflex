@@ -585,10 +585,14 @@ func (s *Service) pipelineCodeSessionActive(sessionID string) (bool, error) {
 	if run.Current != sdd.Code || run.Status[sdd.Code] != sdd.Active {
 		return false, nil
 	}
-	link, err := s.latestPipelineSession(run.ID, "coder")
+	links, err := s.store.ListPipelineSessionHeads(s.ctx, run.ID, "coder")
 	if err != nil {
-		return false, err
+		return false, safe("list pipeline sessions", err)
 	}
+	if len(links) == 0 {
+		return false, sdd.ErrEvidenceRequired
+	}
+	link := links[0]
 	// A revision asked before this Coder was last brought back no longer holds it closed.
 	return link.SessionID == sessionID && !pipelineArtifactRevisionRequestedSince(run, sdd.Code, sessionID, link.CreatedAt), nil
 }
@@ -604,13 +608,13 @@ func (s *Service) coderMayReturn(sessionID string) (string, bool) {
 	if err != nil || run.Current != sdd.Code && run.Current != sdd.Eval {
 		return "", false
 	}
-	links, err := s.store.ListPipelineSessions(s.ctx, pipelineID, "coder")
+	links, err := s.store.ListPipelineSessionHeads(s.ctx, pipelineID, "coder")
 	if err != nil {
 		return "", false
 	}
 	for _, link := range links {
 		if link.SessionID == sessionID {
-			return pipelineID, len(link.ExecutionSnapshot) > 0
+			return pipelineID, link.HasExecutionSnapshot
 		}
 	}
 	return "", false

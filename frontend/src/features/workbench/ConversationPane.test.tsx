@@ -186,3 +186,21 @@ it('shows the context gauge beside the model and compacts from it', async () => 
   await userEvent.click(screen.getByRole('menuitem', { name: 'Compactar agora' }))
   expect(onCompact).toHaveBeenCalledTimes(1)
 })
+
+// A long conversation opens on its last turns; older ones come in from the top.
+it('loads older turns from the top of a conversation that has more, and never for one that is whole', async () => {
+  const user = userEvent.setup()
+  const messages: ConversationItem[] = [{ kind: 'user', id: 'u1', text: 'Pedido recente' }, { kind: 'assistant', id: 'a1', text: 'Resposta recente', streaming: false }]
+  const value = props()
+  const onLoadOlder = vi.fn(async () => undefined)
+  render(<ConversationPane {...value} state={{ ...value.state, messages, hasOlder: true }} onLoadOlder={onLoadOlder} />)
+  // Nothing to scroll yet (the turns fit on screen): the older ones come in by themselves.
+  await vi.waitFor(() => expect(onLoadOlder).toHaveBeenCalledTimes(1))
+  await user.click(await screen.findByRole('button', { name: 'Ver mensagens anteriores' }))
+  expect(onLoadOlder).toHaveBeenCalledTimes(2)
+  cleanup()
+  const whole = vi.fn(async () => undefined)
+  render(<ConversationPane {...value} state={{ ...value.state, messages, hasOlder: false }} onLoadOlder={whole} />)
+  expect(screen.queryByRole('button', { name: 'Ver mensagens anteriores' })).not.toBeInTheDocument()
+  expect(whole).not.toHaveBeenCalled()
+})

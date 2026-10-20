@@ -52,6 +52,8 @@ func (s *Service) ListChatProjects(in ListChatProjectsInput) ([]ChatProjectDTO, 
 		return nil, safe("list pinned chats", err)
 	}
 	out := make([]ChatProjectDTO, 0, len(workspaces))
+	// One cache for the whole sidebar: each CLI is detected once, not once per project.
+	cache := make(map[string]cliContinuationSnapshot)
 	for _, workspace := range workspaces {
 		if workspace.Archived {
 			continue
@@ -62,7 +64,6 @@ func (s *Service) ListChatProjects(in ListChatProjectsInput) ([]ChatProjectDTO, 
 		}
 		sort.SliceStable(records, func(i, j int) bool { return records[i].UpdatedAt.After(records[j].UpdatedAt) })
 		project := ChatProjectDTO{Workspace: workspaceSummary(workspace.ID, workspace.Path, workspace.Profile, false), Chats: []SessionDTO{}}
-		cache := make(map[string]cliContinuationSnapshot)
 		for _, record := range records {
 			if record.WorkspaceID != workspace.ID || internalSessionModes[record.Mode] || strings.HasPrefix(record.Mode, "sdd_") {
 				continue
