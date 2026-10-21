@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
-import { Activity, Menu, Moon, PanelRightClose, PanelRightOpen, SquareTerminal, Sun } from 'lucide-react'
+import { Activity, Menu, MessageCircle, Moon, PanelRightClose, PanelRightOpen, SquareTerminal, Sun, Workflow } from 'lucide-react'
 import { TerminalPanel } from '../features/terminal/TerminalPanel'
 import { Sidebar, type Destination } from './Sidebar'
 import { CasualSidebar } from './CasualSidebar'
@@ -217,9 +217,9 @@ export function AppShell({ initialActivityOpen, workState = 'empty', backend, re
         <div className="compact-toolbar">
           <button ref={sidebarTrigger} className="touch-target icon-button sidebar-toggle" aria-label={viewMode === 'casual' ? t('Abrir histórico de chats') : t('Abrir navegação')} aria-expanded={sidebarOpen} aria-controls="sidebar" onClick={() => { setActivityOpen(false); setSidebarOpen(true) }}><Menu aria-hidden="true" /></button>
           <span className="toolbar-title">{t(selected)}</span>
-          <div className="top-mode-switch" role="group" aria-label={t('Modo de uso')}>
-            <button type="button" className="touch-target top-mode-option" aria-pressed={viewMode === 'casual'} disabled={workbenchContext.loadingHistory || workbenchContext.startingSession} title={workbenchContext.loadingHistory ? t('Aguarde o carregamento da conversa') : undefined} onClick={() => changeMode('casual')}>Casual</button>
-            <button type="button" className="touch-target top-mode-option" aria-pressed={viewMode === 'professional'} disabled={workbenchContext.loadingHistory || workbenchContext.startingSession} title={workbenchContext.loadingHistory ? t('Aguarde o carregamento da conversa') : undefined} onClick={() => changeMode('professional')}>Professional</button>
+          <div className="top-mode-switch" role="group" aria-label={t('Modo de uso')} data-mode={viewMode}>
+            <button type="button" className="top-mode-option" aria-label="Casual" aria-pressed={viewMode === 'casual'} disabled={workbenchContext.loadingHistory || workbenchContext.startingSession} title={workbenchContext.loadingHistory ? t('Aguarde o carregamento da conversa') : t('Conversa livre, com o histórico de chats')} onClick={() => changeMode('casual')}><MessageCircle aria-hidden="true" /><span className="top-mode-label">Casual</span></button>
+            <button type="button" className="top-mode-option" aria-label="Professional" aria-pressed={viewMode === 'professional'} disabled={workbenchContext.loadingHistory || workbenchContext.startingSession} title={workbenchContext.loadingHistory ? t('Aguarde o carregamento da conversa') : t('SDD, evidências e operação completa')} onClick={() => changeMode('professional')}><Workflow aria-hidden="true" /><span className="top-mode-label">Professional</span></button>
           </div>
           {viewMode === 'casual' && (workbenchContext.session || workbenchContext.loadingHistory) && workbenchContext.session?.purpose !== 'preparation' && currentPipeline?.currentStage && <button type="button" className="touch-target casual-pipeline-link" onClick={() => setSelected('Pipelines')} disabled={workbenchContext.loadingHistory || workbenchContext.startingSession} aria-label={t('Abrir pipeline {title}, fase {stage}', { title: currentPipeline.title, stage: stageNames[currentPipeline.currentStage] })} title={workbenchContext.loadingHistory ? t('Aguarde o carregamento da conversa') : undefined}><span>{currentPipeline.title}</span><strong>{stageNames[currentPipeline.currentStage]}</strong></button>}
           <button type="button" className="touch-target icon-button theme-toggle" aria-label={theme === 'dark' ? t('Mudar para o tema claro') : t('Mudar para o tema escuro')} title={theme === 'dark' ? t('Tema claro') : t('Tema escuro')} onClick={toggleTheme}>{theme === 'dark' ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}</button>

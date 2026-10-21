@@ -78,11 +78,19 @@ h2 { font-size: 14px; font-weight: 650; }
 .work-area, .work-area :is(button, input, textarea, select, [tabindex]), .stage-activity-pane { scroll-margin-block-start: calc(var(--shell-header-size, 150px) + var(--space-3)); }
 .compact-toolbar { display: flex; align-items: center; gap: var(--space-2); min-height: 56px; padding: 0 var(--space-3); border-bottom: 1px solid var(--border); }
 .toolbar-title { font-size: 12px; font-weight: 600; color: var(--muted); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Same corner as the buttons around it ("Novo trabalho"); the options sit one padding inside, so their corner is that much smaller. */
-.top-mode-switch { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--ion-void); }
-.top-mode-option { display: inline-flex; align-items: center; justify-content: center; min-width: 48px; padding-inline: var(--space-2); border-radius: calc(var(--radius-control) - 2px); color: var(--muted); font-size: 11px; font-weight: 600; white-space: nowrap; }
-.top-mode-option[aria-pressed=true] { background: var(--soft-mint); color: var(--mint); }
-.top-mode-option:disabled { opacity: .55; }
+/* A segmented control as tall as the icon buttons beside it: a recessed track and a raised thumb that slides to the
+   chosen mode. The options split the track evenly, so the thumb moves by its own width. */
+.top-mode-switch { position: relative; isolation: isolate; display: inline-grid; grid-template-columns: 1fr 1fr; flex: 0 0 auto; height: 34px; padding: 3px; border-radius: var(--radius-control); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--hairline); }
+.top-mode-switch::before { content: ''; position: absolute; z-index: -1; inset: 3px auto 3px 3px; width: calc(50% - 3px); border-radius: 6px; background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--border), 0 1px 3px #0005; transition: transform 120ms ease-out; }
+.top-mode-switch[data-mode=professional]::before { transform: translateX(100%); }
+.top-mode-option { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; min-height: 0; padding: 0 12px; border-radius: 6px; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .01em; white-space: nowrap; transition: color 120ms ease-out; }
+.top-mode-option svg { flex: none; width: 14px; height: 14px; transition: color 120ms ease-out; }
+.top-mode-option[aria-pressed=true] { color: var(--paper); }
+.top-mode-option[aria-pressed=true] svg { color: var(--mint); }
+.top-mode-option:hover:not(:disabled, [aria-pressed=true]) { color: var(--paper); }
+.top-mode-option:focus-visible { outline: var(--focus-ring); outline-offset: 1px; }
+.top-mode-option:disabled { opacity: .55; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .top-mode-switch::before, .top-mode-option, .top-mode-option svg { transition: none; } }
 .activity-toggle { display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: 0 var(--space-3); border-radius: var(--radius-control); }
 .activity-toggle[aria-expanded=true] { color: var(--cyan); }
 .side-panel-toggle, .theme-toggle { width: 36px; height: 36px; min-height: 36px; color: var(--muted); }
@@ -1018,11 +1026,12 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: var
   .mode-casual .conversation .run-status, .mode-casual .conversation .continuity-note { padding-inline: var(--space-3); }
   .casual-pipeline-link { display: none; }
 }
+/* Narrow screens keep the icons; each option's name stays in its label and title. */
+@media (max-width: 599px) { .top-mode-label { display: none; } .top-mode-switch { height: 36px; } }
 @media (max-width: 359px) {
   .compact-toolbar { gap: 4px; padding-inline: 8px; }
   .toolbar-title, .activity-toggle span { display: none; }
-  .top-mode-switch { gap: 0; padding: 1px; }
-  .top-mode-option { min-width: 44px; padding-inline: 6px; font-size: 10px; }
+  .top-mode-option { padding-inline: 8px; }
   .activity-toggle { gap: 0; padding-inline: 6px; }
 }
 @keyframes activity-enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
