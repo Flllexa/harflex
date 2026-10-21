@@ -15,6 +15,7 @@ import type { AgentEvent, Backend, Pipeline, PipelineStage } from '../lib/backen
 import { readAppMode, writeAppMode, type AppMode } from '../state/appMode'
 import { useTheme } from '../state/theme'
 import { useT } from '../i18n'
+import { useChatWatchers } from './activity/useChatWatchers'
 
 export type AppShellProps = { initialActivityOpen?: boolean; workState?: 'empty' | 'loading'; backend?: Backend; /** Reopen the most recently used project at startup (default). */ restoreProject?: boolean }
 const desktopQuery = '(min-width: 1024px)'
@@ -39,6 +40,8 @@ export function AppShell({ initialActivityOpen, workState = 'empty', backend, re
   const preparingDocuments = selected === 'Pipelines' && currentPipeline?.preparationExperience === 'conversational' && isDesignStage(currentPipeline.currentStage)
   const [newChatPrompt, setNewChatPrompt] = useState('')
   const [workbenchContext, setWorkbenchContext] = useState<WorkbenchContext>({ busy: false, loadingHistory: false, hasDraft: false, historyHasUserMessage: false, readOnly: false, recoveryPrompt: '' })
+  // The watchers chat agents left in this project, in the side panel.
+  const watchers = useChatWatchers(backend, workbenchContext.workspace?.id)
   const [historyRequest, setHistoryRequest] = useState<HistoryOpenRequest>()
   const [projectRequest, setProjectRequest] = useState<ProjectOpenRequest>()
   // The side panel shows the activity or the project's terminal; the shell opens the first time the terminal is shown.
@@ -227,7 +230,7 @@ export function AppShell({ initialActivityOpen, workState = 'empty', backend, re
         </div>
         {viewMode === 'professional' && <PipelineBar pipeline={currentPipeline} activity={stageActivity} coder={coderStatus} viewStage={selected === 'Pipelines' && shownStage ? shownStage : stageViewRequest?.pipelineId===currentPipeline?.id ? stageViewRequest?.stage : undefined} onViewStage={stage => { if (!workbenchContext.startingSession && currentPipeline) { setStageViewRequest({requestId:++stageViewSequence.current,pipelineId:currentPipeline.id,workspaceId:currentPipeline.workspaceId,stage}); setSelected('Pipelines') } }} />}
       </header>
-      {backend ? <Workbench backend={backend} restoreProject={restoreProject} selected={selected} newWorkRequest={newWorkRequest} newChatPrompt={newChatPrompt} viewMode={viewMode} historyOpenRequest={historyRequest} projectOpenRequest={projectRequest} stageViewRequest={stageViewRequest} onNavigate={selectDestination} onActivity={setActivityEvents} onPipeline={setCurrentPipeline} onShownStage={setShownStage} onOpenPipeline={openPipeline} onRequestMode={changeMode} onShowActivity={showActivity} onShowTerminal={showTerminal} onContextChange={reportWorkbenchContext} /> : <WorkArea selected={selected} workState={workState} />}
+      {backend ? <Workbench backend={backend} restoreProject={restoreProject} selected={selected} newWorkRequest={newWorkRequest} newChatPrompt={newChatPrompt} viewMode={viewMode} historyOpenRequest={historyRequest} projectOpenRequest={projectRequest} stageViewRequest={stageViewRequest} onNavigate={selectDestination} onActivity={setActivityEvents} onPipeline={setCurrentPipeline} onShownStage={setShownStage} onOpenPipeline={openPipeline} onRequestMode={changeMode} onShowActivity={showActivity} onShowWatchers={() => { setSidePanel('activity'); setActivityOpen(true) }} onShowTerminal={showTerminal} onContextChange={reportWorkbenchContext} /> : <WorkArea selected={selected} workState={workState} />}
     </div>
     {activityOpen && <div ref={activityContainer} className={`activity-container${!desktop ? ' is-overlay' : ''}`} role={!desktop ? 'dialog' : undefined} aria-modal={!desktop || undefined} aria-labelledby={!desktop ? 'activity-title' : undefined}>
       {desktop && <div className="side-panel-resizer" role="separator" aria-orientation="vertical" aria-label={t('Redimensionar painel lateral')} aria-controls="side-panel" tabIndex={0}
@@ -239,7 +242,7 @@ export function AppShell({ initialActivityOpen, workState = 'empty', backend, re
           <button type="button" role="tab" className="side-panel-tab" aria-selected={sidePanel === 'terminal'} onClick={() => { setSidePanel('terminal'); setTerminalUsed(true) }}><SquareTerminal aria-hidden="true" />Terminal</button>
         </div>
         <div className="side-panel-body">
-          <div className="side-panel-activity" hidden={sidePanel !== 'activity'}><ActivityPanel onClose={closeActivity} events={activityEvents} busy={workbenchContext.busy} running={workbenchContext.running} focusedId={workbenchContext.session?.id} onStop={workbenchContext.stop} onOpenRunning={item => item.role ? openPipeline(item.pipelineId, item.session.workspaceId) : openHistorySession(item.session.id, item.session.workspaceId)} /></div>
+          <div className="side-panel-activity" hidden={sidePanel !== 'activity'}><ActivityPanel watchers={watchers.items} watcherNow={watchers.now} onStopWatcher={id => void watchers.stop(id)} onOpenWatcher={item => openHistorySession(item.sessionId, workbenchContext.workspace?.id ?? '')} onClose={closeActivity} events={activityEvents} busy={workbenchContext.busy} running={workbenchContext.running} focusedId={workbenchContext.session?.id} onStop={workbenchContext.stop} onOpenRunning={item => item.role ? openPipeline(item.pipelineId, item.session.workspaceId) : openHistorySession(item.session.id, item.session.workspaceId)} /></div>
           {backend && terminalUsed && <TerminalPanel backend={backend} workspace={workbenchContext.workspace} onClose={closeActivity} visible={sidePanel === 'terminal'} focusTerminalId={focusTerminal.id} focusRequest={focusTerminal.request} />}
         </div>
       </div>

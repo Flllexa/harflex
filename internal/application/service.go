@@ -95,7 +95,10 @@ type Service struct {
 	platformMCPTokens map[string]string
 	// qaLoops holds the background QA state of each pipeline (QA lab and fix rounds).
 	qaLoopMu sync.Mutex
-	qaLoops  map[string]QALoopDTO
+	// Chat watchers: which checks and deliveries are in flight, so a tick never doubles one.
+	watchMu sync.Mutex
+	watch   *watchState
+	qaLoops map[string]QALoopDTO
 	// qaLoopGen counts the loops of each pipeline: a loop whose number is no longer the latest was stopped.
 	qaLoopGen map[string]uint64
 	// localTestMu serializes starting and undoing local tests: two undos at once would restore from one backup while the

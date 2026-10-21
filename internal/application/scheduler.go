@@ -43,6 +43,22 @@ func (scheduler *Scheduler) run(ctx context.Context) {
 		}
 	}()
 	defer func() { <-watching }()
+	// Chat watchers too: their checks can take up to a minute, so they never hold up the schedules.
+	watchers := make(chan struct{})
+	go func() {
+		defer close(watchers)
+		beat := time.NewTicker(5 * time.Second)
+		defer beat.Stop()
+		for {
+			scheduler.service.tickChatWatchers(time.Now().UTC())
+			select {
+			case <-ctx.Done():
+				return
+			case <-beat.C:
+			}
+		}
+	}()
+	defer func() { <-watchers }()
 	for {
 		if ctx.Err() != nil {
 			return

@@ -256,6 +256,8 @@ export const wailsBackend: Backend = {
   saveChatAttachment: async input => { const saved = await Service.SaveChatAttachment(input); return { path: String(saved?.path ?? '') } },
   compactSession: async sessionId => parse.session(await Service.CompactSession({ sessionId: parse.id(sessionId) })),
   listRunningSessions: async workspaceId => parse.runningSessions(await Service.ListRunningSessions({ workspaceId: parse.id(workspaceId) })),
+  listChatWatchers: async workspaceId => parse.chatWatchers(await Service.ListChatWatchers({ workspaceId: parse.id(workspaceId) })),
+  stopChatWatcher: async watcherId => parse.chatWatcher(await Service.StopChatWatcher(parse.id(watcherId))),
   openSession: async (sessionId, workspaceId) => parse.session(await Service.OpenSession({ sessionId: parse.id(sessionId), workspaceId: parse.id(workspaceId) })),
   exportAudit: async (sessionId, destination) => parse.auditPath(await Service.ExportAudit({ sessionId: parse.id(sessionId), destination: parse.auditPath(destination) })),
   prompt: async (sessionId, text) => parse.runResult(await Service.Prompt({ sessionId, text })),

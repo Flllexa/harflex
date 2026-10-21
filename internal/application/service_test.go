@@ -463,14 +463,14 @@ func TestSessionCompositionAndEventsPersistBeforeEmission(t *testing.T) {
 	if result, err := s.Prompt(PromptInput{SessionID: session.ID, Text: "test prompt"}); err != nil || result.Status != RunCompleted {
 		t.Fatal(result, err)
 	}
-	if v.gets != 1 || p.request.Model != "model" || len(p.request.Tools) != 12 {
+	if v.gets != 1 || p.request.Model != "model" || len(p.request.Tools) != 13 {
 		t.Fatal(v.gets, p.request)
 	}
 	names := []string{}
 	for _, tool := range p.request.Tools {
 		names = append(names, tool.Name)
 	}
-	if !reflect.DeepEqual(names, []string{"bash", "edit", "find", "grep", "harflex_create_pipeline", "harflex_get_pipeline", "harflex_list_pipelines", "knowledge_search", "ls", "read", "update_plan", "write"}) {
+	if !reflect.DeepEqual(names, []string{"bash", "edit", "find", "grep", "harflex_create_pipeline", "harflex_get_pipeline", "harflex_list_pipelines", "harflex_watch", "knowledge_search", "ls", "read", "update_plan", "write"}) {
 		t.Fatal(names)
 	}
 	listed, err := s.ListEvents(ListEventsInput{SessionID: session.ID})

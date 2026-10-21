@@ -46,7 +46,7 @@ func TestAgentSnapshotControlsSessionInstructionsAndToolsAcrossRestart(t *testin
 	for _, tool := range provider.request.Tools {
 		names = append(names, tool.Name)
 	}
-	if strings.Join(names, ",") != "grep,harflex_create_pipeline,harflex_get_pipeline,harflex_list_pipelines,read,update_plan" {
+	if strings.Join(names, ",") != "grep,harflex_create_pipeline,harflex_get_pipeline,harflex_list_pipelines,harflex_watch,read,update_plan" {
 		t.Fatalf("unexpected tools: %+v", provider.request.Tools)
 	}
 	if _, err := s.SaveAgent(SaveAgentInput{ID: agent.ID, Name: "Analista", Description: "Atualizado", Instructions: "INSTRUÇÃO NOVA", BackendID: "local", AllowedTools: []string{"read"}}); err != nil {
@@ -69,7 +69,7 @@ func TestAgentSnapshotControlsSessionInstructionsAndToolsAcrossRestart(t *testin
 	if _, err := s.Prompt(PromptInput{SessionID: session.ID, Text: "Continue"}); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(provider.request.Messages[0].Content, "INSTRUÇÃO NOVA") || len(provider.request.Tools) != 6 {
+	if strings.Contains(provider.request.Messages[0].Content, "INSTRUÇÃO NOVA") || len(provider.request.Tools) != 7 {
 		t.Fatalf("session snapshot changed after edit: %+v %+v", provider.request.Messages, provider.request.Tools)
 	}
 }

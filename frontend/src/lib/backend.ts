@@ -319,6 +319,12 @@ export type PipelineRole = 'coder' | 'evaluator' | 'publisher' | 'tester'
 type ParsedLocalTest = z.infer<typeof pipelineLocalTest>
 export type PipelineLocalTest = Omit<ParsedLocalTest, 'report' | 'conflict'> & Partial<Pick<ParsedLocalTest, 'report' | 'conflict'>>
 export type RunningSession = { session: Session; pipelineId: string; role: '' | PipelineRole }
+const chatWatcher = z.object({ id: z.string().min(1), sessionId: z.string().min(1), chatTitle: z.string(), title: z.string(), command: z.string(), intervalSeconds: z.number().int().nonnegative(),
+  status: z.enum(['watching', 'fired', 'expired', 'failed', 'stopped']), reason: z.string(), lastOutput: z.string(), lastExitCode: z.number().int(), checks: z.number().int().nonnegative(),
+  delivered: z.boolean(), lastCheckAt: z.iso.datetime({ offset: true }).optional(), nextCheckAt: z.iso.datetime({ offset: true }), deadlineAt: z.iso.datetime({ offset: true }),
+  createdAt: z.iso.datetime({ offset: true }), endedAt: z.iso.datetime({ offset: true }).optional() })
+/** A watcher a chat agent left: a check Harflex runs in the background that brings its chat back when it fires. */
+export type ChatWatcher = z.infer<typeof chatWatcher>
 export type PipelineSession = z.infer<typeof pipelineSession>
 export type PipelineCodeCopyPreview = z.infer<typeof pipelineCodeCopyPreview>
 export type CreateAuthoringPipelineInput = { workspaceId: string; requestId: string; discovery: string }
@@ -602,6 +608,9 @@ export interface Backend {
   listSessions(workspaceId: string): Promise<Session[]>
   /** The project's conversations whose run is still going or waiting for an approval, newest first. */
   listRunningSessions(workspaceId: string): Promise<RunningSession[]>
+  /** The project's chat watchers: those still watching or waiting to bring their chat back, and those of the last day. */
+  listChatWatchers(workspaceId: string): Promise<ChatWatcher[]>
+  stopChatWatcher(watcherId: string): Promise<ChatWatcher>
   /** Summarizes a conversation now, between its runs; returns it with its context window. */
   compactSession(sessionId: string): Promise<Session>
   /** Saves a file attached to a chat message where the conversation's tools can read it; returns its relative path. */
@@ -694,6 +703,8 @@ export const parse = {
   session: (value: unknown) => session.parse(value),
   sessionModelSelection: (value: unknown) => sessionModelSelection.parse(value),
   sessions: (value: unknown) => z.array(session).parse(value ?? []),
+  chatWatchers: (value: unknown) => z.array(chatWatcher).parse(value ?? []),
+  chatWatcher: (value: unknown) => chatWatcher.parse(value),
   runningSessions: (value: unknown) => z.array(z.object({ session, pipelineId: z.string(), role: z.enum(['', 'coder', 'evaluator', 'publisher', 'tester']) })).parse(value ?? []),
   chatProjects: (value: unknown) => z.array(chatProject).parse(value ?? []),
   id: (value: unknown) => id.parse(value),

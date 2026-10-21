@@ -46,6 +46,7 @@ func (s *Service) harflexTools(workspaceID, sessionID string) []tools.Tool {
 			Description: "Read one SDD pipeline of this project: its phases, their status and, when asked, the text of its phase documents (Discovery, SPEC, Plan…).",
 			Schema:      json.RawMessage(`{"type":"object","properties":{"pipelineId":{"type":"string","minLength":1},"includeDocuments":{"type":"boolean","default":false}},"required":["pipelineId"],"additionalProperties":false}`),
 		}, run: harflexGetPipeline, sessionID: sessionID},
+		s.watchTool(workspaceID, sessionID),
 	}
 }
 
@@ -87,6 +88,10 @@ func harflexToolFailure(err error) error {
 		return (&agentcore.ToolFailure{Code: "not_found", Message: "this pull request is not recorded for this pipeline; record it with harflex_register_pull_request first"}).WithCause(err)
 	case errors.Is(err, ErrPullRequestNotFound):
 		return (&agentcore.ToolFailure{Code: "not_found", Message: "this pull request is not recorded for this pipeline; record it with harflex_register_pull_request first"}).WithCause(err)
+	case errors.Is(err, errTooManyWatchers):
+		return (&agentcore.ToolFailure{Code: "too_many_watchers", Message: "this conversation already has 5 active watchers; wait for one to end, or ask the person to stop one in the side panel"}).WithCause(err)
+	case errors.Is(err, errWatcherNeedsFullAccess):
+		return (&agentcore.ToolFailure{Code: "needs_full_access", Message: "a watcher that runs a command checks without asking, so it needs Full access in this project; use afterMinutes to come back at a time, or ask the person to turn on Full access"}).WithCause(err)
 	case errors.Is(err, errWorkPastDiscovery):
 		return (&agentcore.ToolFailure{Code: "work_past_discovery", Message: "This conversation coordinates a work that is already past Discovery. A new piece of work starts in a new chat: tell the person to open one."}).WithCause(err)
 	case errors.Is(err, errNoLocalTest):

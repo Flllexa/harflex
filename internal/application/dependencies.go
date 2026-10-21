@@ -117,6 +117,11 @@ type Store interface {
 	LinkPipelineSession(context.Context, catalog.PipelineSession) error
 	ListPipelineSessions(context.Context, string, string) ([]catalog.PipelineSession, error)
 	ListPipelineSessionHeads(context.Context, string, string) ([]catalog.PipelineSessionHead, error)
+	SaveChatWatcher(context.Context, catalog.ChatWatcher) error
+	GetChatWatcher(context.Context, string) (catalog.ChatWatcher, error)
+	ListChatWatchers(context.Context, string, time.Time) ([]catalog.ChatWatcher, error)
+	ListPendingChatWatchers(context.Context) ([]catalog.ChatWatcher, error)
+	CountActiveChatWatchers(context.Context, string) (int, error)
 	GetPipelineIDForSession(context.Context, string) (string, error)
 	GetPipelineIDForPRSession(context.Context, string) (string, error)
 	SetPipelineCoordinator(ctx context.Context, pipelineID, sessionID string) error

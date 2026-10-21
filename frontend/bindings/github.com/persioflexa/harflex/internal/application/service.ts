@@ -419,6 +419,14 @@ export function ListChatProjects($in: $models.ListChatProjectsInput): $Cancellab
     return $Call.ByID(2123786533, $in);
 }
 
+/**
+ * ListChatWatchers lists a project's watchers: those still watching or waiting to bring their chat back, and those
+ * that ended in the last day.
+ */
+export function ListChatWatchers($in: $models.ListChatWatchersInput): $CancellablePromise<$models.ChatWatcherDTO[] | null> {
+    return $Call.ByID(1144406158, $in);
+}
+
 export function ListDelegations(parentSessionID: string): $CancellablePromise<$models.DelegationDTO[] | null> {
     return $Call.ByID(4109445552, parentSessionID);
 }
@@ -859,6 +867,13 @@ export function StartTerminal($in: $models.StartTerminalInput): $CancellableProm
 
 export function StartWorkflow($in: $models.StartWorkflowInput): $CancellablePromise<$models.WorkflowRunDTO> {
     return $Call.ByID(4216349358, $in);
+}
+
+/**
+ * StopChatWatcher ends a watcher by the person's hand: it checks no more and does not bring its chat back.
+ */
+export function StopChatWatcher(watcherID: string): $CancellablePromise<$models.ChatWatcherDTO> {
+    return $Call.ByID(2805067925, watcherID);
 }
 
 /**

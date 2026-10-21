@@ -70,6 +70,16 @@ export function project(events: AgentEvent[]): Projection {
         messages.push({ kind: 'user', id: event.id, text: text(data.content) })
         break
       case 'external.event': {
+        // A CLI compacts its own conversation when it fills up; the chat marks where, as for the API runs.
+        const raw = record(data.raw)
+        if (raw.type === 'system' && raw.subtype === 'compact_boundary') {
+          closeExternalMessages()
+          if (streaming) streaming.streaming = false
+          streaming = null
+          const meta = record(raw.compact_metadata)
+          messages.push({ kind: 'compaction', id: event.id, beforeTokens: Number(meta.pre_tokens) || 0, afterTokens: 0, summary: '' })
+          break
+        }
         if (data.type === 'assistant.message') {
           const content = text(data.text)
           const messageId = text(data.messageId)
@@ -231,11 +241,29 @@ export function runIsLive(state: Pick<SessionState, 'activeRun' | 'readOnly'>): 
 }
 
 /** What the conversation weighs now: the latest count the provider gave, or what a compaction brought it down to. */
+/** The context of a CLI turn: Claude Code reports each call of the turn, and the last one carried the whole context. */
+function cliTurnContext(event: AgentEvent | undefined): number {
+  if (!event || event.type !== 'external.event') return 0
+  const raw = record(record(event.data).raw)
+  const calls = record(raw.usage).iterations
+  if (raw.type !== 'result' || !Array.isArray(calls) || calls.length === 0) return 0
+  const last = record(calls[calls.length - 1])
+  return ['input_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens', 'output_tokens'].reduce((total, key) => total + (Number(last[key]) || 0), 0)
+}
+
 export function contextInUse(events: AgentEvent[]): number {
   for (let index = events.length - 1; index >= 0; index--) {
     const data = record(events[index].data)
     if (events[index].type === 'context.compacted') return Number(data.afterTokens) || 0
-    if (events[index].type === 'usage.recorded' && Number(data.inputTokens) > 0) return (Number(data.inputTokens) || 0) + (Number(data.outputTokens) || 0)
+    if (events[index].type === 'usage.recorded' && Number(data.inputTokens) > 0) {
+      // A CLI turn sums every call in inputTokens; its context is what the last call carried.
+      if (Number(data.contextTokens) > 0) return Number(data.contextTokens)
+      for (let before = index - 1; before >= 0 && before >= index - 3; before--) {
+        const context = cliTurnContext(events[before])
+        if (context > 0) return context
+      }
+      return (Number(data.inputTokens) || 0) + (Number(data.outputTokens) || 0)
+    }
   }
   return 0
 }

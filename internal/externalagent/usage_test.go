@@ -15,6 +15,8 @@ func TestRunUsageReadsTurnTotalsOnly(t *testing.T) {
 		ok   bool
 	}{
 		{"claude result counts cache", `{"type":"result","subtype":"success","usage":{"input_tokens":10,"output_tokens":4,"cache_creation_input_tokens":100,"cache_read_input_tokens":1000}}`, agentcore.Usage{InputTokens: 1110, OutputTokens: 4}, true},
+		// The turn total sums every call; the context in use is what the last call carried.
+		{"claude result with its calls", `{"type":"result","usage":{"input_tokens":8,"output_tokens":2294,"cache_creation_input_tokens":3391,"cache_read_input_tokens":880100,"iterations":[{"input_tokens":5,"output_tokens":10,"cache_read_input_tokens":200000,"cache_creation_input_tokens":2000},{"input_tokens":2,"output_tokens":481,"cache_read_input_tokens":221266,"cache_creation_input_tokens":1002}]}}`, agentcore.Usage{InputTokens: 883499, OutputTokens: 2294, ContextTokens: 222751}, true},
 		{"codex turn", `{"type":"turn.completed","usage":{"input_tokens":12,"cached_input_tokens":6,"output_tokens":8}}`, agentcore.Usage{InputTokens: 12, OutputTokens: 8}, true},
 		{"claude per message usage is ignored", `{"type":"assistant","message":{"usage":{"input_tokens":3,"output_tokens":2}}}`, agentcore.Usage{}, false},
 		{"missing output", `{"type":"result","usage":{"input_tokens":3}}`, agentcore.Usage{}, false},

@@ -197,3 +197,20 @@ describe('context compaction', () => {
     expect(contextInUse([usage, { id: 'c', streamId: 's', sequence: 2, type: 'context.compacted', data: { afterTokens: 27000 }, createdAt: at }])).toBe(27000)
   })
 })
+
+describe('context in use of a CLI chat', () => {
+  const at = (sequence: number, type: string, data: unknown) => ({ id: `e${sequence}`, streamId: 's1', sequence, type, data, createdAt: '2026-10-21T10:00:00Z' })
+  // A Claude Code turn makes many calls: the turn's input sums them all, the context is what the last one carried.
+  it('reads the context of the last call, not the turn total', () => {
+    expect(contextInUse([at(1, 'usage.recorded', { inputTokens: 883499, outputTokens: 2294, contextTokens: 222751 })])).toBe(222751)
+  })
+  it('reads it from the CLI record of chats journaled before the context was recorded', () => {
+    const result = { type: 'external.raw', raw: { type: 'result', usage: { input_tokens: 8, output_tokens: 2294, iterations: [{ input_tokens: 5, output_tokens: 1, cache_read_input_tokens: 1000 }, { input_tokens: 2, output_tokens: 481, cache_read_input_tokens: 221266, cache_creation_input_tokens: 1002 }] } } }
+    expect(contextInUse([at(1, 'external.event', result), at(2, 'usage.recorded', { inputTokens: 883499, outputTokens: 2294 })])).toBe(222751)
+  })
+  it('shows when Claude Code compacted its own conversation', () => {
+    const boundary = { type: 'external.raw', raw: { type: 'system', subtype: 'compact_boundary', compact_metadata: { trigger: 'auto', pre_tokens: 640000 } } }
+    const { messages } = project([at(1, 'message.user', { content: 'continua' }), at(2, 'external.event', boundary)])
+    expect(messages[1]).toMatchObject({ kind: 'compaction', beforeTokens: 640000 })
+  })
+})

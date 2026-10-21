@@ -85,6 +85,9 @@ type Props = {
   state: Pick<SessionState, 'messages' | 'pendingApprovals' | 'activeRun' | 'outcome' | 'calling' | 'error' | 'draft' | 'connectionState' | 'readOnly'> & { events?: SessionState['events']; hasOlder?: boolean }
   /** Reads the turns before the first one on screen (a long conversation opens on its last turns). */
   onLoadOlder?: () => Promise<void>
+  /** Watchers this chat's agent left running; the badge opens them in the side panel. */
+  watching?: number
+  onShowWatchers?: () => void
   onDraft: (text: string) => void
   onPrompt: (text: string) => void
   onResolve: (approvalId: string, allow: boolean) => void
@@ -131,7 +134,7 @@ type Props = {
 }
 
 
-export function ConversationPane({ sessionKey, state, loadingHistory, permissionControl, contextUse, onCompact, queued = [], onQueue, onUnqueue, attachments = [], onAttach, onRemoveAttachment, attachError, viewMode, cancelPending = false, delegationParentId, delegation, queuedTask, onPrepareDelegatedTask, onOpenParent, onDraft, onPrompt, onResolve, onCancel, onRetry, onNewWork, onContinue, onPipelineChoice, onLoadOlder, commands, backendLabel, modelBar, switchModel, projectControl }: Props) {
+export function ConversationPane({ sessionKey, state, loadingHistory, permissionControl, contextUse, onCompact, queued = [], onQueue, onUnqueue, attachments = [], onAttach, onRemoveAttachment, attachError, viewMode, cancelPending = false, delegationParentId, delegation, queuedTask, onPrepareDelegatedTask, onOpenParent, onDraft, onPrompt, onResolve, onCancel, onRetry, onNewWork, onContinue, onPipelineChoice, onLoadOlder, watching = 0, onShowWatchers, commands, backendLabel, modelBar, switchModel, projectControl }: Props) {
   const t = useT()
   const draft = state.draft
   const running = state.activeRun === 'running'
@@ -224,8 +227,8 @@ export function ConversationPane({ sessionKey, state, loadingHistory, permission
           const asking = !!reply?.ask && !!onPipelineChoice && index === messages.length - 1 && !(item.kind === 'assistant' && item.streaming) && !state.readOnly
           return <li key={item.id} className={`turn turn-${item.kind}`}>
             {item.kind === 'tool' ? <ToolCallCard call={item.call} /> : item.kind === 'compaction' ? <div className="compaction-divider" role="note">
-              <span className="compaction-divider-line">{t('Contexto compactado · {before} → {after} tokens', { before: item.beforeTokens.toLocaleString(localeTag()), after: item.afterTokens.toLocaleString(localeTag()) })}</span>
-              <details><summary>{t('Ver resumo')}</summary><pre>{item.summary}</pre></details>
+              <span className="compaction-divider-line">{item.afterTokens > 0 ? t('Contexto compactado · {before} → {after} tokens', { before: item.beforeTokens.toLocaleString(localeTag()), after: item.afterTokens.toLocaleString(localeTag()) }) : t('O agente compactou a conversa · {before} tokens antes', { before: item.beforeTokens.toLocaleString(localeTag()) })}</span>
+              {item.summary && <details><summary>{t('Ver resumo')}</summary><pre>{item.summary}</pre></details>}
             </div> : <>
               <span className="turn-author">{item.kind === 'user' ? t('Você') : t('Agente')}</span>
               {item.kind === 'assistant'
@@ -245,6 +248,7 @@ export function ConversationPane({ sessionKey, state, loadingHistory, permission
         {liveWork && <span className="run-status-motion" aria-hidden="true"><i /><i /><i /></span>}
       </div>}
     </div>
+    {watching > 0 && <button type="button" className="chat-watchers-badge" onClick={onShowWatchers}><span className="activity-state-indicator" aria-hidden="true" />{watching === 1 ? t('1 vigia ativa') : t('{count} vigias ativas', { count: watching })}</button>}
     {state.connectionState === 'degraded' && <button type="button" className="touch-target secondary-button" disabled={state.calling} onClick={onRetry}>{t('Atualizar eventos')}</button>}
     <ChatComposer id="composer-input" label={t('Mensagem')} value={draft} onChange={onDraft} onSend={() => submit()} canSend={canSend} inputRef={composer}
       disabled={state.readOnly && !continuing || continuing && state.calling || loadingHistory}

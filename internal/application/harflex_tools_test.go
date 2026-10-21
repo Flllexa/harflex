@@ -106,7 +106,7 @@ func TestPlatformMCPServesTheSessionsProjectTools(t *testing.T) {
 	for _, item := range listed.Result.Tools {
 		names = append(names, item.Name)
 	}
-	if strings.Join(names, ",") != "harflex_create_pipeline,harflex_list_pipelines,harflex_get_pipeline" {
+	if strings.Join(names, ",") != "harflex_create_pipeline,harflex_list_pipelines,harflex_get_pipeline,harflex_watch" {
 		t.Fatalf("tools: %v", names)
 	}
 }

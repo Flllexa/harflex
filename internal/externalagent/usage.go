@@ -17,6 +17,13 @@ func RunUsage(raw json.RawMessage) (agentcore.Usage, bool) {
 			Output        *int64 `json:"output_tokens"`
 			CacheCreation int64  `json:"cache_creation_input_tokens"`
 			CacheRead     int64  `json:"cache_read_input_tokens"`
+			// Iterations are Claude Code's calls of the turn, the last one holding the whole context.
+			Iterations []struct {
+				Input         int64 `json:"input_tokens"`
+				Output        int64 `json:"output_tokens"`
+				CacheCreation int64 `json:"cache_creation_input_tokens"`
+				CacheRead     int64 `json:"cache_read_input_tokens"`
+			} `json:"iterations"`
 		} `json:"usage"`
 	}
 	if json.Unmarshal(raw, &record) != nil || record.Usage == nil || record.Usage.Input == nil || record.Usage.Output == nil {
@@ -35,5 +42,12 @@ func RunUsage(raw json.RawMessage) (agentcore.Usage, bool) {
 	if input < 0 || *record.Usage.Output < 0 {
 		return agentcore.Usage{}, false
 	}
-	return agentcore.Usage{InputTokens: input, OutputTokens: *record.Usage.Output}, true
+	usage := agentcore.Usage{InputTokens: input, OutputTokens: *record.Usage.Output}
+	if calls := record.Usage.Iterations; record.Type == "result" && len(calls) > 0 {
+		last := calls[len(calls)-1]
+		if context := last.Input + last.CacheCreation + last.CacheRead + last.Output; context > 0 {
+			usage.ContextTokens = context
+		}
+	}
+	return usage, true
 }

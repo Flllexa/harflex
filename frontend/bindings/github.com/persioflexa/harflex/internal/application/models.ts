@@ -497,6 +497,29 @@ export interface ChatProjectDTO {
 }
 
 /**
+ * ChatWatcherDTO is a watcher as the side panel shows it.
+ */
+export interface ChatWatcherDTO {
+    "id": string;
+    "sessionId": string;
+    "chatTitle": string;
+    "title": string;
+    "command": string;
+    "intervalSeconds": number;
+    "status": string;
+    "reason": string;
+    "lastOutput": string;
+    "lastExitCode": number;
+    "checks": number;
+    "delivered": boolean;
+    "lastCheckAt"?: string | null;
+    "nextCheckAt": string;
+    "deadlineAt": string;
+    "createdAt": string;
+    "endedAt"?: string | null;
+}
+
+/**
  * CoderStatusDTO says where the Coder of a work stands, for the Code bench.
  */
 export interface CoderStatusDTO {
@@ -828,6 +851,10 @@ export interface ListChatProjectsInput {
      * PerProject is how many recent conversations each project brings; zero means the default.
      */
     "perProject": number;
+}
+
+export interface ListChatWatchersInput {
+    "workspaceId": string;
 }
 
 /**

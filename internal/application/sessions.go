@@ -1024,6 +1024,7 @@ func (s *Service) ListEvents(in ListEventsInput) ([]EventDTO, error) {
 	}
 	return result, nil
 }
+
 // ListEventsBefore reads a conversation from its end, a few turns at a time, so a long chat opens on its last turns
 // and loads older ones as the person scrolls up. Each page starts at a person's message.
 func (s *Service) ListEventsBefore(in ListEventsBeforeInput) ([]EventDTO, error) {

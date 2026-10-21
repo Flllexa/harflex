@@ -204,3 +204,17 @@ it('loads older turns from the top of a conversation that has more, and never fo
   expect(screen.queryByRole('button', { name: 'Ver mensagens anteriores' })).not.toBeInTheDocument()
   expect(whole).not.toHaveBeenCalled()
 })
+
+// The agent left watchers: the chat says so, and the side panel shows them.
+it('says how many watchers this chat has running and opens them in the side panel', async () => {
+  const user = userEvent.setup()
+  const value = props()
+  const onShowWatchers = vi.fn()
+  const messages: ConversationItem[] = [{ kind: 'assistant', id: 'a1', text: 'Deixei uma vigia; volto quando terminar.', streaming: false }]
+  render(<ConversationPane {...value} state={{ ...value.state, messages }} watching={2} onShowWatchers={onShowWatchers} />)
+  await user.click(screen.getByRole('button', { name: '2 vigias ativas' }))
+  expect(onShowWatchers).toHaveBeenCalled()
+  cleanup()
+  render(<ConversationPane {...value} state={{ ...value.state, messages }} watching={0} onShowWatchers={onShowWatchers} />)
+  expect(screen.queryByRole('button', { name: /vigia/ })).not.toBeInTheDocument()
+})

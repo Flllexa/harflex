@@ -5,6 +5,7 @@ import { WorkArea, shortPath } from '../../components/WorkArea'
 import { IonPicker } from '../../components/IonPicker'
 import { preferredFirst } from '../../lib/backendOrder'
 import { cliCatalogProblem, codedError, errorCode, errorMessage, type Agent, type AgentEvent, type Backend, type BackendOption, type Delegation, type ModelCatalogResult, type Pipeline, type PipelineRole, type PipelineStage, type PipelineRoleModelSelection, type RunResult, type RunningSession, type Session, type Workspace, type WorkspaceSummary, type WorktreeList, type WorktreeSavePlan } from '../../lib/backend'
+import { useChatWatchers } from '../../components/activity/useChatWatchers'
 import { checkReplayOutcome, loadOlderTurns, replayErrorMessage, replaySession, type ReplayExpectation } from '../../lib/replay'
 import { useRecentWork, workProgress } from '../pipelines/RecentWork'
 import { useVerifyCoderWhenDone } from './useVerifyCoderWhenDone'
@@ -86,6 +87,8 @@ type WorkbenchProps = {
   onRequestMode?: (mode: AppMode) => void
   /** Opens the side panel on Activity, to follow a run that just started. */
   onShowActivity?: () => void
+  /** Opens the side panel on the chat watchers, at the person's request (on any width). */
+  onShowWatchers?: () => void
   /** Opens the Terminal panel, on a service's tab when one is given (a local test's). */
   onShowTerminal?: (terminalId?: string) => void
   onNavigate?: (destination: Destination) => void
@@ -128,7 +131,7 @@ function userMessageContent(event: AgentEvent): string | undefined {
   return typeof content === 'string' ? content : undefined
 }
 
-export function Workbench({ backend, restoreProject = true, selected, newWorkRequest = 0, newChatPrompt = '', viewMode = 'professional', historyOpenRequest, projectOpenRequest, stageViewRequest, onOpenPipeline, onRequestMode, onShowActivity, onShowTerminal, onNavigate = () => undefined, onActivity = () => undefined, onPipeline = () => undefined, onShownStage, onContextChange }: WorkbenchProps) {
+export function Workbench({ backend, restoreProject = true, selected, newWorkRequest = 0, newChatPrompt = '', viewMode = 'professional', historyOpenRequest, projectOpenRequest, stageViewRequest, onOpenPipeline, onRequestMode, onShowActivity, onShowWatchers, onShowTerminal, onNavigate = () => undefined, onActivity = () => undefined, onPipeline = () => undefined, onShownStage, onContextChange }: WorkbenchProps) {
   const t = useT()
   const [store] = useState(createSessionStore)
   const [loadingHistory, setLoadingHistory] = useState(false)
@@ -157,6 +160,8 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
   const [savedProjects, setSavedProjects] = useState<WorkspaceSummary[]>([])
   const [lastBackendId, setLastBackendId] = useState(rememberedBackend)
   const state = useStore(store)
+  // The watchers this project's chat agents left; the chat shows how many are its own.
+  const chatWatchers = useChatWatchers(backend, state.workspace?.id)
   useEffect(() => { setInitialDiscoverySeed(current => current?.workspaceId === state.workspace?.id ? current : undefined) },[state.workspace?.id])
   const selectedRef = useRef(selected)
   selectedRef.current = selected
@@ -647,7 +652,7 @@ export function Workbench({ backend, restoreProject = true, selected, newWorkReq
     : state.session
     ? <ConversationPane sessionKey={state.session?.id} commands={commands} state={state} loadingHistory={loadingHistory} cancelPending={cancelPending} permissionControl={state.workspace ? <PermissionPicker backend={backend} workspace={state.workspace} onWorkspaceUpdated={workspace => store.setState({ workspace })} /> : undefined} viewMode={viewMode} backendLabel={backendLabel(state)} modelBar={modelBar} projectControl={viewMode === 'casual' && state.workspace ? <ChatProjectPicker backend={backend} workspace={state.workspace} disabled={loadingHistory} onPick={path => void switchProject(path)} /> : undefined} switchModel={chatChoice.changed ? { usable: chatChoice.usable, onReset: chatChoice.reset } : undefined} delegationParentId={delegation?.parentSessionId} delegation={delegation} queuedTask={queuedTask} onPrepareDelegatedTask={() => { if (!store.getState().draft && queuedTask) store.getState().setDraft(queuedTask) }} onOpenParent={() => { if (delegation) void openDelegatedSession(delegation.parentSessionId).catch(failure => store.setState({ error: errorMessage(failure) })) }} onDraft={updateDraft} onPrompt={text => { const attached = attachments.block(); attachments.clear(); void sendPrompt(text, attached) }}
       contextUse={state.session?.contextWindow ? { used: contextInUse(state.events), window: state.session.contextWindow } : undefined} onCompact={() => void compactNow()}
-      queued={focusedQueue} onQueue={queueMessage} onUnqueue={unqueueMessage} attachments={attachments.items} onAttach={files => void attachments.attach(files)} onRemoveAttachment={attachments.remove} attachError={attachments.error} onResolve={(approvalId, allow) => { void run(id => backend.approve(id, approvalId, allow)) }} onCancel={cancel} onRetry={retryReplay} onContinue={text => continueInNewChat(text, chatChoice.changed ? chatChoice.choice : undefined)} onPipelineChoice={choosePipeline} onLoadOlder={() => loadOlderTurns(backend, store).catch(failure => store.setState({ error: errorMessage(failure) }))} onNewWork={recoveryPrompt => {
+      queued={focusedQueue} onQueue={queueMessage} onUnqueue={unqueueMessage} attachments={attachments.items} onAttach={files => void attachments.attach(files)} onRemoveAttachment={attachments.remove} attachError={attachments.error} onResolve={(approvalId, allow) => { void run(id => backend.approve(id, approvalId, allow)) }} onCancel={cancel} onRetry={retryReplay} onContinue={text => continueInNewChat(text, chatChoice.changed ? chatChoice.choice : undefined)} onPipelineChoice={choosePipeline} onLoadOlder={() => loadOlderTurns(backend, store).catch(failure => store.setState({ error: errorMessage(failure) }))} watching={chatWatchers.items.filter(item => item.sessionId === state.session?.id && (item.status === 'watching' || !item.delivered)).length} onShowWatchers={onShowWatchers} onNewWork={recoveryPrompt => {
       if (!state.workspace || state.readOnly && loadingHistory) return
       historyOpenOrder.current++
       setInitialChatPrompt(userChat ? recoveryPrompt ?? '' : '')

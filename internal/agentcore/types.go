@@ -54,6 +54,9 @@ type ChatRequest struct {
 type Usage struct {
 	InputTokens  int64 `json:"inputTokens"`
 	OutputTokens int64 `json:"outputTokens"`
+	// ContextTokens is how much context the conversation holds after the turn, when a CLI reports a turn that made
+	// several calls: InputTokens then sums every call, while the context is what the last one carried.
+	ContextTokens int64 `json:"contextTokens,omitempty"`
 }
 
 type StreamEvent struct {
