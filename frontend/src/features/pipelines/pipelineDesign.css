@@ -152,7 +152,7 @@
 .design-questions-ring { --done: 0%; flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(var(--mint) var(--done), var(--border) 0); transition: background .4s ease; }
 .design-questions-ring span { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--forge); font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
 .design-questions-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
-.design-questions-tab { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--ion-void); color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer; }
+.design-questions-tab { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--ion-void); color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer; }
 .design-questions-tab[aria-selected='true'] { border-color: var(--mint); color: var(--mint); background: var(--soft-mint); }
 .design-questions-tab span { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; display: inline-grid; place-items: center; font-size: 11px; }
 .design-questions-tab span.is-open { background: var(--amber); color: var(--ion-void); }
@@ -181,7 +181,7 @@
 .design-question-rationale { margin: 0; font-size: 12px; line-height: 1.5; }
 .design-choices { display: flex; flex-wrap: wrap; gap: 6px; }
 .design-choice-wrap { display: contents; }
-.design-choice { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 4px 12px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--paper); font-size: 12px; font-weight: 600; cursor: pointer; text-align: left; transition: background .15s ease, border-color .15s ease, color .15s ease; }
+.design-choice { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 4px 12px; border: 1px solid var(--border); border-radius: var(--radius-control); background: transparent; color: var(--paper); font-size: 12px; font-weight: 600; cursor: pointer; text-align: left; transition: background .15s ease, border-color .15s ease, color .15s ease; }
 .design-choice:hover:not(:disabled) { border-color: var(--mint); }
 .design-choice[aria-pressed='true'] { background: var(--mint); border-color: var(--mint); color: var(--ion-void); }
 .design-choice:disabled { opacity: .55; cursor: not-allowed; }
@@ -200,7 +200,7 @@
 .design-table th, .design-table td { padding: 8px 10px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); }
 .design-table th { background: var(--forge); font-weight: 650; white-space: nowrap; }
 .design-table tr:last-child td { border-bottom: 0; }
-.design-questions-keep-all { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px dashed var(--mint); border-radius: 999px; background: transparent; color: var(--mint); font-size: 12px; font-weight: 600; cursor: pointer; }
+.design-questions-keep-all { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px dashed var(--mint); border-radius: var(--radius-control); background: transparent; color: var(--mint); font-size: 12px; font-weight: 600; cursor: pointer; }
 .design-questions-keep-all:hover:not(:disabled) { background: var(--soft-mint); }
 .design-questions-keep-all:disabled { opacity: .55; cursor: not-allowed; }
 .design-questions-keep-all svg { width: 14px; height: 14px; }

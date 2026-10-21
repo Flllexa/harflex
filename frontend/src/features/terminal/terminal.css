@@ -12,7 +12,7 @@
 .terminal-host .xterm-viewport { background: transparent !important; }
 .side-panel { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .side-panel-tabs { display: flex; gap: 4px; padding: var(--space-2) var(--space-3) 0; }
-.side-panel-tab { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 var(--space-3); border: 1px solid transparent; border-radius: 999px; background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; }
+.side-panel-tab { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 var(--space-3); border: 1px solid transparent; border-radius: var(--radius-control); background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; }
 .side-panel-tab svg { width: 14px; height: 14px; }
 .side-panel-tab:hover { color: var(--paper); }
 .side-panel-tab[aria-selected="true"] { color: var(--paper); border-color: var(--border); background: var(--ion-void); }
@@ -32,7 +32,7 @@
 
 /* One tab per service a local test started, next to the person's own shell. */
 .terminal-tabs { display: flex; gap: 4px; padding: 0 var(--space-3) var(--space-2); overflow-x: auto; }
-.terminal-tab { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: inherit; font-size: 12px; white-space: nowrap; cursor: pointer; }
+.terminal-tab { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius-control); background: transparent; color: inherit; font-size: 12px; white-space: nowrap; cursor: pointer; }
 .terminal-tab[aria-selected="true"] { border-color: var(--accent, #7ef0b0); background: color-mix(in srgb, var(--accent, #7ef0b0) 12%, transparent); }
 .terminal-tab-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted, #7a8a90); }
 .terminal-tab-dot.is-running { background: var(--success, #7ef0b0); }

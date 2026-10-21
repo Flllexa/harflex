@@ -31,11 +31,11 @@
 .composer-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .composer-card-permission { min-width: 0; }
 .composer-card-permission .ion-picker-compact { min-width: 0; }
-.composer-card-permission .ion-picker-compact .ion-picker-trigger { height: 32px; border-radius: 999px; font-size: 12px; }
-.composer-card-send { margin-left: auto; min-height: 36px; border-radius: 999px; padding-inline: var(--space-4); }
+.composer-card-permission .ion-picker-compact .ion-picker-trigger { height: 32px; border-radius: var(--radius-control); font-size: 12px; }
+.composer-card-send { margin-left: auto; min-height: 36px; border-radius: var(--radius-control); padding-inline: var(--space-4); }
 
 /* Provider · model · effort */
-.chat-model-trigger { display: inline-flex; align-items: center; gap: var(--space-2); max-width: min(100%, 460px); height: 32px; padding: 0 var(--space-2) 0 var(--space-3); border: 1px solid var(--border); border-radius: 999px;
+.chat-model-trigger { display: inline-flex; align-items: center; gap: var(--space-2); max-width: min(100%, 460px); height: 32px; padding: 0 var(--space-2) 0 var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-control);
   background: var(--ion-void); color: var(--paper); font-size: 12px; cursor: pointer; transition: border-color .15s ease; }
 .chat-model-trigger:hover { border-color: color-mix(in srgb, var(--cyan) 50%, var(--border)); }
 .chat-model-trigger[data-focus-visible] { outline: 2px solid var(--mint); outline-offset: 2px; }
@@ -69,7 +69,7 @@
 .chat-model-fixed-note { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: var(--space-1) var(--space-2); font-size: 13px; }
 .chat-model-fixed-note .muted { font-size: 12px; }
 .chat-model-segments { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 var(--space-2); }
-.chat-model-segment { padding: 5px 11px; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; cursor: pointer; outline: none; }
+.chat-model-segment { padding: 5px 11px; border: 1px solid var(--border); border-radius: var(--radius-control); font-size: 12px; cursor: pointer; outline: none; }
 .chat-model-segment[data-hovered] { border-color: color-mix(in srgb, var(--cyan) 50%, var(--border)); }
 .chat-model-segment[data-focus-visible] { outline: 2px solid var(--mint); outline-offset: 1px; }
 .chat-model-segment[data-selected] { background: var(--mint); border-color: var(--mint); color: var(--ion-void); font-weight: 650; }

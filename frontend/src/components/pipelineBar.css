@@ -39,7 +39,7 @@
   .pipeline .pipeline-line .pipeline-group-label { display: block; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
   .pipeline .pipeline-line .pipeline-stage-button { flex-direction: row; width: auto; min-width: 44px; padding: 8px; }
   .pipeline .pipeline-line li:not([aria-current]) .pipeline-stage-button > span { display: none; }
-  .pipeline .pipeline-line li[aria-current] .pipeline-stage-button { width: auto; padding: 4px 12px 4px 6px; border-color: var(--mint); background: var(--soft-mint); border-radius: 999px; }
+  .pipeline .pipeline-line li[aria-current] .pipeline-stage-button { width: auto; padding: 4px 12px 4px 6px; border-color: var(--mint); background: var(--soft-mint); border-radius: var(--radius-control); }
   .pipeline .pipeline-line li[aria-current] .pipeline-stage-button > span { align-items: flex-start; }
   .pipeline .pipeline-line li[aria-current] .pipeline-stage-button > span > span { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
   .pipeline .pipeline-line .pipeline-group-start:not(:first-child) { margin-left: var(--space-3); }

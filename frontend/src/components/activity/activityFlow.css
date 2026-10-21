@@ -16,7 +16,7 @@
 .activity-flow-bg { --xy-background-pattern-color: color-mix(in srgb, var(--muted) 22%, transparent); }
 .activity-flow-controls { border-radius: 10px; overflow: hidden; border: 1px solid var(--border); box-shadow: 0 6px 18px var(--shadow); }
 .activity-flow-controls button { width: 28px; height: 28px; min-height: 0; padding: 0; border-bottom-color: var(--border); }
-.activity-flow-follow { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border: 1px solid color-mix(in srgb, var(--cyan) 50%, var(--border)); border-radius: 999px;
+.activity-flow-follow { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border: 1px solid color-mix(in srgb, var(--cyan) 50%, var(--border)); border-radius: var(--radius-control);
   background: var(--forge); color: var(--paper); font-size: 12px; cursor: pointer; box-shadow: 0 6px 18px var(--shadow); }
 .activity-flow-follow svg { width: 14px; height: 14px; color: var(--cyan); }
 

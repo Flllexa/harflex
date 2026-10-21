@@ -1252,7 +1252,7 @@ body, .workspace { background: var(--canvas); }
 .work-area.is-conversation .work-panel { margin: 0; border: 0; border-radius: 0; background: transparent; }
 .work-area.is-conversation .workspace-tabs { border-bottom: 1px solid var(--hairline); }
 .conversation-actions { border-bottom: 0; padding: var(--space-3) var(--space-6) 0; }
-.conversation-actions .secondary-button { min-height: 32px; padding-inline: var(--space-3); border-color: transparent; background: var(--surface-2); color: var(--muted); font-size: 12px; border-radius: 999px; }
+.conversation-actions .secondary-button { min-height: 32px; padding-inline: var(--space-3); border-color: transparent; background: var(--surface-2); color: var(--muted); font-size: 12px; border-radius: var(--radius-control); }
 .conversation-actions .secondary-button:hover:not(:disabled) { color: var(--paper); background: color-mix(in srgb, var(--surface-2) 70%, var(--paper) 8%); }
 
 /* The conversation: a centered reading column with air around every turn. */
