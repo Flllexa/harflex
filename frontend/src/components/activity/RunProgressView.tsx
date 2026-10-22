@@ -70,7 +70,7 @@ export function RunProgress({ progress, title, showFinished = false, metricsOnly
   // Code and QA list their actions already; there the details keep only the files.
   const recent = metricsOnly ? [] : progress.recent
   const hasDetails = recent.length > 0 || progress.filesRead.length > 0 || progress.filesChanged.length > 0
-  const state = progress.live ? progress.phase === 'approval' ? 'is-approval' : 'is-live' : progress.phase === 'completed' ? 'is-done' : 'is-failed'
+  const state = progress.live ? progress.phase === 'approval' ? 'is-approval' : 'is-live' : progress.phase === 'completed' ? 'is-done' : progress.phase === 'waiting' ? 'is-waiting' : 'is-failed'
   return <section className={`run-progress ${state}${metricsOnly ? ' is-metrics' : ''} ${className}`.trim()} aria-label={t('Progresso da IA')}>
     {!metricsOnly && <div className="run-progress-head">
       <span className="run-progress-indicator" aria-hidden="true" />

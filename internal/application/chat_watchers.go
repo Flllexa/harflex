@@ -25,7 +25,7 @@ import (
 
 const (
 	harflexWatchTool       = "harflex_watch"
-	maxActiveWatchers      = 5
+	maxActiveWatchers      = 10
 	minWatchInterval       = 30
 	maxWatchInterval       = 3600
 	defaultWatchInterval   = 60
@@ -135,8 +135,8 @@ func (s *Service) watchTool(workspaceID, sessionID string) tools.Tool {
 var harflexWatchSpec = agentcore.ToolSpec{Name: harflexWatchTool, Description: "Leave a watcher that brings this conversation back later. Your background processes (a terminal job, a monitor, a sleep loop) die when your reply ends, " +
 	"so never promise to report back on your own: call this instead and end your reply. Either give a shell command that Harflex runs in the project folder " +
 	"every everySeconds (default 60, at least 30) until it exits 0 — write it so it exits 0 when what you wait for is done, e.g. `curl -s URL | grep -q ready` — " +
-	"or give afterMinutes to come back at a time. When the command passes, the time comes or timeoutMinutes (default 60, at most 1440) runs out, Harflex " +
-	"writes in this conversation with the last output and you continue from there. A command watcher needs Full access in the project; a timer does not. At most 5 active per conversation.",
+	"or give afterMinutes to come back at a time. Leave one watcher per thing you wait for: they run side by side and each brings the conversation back on its own, naming the ones still out. When the command passes, the time comes or timeoutMinutes (default 60, at most 1440) runs out, Harflex " +
+	"writes in this conversation with the last output and you continue from there. A command watcher needs Full access in the project; a timer does not. At most 10 active per conversation.",
 	Schema: json.RawMessage(`{"type":"object","properties":{"title":{"type":"string","minLength":1,"maxLength":120,"description":"What you are waiting for, as the person reads it in the side panel."},` +
 		`"command":{"type":"string","minLength":1,"maxLength":4000},"everySeconds":{"type":"integer","minimum":30,"maximum":3600},` +
 		`"timeoutMinutes":{"type":"integer","minimum":1,"maximum":1440},"afterMinutes":{"type":"integer","minimum":1,"maximum":1440}},"required":["title"],"additionalProperties":false}`)}
@@ -353,9 +353,18 @@ func (s *Service) deliverChatWatcher(w catalog.ChatWatcher) {
 		s.watchRelease(state.delivering, w.ID)
 		return
 	}
+	// The others still out are named, so the agent reports this one and waits for them before calling the work done.
+	var stillOut []string
+	if others, err := s.store.ListChatWatchers(s.ctx, w.WorkspaceID, time.Now().UTC().Add(-watchHistory)); err == nil {
+		for _, other := range others {
+			if other.SessionID == w.SessionID && other.ID != w.ID && (other.Status == "watching" || !other.Delivered) {
+				stillOut = append(stillOut, other.Title)
+			}
+		}
+	}
 	go func() {
 		defer s.watchRelease(state.delivering, w.ID)
-		if _, err := s.Prompt(PromptInput{SessionID: w.SessionID, Text: watcherMessage(w)}); err != nil && s.ctx.Err() == nil && (errors.Is(err, agentcore.ErrSessionBusy) || errors.Is(err, externalagent.ErrSessionBusy)) {
+		if _, err := s.Prompt(PromptInput{SessionID: w.SessionID, Text: watcherMessage(w, stillOut)}); err != nil && s.ctx.Err() == nil && (errors.Is(err, agentcore.ErrSessionBusy) || errors.Is(err, externalagent.ErrSessionBusy)) {
 			// Someone started a run first: the message waits for the next tick.
 			w.Delivered = false
 			_ = s.store.SaveChatWatcher(s.ctx, w)
@@ -363,7 +372,7 @@ func (s *Service) deliverChatWatcher(w catalog.ChatWatcher) {
 	}()
 }
 
-func watcherMessage(w catalog.ChatWatcher) string {
+func watcherMessage(w catalog.ChatWatcher, stillOut []string) string {
 	var text strings.Builder
 	switch w.Reason {
 	case "condition_met":
@@ -382,6 +391,10 @@ func watcherMessage(w catalog.ChatWatcher) string {
 	}
 	if w.LastOutput != "" {
 		fmt.Fprintf(&text, "\nÚltima saída:\n```\n%s\n```", w.LastOutput)
+	}
+	if len(stillOut) > 0 {
+		fmt.Fprintf(&text, "\nAinda aguardando: «%s». Conte à pessoa o resultado desta e encerre sua resposta; as outras voltam a esta conversa quando terminarem.", strings.Join(stillOut, "», «"))
+		return text.String()
 	}
 	text.WriteString("\nContinue de onde parou e conte à pessoa o resultado.")
 	return text.String()

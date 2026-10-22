@@ -65,9 +65,9 @@ function activeActionText(messages: SessionState['messages']): string {
 }
 
 // A run the session holds as ended stays ended on screen, even when the journal lost its terminal event (a restart).
-function finished(progress: RunProgress, outcome: SessionState['outcome'], status: string): RunProgress {
-  const phase = outcome?.status === 'failed' || outcome?.status === 'cancelled' || outcome?.status === 'interrupted' ? outcome.status : 'completed'
-  return { ...progress, live: false, phase, step: status, endedAt: progress.endedAt ?? progress.lastAt }
+function finished(progress: RunProgress, outcome: SessionState['outcome'], status: string, waiting = ''): RunProgress {
+  const phase = outcome?.status === 'failed' || outcome?.status === 'cancelled' || outcome?.status === 'interrupted' ? outcome.status : waiting ? 'waiting' : 'completed'
+  return { ...progress, live: false, phase, step: phase === 'waiting' ? waiting : status, endedAt: progress.endedAt ?? progress.lastAt }
 }
 
 /** What the person wrote. A message that opened a continued conversation has the old one's context after it, shown folded. */
@@ -241,7 +241,7 @@ export function ConversationPane({ sessionKey, state, loadingHistory, permission
       </ol></CommandRunnerContext.Provider>}
     {state.pendingApprovals.length > 0 && <div className="approval-stack">{state.pendingApprovals.map(approval => <ApprovalCard key={approval.approvalId} approval={approval} disabled={state.readOnly || state.calling || state.connectionState === 'degraded'} onResolve={allow => onResolve(approval.approvalId, allow)} />)}</div>}
     <div className="composer-meta">
-      {!emptyCasual && showProgress && <RunProgressView progress={liveWork ? progress : finished(progress, state.outcome, displayedStatus)} showFinished />}
+      {!emptyCasual && showProgress && <RunProgressView progress={liveWork ? progress : finished(progress, state.outcome, displayedStatus, watching > 0 ? (watching === 1 ? t('Aguardando 1 vigia') : t('Aguardando {count} vigias', { count: watching })) : '')} showFinished />}
       {!emptyCasual && !showProgress && <div className={`run-status${liveWork ? ' run-status-active' : ''}`} role="status" aria-live="polite" aria-atomic="true">
         {liveWork && <span className="run-status-indicator" aria-hidden="true" />}
         <span>{displayedStatus}</span>

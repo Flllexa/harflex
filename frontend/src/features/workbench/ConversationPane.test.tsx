@@ -218,3 +218,17 @@ it('says how many watchers this chat has running and opens them in the side pane
   render(<ConversationPane {...value} state={{ ...value.state, messages }} watching={0} onShowWatchers={onShowWatchers} />)
   expect(screen.queryByRole('button', { name: /vigia/ })).not.toBeInTheDocument()
 })
+
+// While the watchers it left are out, the reply's box waits for them instead of saying it is done.
+it('shows the finished reply as waiting while its watchers are out', () => {
+  const value = props()
+  const at = (sequence: number, type: string, data: unknown = {}) => ({ id: `e${sequence}`, streamId: 's1', sequence, type, data, createdAt: `2026-10-22T10:00:0${sequence}Z` })
+  const events = [at(1, 'message.user', { content: 'Acompanhe a ingestão' }), at(2, 'run.started'), at(3, 'message.assistant', { content: 'Deixei uma vigia.' }), at(4, 'run.completed', { reason: '' })]
+  const messages: ConversationItem[] = [{ kind: 'user', id: 'u', text: 'Acompanhe a ingestão' }, { kind: 'assistant', id: 'a', text: 'Deixei uma vigia.', streaming: false }]
+  render(<ConversationPane {...value} state={{ ...value.state, messages, events, outcome: { status: 'completed' } }} watching={2} onShowWatchers={vi.fn()} />)
+  expect(document.querySelector('.run-progress.is-waiting')).toBeInTheDocument()
+  expect(document.querySelector('.run-progress-step')).toHaveTextContent('Aguardando 2 vigias')
+  cleanup()
+  render(<ConversationPane {...value} state={{ ...value.state, messages, events, outcome: { status: 'completed' } }} watching={0} />)
+  expect(document.querySelector('.run-progress.is-done')).toBeInTheDocument()
+})

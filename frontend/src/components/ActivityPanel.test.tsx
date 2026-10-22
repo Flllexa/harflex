@@ -75,3 +75,28 @@ it('stops whatever it is following while it runs', async () => {
   render(<ActivityPanel onClose={vi.fn()} events={planned} onStop={onStop} />)
   expect(screen.queryByRole('button', { name: 'Parar' })).not.toBeInTheDocument()
 })
+
+// A reply that left watchers is not over: the flow waits for them, and says done only when every one came back.
+describe('a chat waiting on its watchers', () => {
+  const finished = [
+    event('user', 1, 'message.user', { role: 'user', content: 'Acompanhe a ingestão' }),
+    event('done', 2, 'run.completed', { reason: '' }),
+  ]
+  const watcher = (id: string, overrides: object = {}) => ({ id, sessionId: 'session-1', chatTitle: 'Graphiti', title: `vigia ${id}`, command: 'true', intervalSeconds: 60, status: 'watching' as const,
+    reason: '', lastOutput: '', lastExitCode: 1, checks: 2, delivered: false, nextCheckAt: '2026-10-22T10:00:42Z', deadlineAt: '2026-10-22T12:00:00Z', createdAt: '2026-10-22T09:50:00Z', ...overrides })
+  const now = new Date('2026-10-22T10:00:00Z')
+
+  it('waits with a countdown while a watcher of this chat runs', () => {
+    render(<ActivityPanel onClose={vi.fn()} events={finished} focusedId="session-1" watcherNow={now} onStopWatcher={vi.fn()} onOpenWatcher={vi.fn()}
+      watchers={[watcher('a'), watcher('b', { nextCheckAt: '2026-10-22T10:00:12Z' }), watcher('other', { sessionId: 'session-2' })]} />)
+    expect(document.querySelector('.flow-outcome')).toHaveTextContent('Aguardando 2 vigias · próxima em 12 s')
+    expect(document.querySelector('.flow-outcome.is-waiting')).toBeInTheDocument()
+    expect(screen.getByText('Aguardando as vigias deste chat')).toBeInTheDocument()
+  })
+
+  it('says done once every watcher came back', () => {
+    render(<ActivityPanel onClose={vi.fn()} events={finished} focusedId="session-1" watcherNow={now} onStopWatcher={vi.fn()} onOpenWatcher={vi.fn()}
+      watchers={[watcher('a', { status: 'fired', delivered: true }), watcher('other', { sessionId: 'session-2' })]} />)
+    expect(document.querySelector('.flow-outcome.is-completed')).toBeInTheDocument()
+  })
+})

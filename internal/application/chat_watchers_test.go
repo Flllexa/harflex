@@ -188,15 +188,15 @@ func TestWatcherArgumentsAndLimits(t *testing.T) {
 			t.Fatalf("%v was accepted: %v", bad, err)
 		}
 	}
-	for i := 0; i < 4; i++ {
+	for i := 0; i < 9; i++ {
 		args, _ := json.Marshal(map[string]any{"title": "mais um", "afterMinutes": 30})
 		if _, err := harflexWatch(s, workspaceID, chatID, args); err != nil {
 			t.Fatal(err)
 		}
 	}
-	args, _ := json.Marshal(map[string]any{"title": "o sexto", "afterMinutes": 30})
+	args, _ := json.Marshal(map[string]any{"title": "o décimo primeiro", "afterMinutes": 30})
 	if _, err := harflexWatch(s, workspaceID, chatID, args); !errors.Is(err, errTooManyWatchers) {
-		t.Fatalf("a sixth active watcher: %v", err)
+		t.Fatalf("an eleventh active watcher: %v", err)
 	}
 }
 
@@ -213,5 +213,24 @@ func TestACommandWatcherNeedsFullAccess(t *testing.T) {
 	args, _ = json.Marshal(map[string]any{"title": "lembrete", "afterMinutes": 10})
 	if _, err := harflexWatch(s, workspaceID, chatID, args); err != nil {
 		t.Fatalf("a timer without Full access: %v", err)
+	}
+}
+
+// Several watchers run side by side; each brings the chat back on its own, saying which are still out.
+func TestWatchersComeBackOneByOneSayingWhichAreStillOut(t *testing.T) {
+	s, provider, workspaceID, chatID := watcherChat(t, map[string]any{"title": "manuais", "afterMinutes": 2})
+	args, _ := json.Marshal(map[string]any{"title": "outros documentos", "afterMinutes": 30})
+	if _, err := harflexWatch(s, workspaceID, chatID, args); err != nil {
+		t.Fatal(err)
+	}
+	s.tickChatWatchers(time.Now().UTC().Add(3 * time.Minute))
+	returned := waitReturned(t, provider, 1)
+	if !strings.Contains(returned[0], "manuais") || !strings.Contains(returned[0], "Ainda aguardando") || !strings.Contains(returned[0], "outros documentos") {
+		t.Fatalf("the first watcher back: %q", returned[0])
+	}
+	s.tickChatWatchers(time.Now().UTC().Add(31 * time.Minute))
+	returned = waitReturned(t, provider, 2)
+	if !strings.Contains(returned[1], "outros documentos") || strings.Contains(returned[1], "Ainda aguardando") {
+		t.Fatalf("the last watcher back: %q", returned[1])
 	}
 }

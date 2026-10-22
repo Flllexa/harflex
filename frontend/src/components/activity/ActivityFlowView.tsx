@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Background, BackgroundVariant, Controls, Handle, Panel, Position, ReactFlow, ReactFlowProvider, useReactFlow, type Edge, type Node, type NodeChange, type NodeProps } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Bot, Check, Circle, CircleAlert, CircleCheck, CircleSlash, FileText, Globe, LoaderCircle, LocateFixed, MessageSquare, PencilLine, Search, ShieldQuestion, SquareTerminal, Wrench } from 'lucide-react'
+import { Bot, Check, Circle, CircleAlert, CircleCheck, CircleSlash, FileText, Globe, Hourglass, LoaderCircle, LocateFixed, MessageSquare, PencilLine, Search, ShieldQuestion, SquareTerminal, Wrench } from 'lucide-react'
 import { beforePlan, type Action, type ActionKind, type ActivityFlow } from './activityFlow'
 import './activityFlow.css'
 import { useTheme } from '../../state/theme'
@@ -68,7 +68,7 @@ const MoreNode = memo(({ data }: NodeProps<Node<MoreData>>) => {
 })
 
 const OutcomeNode = memo(({ data }: NodeProps<Node<OutcomeData>>) => {
-  const Icon = data.status === 'completed' ? CircleCheck : data.status === 'failed' ? CircleAlert : CircleSlash
+  const Icon = data.status === 'completed' ? CircleCheck : data.status === 'failed' ? CircleAlert : data.status === 'waiting' ? Hourglass : CircleSlash
   return <div className={`flow-node flow-outcome is-${data.status}`}>
     <Handle type="target" position={Position.Top} style={spine} isConnectable={false} />
     <Icon aria-hidden="true" />{data.label}

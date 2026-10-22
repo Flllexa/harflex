@@ -89,7 +89,7 @@ func harflexToolFailure(err error) error {
 	case errors.Is(err, ErrPullRequestNotFound):
 		return (&agentcore.ToolFailure{Code: "not_found", Message: "this pull request is not recorded for this pipeline; record it with harflex_register_pull_request first"}).WithCause(err)
 	case errors.Is(err, errTooManyWatchers):
-		return (&agentcore.ToolFailure{Code: "too_many_watchers", Message: "this conversation already has 5 active watchers; wait for one to end, or ask the person to stop one in the side panel"}).WithCause(err)
+		return (&agentcore.ToolFailure{Code: "too_many_watchers", Message: "this conversation already has 10 active watchers; wait for one to end, or ask the person to stop one in the side panel"}).WithCause(err)
 	case errors.Is(err, errWatcherNeedsFullAccess):
 		return (&agentcore.ToolFailure{Code: "needs_full_access", Message: "a watcher that runs a command checks without asking, so it needs Full access in this project; use afterMinutes to come back at a time, or ask the person to turn on Full access"}).WithCause(err)
 	case errors.Is(err, errWorkPastDiscovery):

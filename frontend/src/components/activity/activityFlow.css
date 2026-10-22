@@ -80,6 +80,9 @@
 .flow-outcome.is-completed { border-color: var(--mint); color: var(--mint); background: color-mix(in srgb, var(--mint) 9%, var(--forge)); }
 .flow-outcome.is-failed { border-color: var(--danger); color: var(--danger); background: color-mix(in srgb, var(--danger) 9%, var(--forge)); }
 .flow-outcome.is-cancelled, .flow-outcome.is-interrupted { color: var(--muted); }
+.flow-outcome.is-waiting { border-color: color-mix(in srgb, var(--cyan) 60%, var(--border)); color: var(--cyan); background: color-mix(in srgb, var(--cyan) 8%, var(--forge)); font-variant-numeric: tabular-nums; }
+.flow-outcome.is-waiting svg { animation: activity-pulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .flow-outcome.is-waiting svg { animation: none; } }
 
 @media (prefers-reduced-motion: reduce) {
   .flow-node, .flow-step.is-live { animation: none; }

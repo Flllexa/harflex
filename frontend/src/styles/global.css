@@ -1186,6 +1186,8 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: var
 .run-progress.is-approval .run-progress-indicator { background: var(--amber); }
 .run-progress.is-failed .run-progress-indicator { background: var(--danger); }
 .run-progress.is-done .run-progress-indicator { background: var(--muted); }
+.run-progress.is-waiting .run-progress-indicator { background: var(--cyan); animation: activity-pulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .run-progress.is-waiting .run-progress-indicator { animation: none; } }
 .run-progress-step { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .run-progress-step strong { font-weight: 600; }
 .run-progress-title { color: var(--muted); }

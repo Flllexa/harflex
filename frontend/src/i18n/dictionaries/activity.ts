@@ -1,5 +1,10 @@
 // AI run progress: the step, the elapsed time, the actions, the files and the tokens of a run.
 export const en: Record<string, string> = {
+  'Aguardando 1 vigia': 'Waiting for 1 watcher',
+  'Aguardando {count} vigias': 'Waiting for {count} watchers',
+  'voltando ao chat': 'coming back to the chat',
+  'próxima em {time}': 'next in {time}',
+  'Aguardando as vigias deste chat': 'Waiting for this chat\'s watchers',
   'Vigias · 1 ativa': 'Watchers · 1 active',
   'Vigias · {count} ativas': 'Watchers · {count} active',
   'Volta ao chat em {time}': 'Back in the chat in {time}',
@@ -56,6 +61,11 @@ export const en: Record<string, string> = {
 }
 
 export const es: Record<string, string> = {
+  'Aguardando 1 vigia': 'Esperando 1 vigía',
+  'Aguardando {count} vigias': 'Esperando {count} vigías',
+  'voltando ao chat': 'volviendo al chat',
+  'próxima em {time}': 'próxima en {time}',
+  'Aguardando as vigias deste chat': 'Esperando las vigías de este chat',
   'Vigias · 1 ativa': 'Vigías · 1 activa',
   'Vigias · {count} ativas': 'Vigías · {count} activas',
   'Volta ao chat em {time}': 'Vuelve al chat en {time}',

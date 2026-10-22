@@ -8,7 +8,8 @@ export type ActionKind = 'read' | 'write' | 'search' | 'shell' | 'web' | 'tool' 
 export type PlanStep = { text: string; status: StepStatus }
 /** paths are the files the action read or changed, in full, for the progress summary. */
 export type Action = { id: string; kind: ActionKind; label: string; detail?: string; paths?: string[]; status: ActionStatus; note?: string; step: number }
-export type Outcome = { status: 'completed' | 'failed' | 'cancelled' | 'interrupted'; label: string }
+/** waiting: the reply ended, but watchers it left are still out; the work is done when they come back. */
+export type Outcome = { status: 'completed' | 'failed' | 'cancelled' | 'interrupted' | 'waiting'; label: string }
 
 /** What the agent is doing for the latest request: the plan it published, the actions under each step and how it ended. */
 export type ActivityFlow = {

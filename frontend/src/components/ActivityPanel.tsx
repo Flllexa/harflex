@@ -28,7 +28,16 @@ export function ActivityPanel({ onClose, events = [], busy = false, running = []
   const journal = useMemo(() => events.filter(item => item.sequence > 0), [events])
   // The flow's labels are written in the language on screen, so a change of language builds it again.
   const language = currentLocale()
-  const flow = useMemo(() => buildActivityFlow(journal), [journal, language])
+  const built = useMemo(() => buildActivityFlow(journal), [journal, language])
+  // A reply that left watchers is done only when they come back: until then the flow waits, with the next check.
+  const waitingOn = watchers.filter(item => item.sessionId === focusedId && (item.status === 'watching' || !item.delivered))
+  const nextCheck = waitingOn.filter(item => item.status === 'watching').reduce<number | undefined>((soonest, item) => {
+    const left = Math.max(0, Math.round((new Date(item.nextCheckAt).getTime() - watcherNow.getTime()) / 1000))
+    return soonest === undefined ? left : Math.min(soonest, left)
+  }, undefined)
+  const waitingLabel = waitingOn.length === 0 ? '' : (waitingOn.length === 1 ? t('Aguardando 1 vigia') : t('Aguardando {count} vigias', { count: waitingOn.length })) +
+    (nextCheck === undefined ? ' · ' + t('voltando ao chat') : ' · ' + t('próxima em {time}', { time: nextCheck < 120 ? t('{count} s', { count: nextCheck }) : t('{count} min', { count: Math.round(nextCheck / 60) }) }))
+  const flow = useMemo(() => waitingLabel && !busy && built.outcome?.status === 'completed' ? { ...built, outcome: { status: 'waiting' as const, label: waitingLabel } } : built, [built, waitingLabel, busy])
   const awaitingApproval = busy && waitingForApproval(journal)
   const live = busy && !awaitingApproval
   const done = flow.plan.filter(step => step.status === 'completed').length
@@ -45,7 +54,7 @@ export function ActivityPanel({ onClose, events = [], busy = false, running = []
       </div></div>
     <p className={`muted activity-description${live ? ' activity-description-live' : ''}`} aria-live="polite" aria-atomic="true">
       {live && <span className="activity-state-indicator" aria-hidden="true" />}
-      {awaitingApproval ? t('Aguardando aprovação') : live ? t('Em execução · ações atualizadas ao vivo') : empty ? t('Nenhuma atividade nesta sessão') : t('Último pedido desta sessão')}
+      {awaitingApproval ? t('Aguardando aprovação') : live ? t('Em execução · ações atualizadas ao vivo') : flow.outcome?.status === 'waiting' ? t('Aguardando as vigias deste chat') : empty ? t('Nenhuma atividade nesta sessão') : t('Último pedido desta sessão')}
     </p>
     <p className="visually-hidden" aria-live="polite" aria-atomic="true">{announcement}</p>
     {onStopWatcher && onOpenWatcher && <WatcherList items={watchers} now={watcherNow} onStop={onStopWatcher} onOpen={onOpenWatcher} />}
