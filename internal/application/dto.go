@@ -401,6 +401,8 @@ type SaveWorkflowInput struct {
 type StartWorkflowInput struct {
 	WorkflowID string `json:"workflowId"`
 	BackendID  string `json:"backendId"`
+	// WorkspaceID is the project the run works in; workflows are global, so it defaults to the one it was set up in.
+	WorkspaceID string `json:"workspaceId,omitempty"`
 }
 type ResumeWorkflowRunInput struct {
 	RunID             string `json:"runId"`
@@ -446,24 +448,26 @@ type SaveScheduleInput struct {
 	Revision     int64  `json:"revision"`
 }
 type ScheduleDTO struct {
-	ID           string     `json:"id"`
-	WorkspaceID  string     `json:"workspaceId"`
-	Name         string     `json:"name"`
-	TargetKind   string     `json:"targetKind"`
-	WorkflowID   string     `json:"workflowId"`
-	BackendID    string     `json:"backendId"`
-	Prompt       string     `json:"prompt"`
-	Frequency    string     `json:"frequency"`
-	Timezone     string     `json:"timezone"`
-	LocalDate    string     `json:"localDate"`
-	LocalTime    string     `json:"localTime"`
-	MissedPolicy string     `json:"missedPolicy"`
-	Enabled      bool       `json:"enabled"`
-	AllowCLI     bool       `json:"allowCli"`
-	NextRunAt    *time.Time `json:"nextRunAt"`
-	Revision     int64      `json:"revision"`
-	CreatedAt    time.Time  `json:"createdAt"`
-	UpdatedAt    time.Time  `json:"updatedAt"`
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspaceId"`
+	// WorkspacePath names the project the schedule runs in: schedules are listed from every project.
+	WorkspacePath string     `json:"workspacePath,omitempty"`
+	Name          string     `json:"name"`
+	TargetKind    string     `json:"targetKind"`
+	WorkflowID    string     `json:"workflowId"`
+	BackendID     string     `json:"backendId"`
+	Prompt        string     `json:"prompt"`
+	Frequency     string     `json:"frequency"`
+	Timezone      string     `json:"timezone"`
+	LocalDate     string     `json:"localDate"`
+	LocalTime     string     `json:"localTime"`
+	MissedPolicy  string     `json:"missedPolicy"`
+	Enabled       bool       `json:"enabled"`
+	AllowCLI      bool       `json:"allowCli"`
+	NextRunAt     *time.Time `json:"nextRunAt"`
+	Revision      int64      `json:"revision"`
+	CreatedAt     time.Time  `json:"createdAt"`
+	UpdatedAt     time.Time  `json:"updatedAt"`
 }
 type SetSchedulePausedInput struct {
 	ScheduleID string `json:"scheduleId"`

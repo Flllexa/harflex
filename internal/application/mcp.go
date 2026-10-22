@@ -145,9 +145,8 @@ func (s *Service) SaveMCPServer(in SaveMCPServerInput) (MCPServerDTO, error) {
 		if err != nil {
 			return MCPServerDTO{}, safe("get MCP server", err)
 		}
-		if previous.WorkspaceID != in.WorkspaceID {
-			return MCPServerDTO{}, ErrMCPServerNotFound
-		}
+		// MCP servers are global: any project edits them, and they keep the project they were set up in.
+		item.WorkspaceID = previous.WorkspaceID
 		item.CreatedAt = previous.CreatedAt
 		item.CredentialProvider, item.CredentialAccount = previous.CredentialProvider, previous.CredentialAccount
 		if in.AuthScheme == "" {

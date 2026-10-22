@@ -56,8 +56,9 @@ func (s *Service) SaveSchedule(in SaveScheduleInput) (ScheduleDTO, error) {
 		if in.Prompt != "" || in.WorkflowID == "" {
 			return ScheduleDTO{}, ErrInvalidInput
 		}
-		workflow, err := s.store.GetWorkflow(s.ctx, in.WorkflowID)
-		if errors.Is(err, sql.ErrNoRows) || (err == nil && workflow.WorkspaceID != in.WorkspaceID) {
+		_, err := s.store.GetWorkflow(s.ctx, in.WorkflowID)
+		// Workflows are global; the schedule runs this one in its own project.
+		if errors.Is(err, sql.ErrNoRows) {
 			return ScheduleDTO{}, ErrWorkflowNotFound
 		}
 		if err != nil {
@@ -135,9 +136,18 @@ func (s *Service) ListSchedules(workspaceID string) ([]ScheduleDTO, error) {
 	if err != nil {
 		return nil, safe("list schedules", err)
 	}
+	// Schedules are listed from every project; each says the project it runs in.
+	paths := map[string]string{}
 	result := make([]ScheduleDTO, 0, len(items))
 	for _, item := range items {
-		result = append(result, scheduleDTO(item))
+		dto := scheduleDTO(item)
+		if _, known := paths[item.WorkspaceID]; !known {
+			if workspace, err := s.store.GetWorkspace(s.ctx, item.WorkspaceID); err == nil {
+				paths[item.WorkspaceID] = workspace.Path
+			}
+		}
+		dto.WorkspacePath = paths[item.WorkspaceID]
+		result = append(result, dto)
 	}
 	return result, nil
 }
@@ -630,7 +640,7 @@ func (s *Service) executeScheduleJob(ctx context.Context, job *catalog.ScheduleJ
 		return "cancelled", "cancelled"
 	}
 	if job.TargetKind == "workflow" {
-		run, err := s.StartWorkflow(StartWorkflowInput{WorkflowID: job.WorkflowID, BackendID: job.BackendID})
+		run, err := s.StartWorkflow(StartWorkflowInput{WorkflowID: job.WorkflowID, BackendID: job.BackendID, WorkspaceID: job.WorkspaceID})
 		if err != nil {
 			return "failed", ErrorCode(err)
 		}

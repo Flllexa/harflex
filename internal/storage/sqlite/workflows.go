@@ -60,8 +60,9 @@ func (s *Store) GetWorkflow(ctx context.Context, id string) (catalog.Workflow, e
 	return item, nil
 }
 
-func (s *Store) ListWorkflows(ctx context.Context, workspaceID string) ([]catalog.Workflow, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT "+workflowColumns+" FROM workflows WHERE workspace_id=? ORDER BY updated_at DESC,id", workspaceID)
+// ListWorkflows lists every project's items: they are global (a schedule still runs in its own project).
+func (s *Store) ListWorkflows(ctx context.Context, _ string) ([]catalog.Workflow, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT "+workflowColumns+" FROM workflows ORDER BY updated_at DESC,id")
 	if err != nil {
 		return nil, fmt.Errorf("list workflows: %w", err)
 	}

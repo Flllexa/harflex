@@ -66,9 +66,8 @@ func (s *Service) SaveWorkflow(in SaveWorkflowInput) (WorkflowDTO, error) {
 		if err != nil {
 			return WorkflowDTO{}, safe("get workflow", err)
 		}
-		if previous.WorkspaceID != in.WorkspaceID {
-			return WorkflowDTO{}, ErrWorkflowNotFound
-		}
+		// Workflows are global: any project edits them, and they keep the project they were set up in.
+		item.WorkspaceID = previous.WorkspaceID
 		item.CreatedAt, item.Revision = previous.CreatedAt, previous.Revision+1
 	}
 	if err := s.store.SaveWorkflow(s.ctx, item); err != nil {
@@ -155,8 +154,16 @@ func (s *Service) StartWorkflow(in StartWorkflowInput) (WorkflowRunDTO, error) {
 	if !available {
 		return WorkflowRunDTO{}, ErrBackendNotFound
 	}
+	// A workflow is global: it runs in the project it is started from, or where it was set up.
+	workspaceID := workflow.WorkspaceID
+	if in.WorkspaceID != "" {
+		if _, err := s.store.GetWorkspace(s.ctx, in.WorkspaceID); err != nil {
+			return WorkflowRunDTO{}, ErrWorkspaceNotFound
+		}
+		workspaceID = in.WorkspaceID
+	}
 	now := time.Now().UTC()
-	item := catalog.WorkflowRun{ID: id.New(), WorkflowID: workflow.ID, WorkspaceID: workflow.WorkspaceID, BackendID: in.BackendID, Steps: append([]catalog.WorkflowStep(nil), workflow.Steps...), Status: "ready", CreatedAt: now, UpdatedAt: now}
+	item := catalog.WorkflowRun{ID: id.New(), WorkflowID: workflow.ID, WorkspaceID: workspaceID, BackendID: in.BackendID, Steps: append([]catalog.WorkflowStep(nil), workflow.Steps...), Status: "ready", CreatedAt: now, UpdatedAt: now}
 	if err := s.store.CreateWorkflowRun(s.ctx, item); err != nil {
 		return WorkflowRunDTO{}, safe("create workflow run", err)
 	}

@@ -71,7 +71,7 @@ export function WorkflowsPage({ backend, backends, workspaceId, reviewedSessions
     if (isPending(`start:${item.id}`) || !selectedBackend) return
     busyWith(`start:${item.id}`, true); setError(undefined); setNotice(undefined)
     try {
-      const run = await backend.startWorkflow({ workflowId: item.id, backendId: selectedBackend })
+      const run = await backend.startWorkflow({ workflowId: item.id, backendId: selectedBackend, workspaceId })
       setRuns(current => [run, ...current]); setNotice(t('Execução criada. Inicie a primeira etapa quando estiver pronto.'))
     } catch (failure) { setError(errorMessage(failure)) }
     finally { busyWith(`start:${item.id}`, false) }
@@ -123,7 +123,7 @@ export function WorkflowsPage({ backend, backends, workspaceId, reviewedSessions
   }
 
   return <div className="workflows-page">
-    <div className="destination-heading"><div><h2>{t('Workflows locais')}</h2><p className="muted">{t('Sequências de tarefas executadas por agentes, com histórico por etapa.')}</p></div>{workspaceId && <div className="pipeline-actions">{form.collapsible && <CreateToggle open={form.open} onToggle={() => { if (form.open) reset(); form.setOpen(!form.open) }} label={t('Novo workflow')} />}<button type="button" className="touch-target secondary-button" onClick={() => void refresh()} disabled={state === 'loading'}><RefreshCw aria-hidden="true" />{t('Atualizar')}</button></div>}</div>
+    <div className="destination-heading"><div><h2>{t('Workflows locais')}</h2><p className="muted">{t('Sequências de tarefas executadas por agentes, com histórico por etapa. Valem para todos os projetos e rodam no projeto aberto.')}</p></div>{workspaceId && <div className="pipeline-actions">{form.collapsible && <CreateToggle open={form.open} onToggle={() => { if (form.open) reset(); form.setOpen(!form.open) }} label={t('Novo workflow')} />}<button type="button" className="touch-target secondary-button" onClick={() => void refresh()} disabled={state === 'loading'}><RefreshCw aria-hidden="true" />{t('Atualizar')}</button></div>}</div>
     {!workspaceId ? <div className="catalog-empty"><FolderOpen aria-hidden="true" /><strong>{t('Abra um projeto para criar workflows')}</strong><span className="muted">{t('As definições e execuções ficam vinculadas à pasta local.')}</span><button type="button" className="touch-target primary-button" onClick={onProjects}>{t('Abrir projetos')}</button></div> : <>
       {form.open && <form className="workflow-editor" onSubmit={save}><div className="destination-heading"><div><h3>{editingId ? t('Editar workflow') : t('Novo workflow')}</h3><p className="muted">{t('Cada execução guarda uma cópia dos passos usados.')}</p></div><GitFork aria-hidden="true" /></div><label className="field">{t('Nome do workflow')}<input value={name} onChange={event => setName(event.target.value)} maxLength={200} required /></label>
         <div className="workflow-step-editor"><div className="destination-heading"><h3>{t('Etapas')}</h3><button type="button" className="touch-target secondary-button" onClick={() => setSteps(current => [...current, blank()])} disabled={steps.length >= 20}><Plus aria-hidden="true" />{t('Adicionar etapa')}</button></div>

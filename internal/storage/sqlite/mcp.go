@@ -105,8 +105,9 @@ func (s *Store) GetMCPServer(ctx context.Context, id string) (catalog.MCPServer,
 	return item, nil
 }
 
-func (s *Store) ListMCPServers(ctx context.Context, workspaceID string) ([]catalog.MCPServer, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT "+mcpColumns+" FROM mcp_servers WHERE workspace_id=? ORDER BY updated_at DESC,id", workspaceID)
+// ListMCPServers lists every project's items: they are global (a schedule still runs in its own project).
+func (s *Store) ListMCPServers(ctx context.Context, _ string) ([]catalog.MCPServer, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT "+mcpColumns+" FROM mcp_servers ORDER BY updated_at DESC,id")
 	if err != nil {
 		return nil, fmt.Errorf("list MCP servers: %w", err)
 	}

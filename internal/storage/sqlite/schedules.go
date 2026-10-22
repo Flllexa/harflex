@@ -80,8 +80,9 @@ func (s *Store) GetSchedule(ctx context.Context, scheduleID string) (catalog.Sch
 	return item, nil
 }
 
-func (s *Store) ListSchedules(ctx context.Context, workspaceID string) ([]catalog.Schedule, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT "+scheduleColumns+" FROM schedules WHERE workspace_id=? ORDER BY updated_at DESC,id", workspaceID)
+// ListSchedules lists every project's items: they are global (a schedule still runs in its own project).
+func (s *Store) ListSchedules(ctx context.Context, _ string) ([]catalog.Schedule, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT "+scheduleColumns+" FROM schedules ORDER BY updated_at DESC,id")
 	if err != nil {
 		return nil, fmt.Errorf("list schedules: %w", err)
 	}

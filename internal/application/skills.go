@@ -137,9 +137,8 @@ func (s *Service) SaveSkill(in SaveSkillInput) (SkillDTO, error) {
 		if err != nil {
 			return SkillDTO{}, safe("get skill", err)
 		}
-		if previous.WorkspaceID != in.WorkspaceID {
-			return SkillDTO{}, ErrSkillNotFound
-		}
+		// Skills are global: any project edits them, and they keep the project they were set up in.
+		item.WorkspaceID = previous.WorkspaceID
 		item.CreatedAt, item.Revision = previous.CreatedAt, previous.Revision+1
 	}
 	if err := s.store.UpsertSkill(s.ctx, item); err != nil {
